@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -65,6 +65,49 @@ const patternNames = [
 const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => {
   const [pin, setPin] = useState(DEFAULT_AUTH_PIN);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [pulseDuration, setPulseDuration] = useState(1000);
+  const [pulseTargetBrightness, setPulseTargetBrightness] = useState(255);
+  const [isPulsing, setIsPulsing] = useState(false);
+
+  useEffect(() => {
+    if (!device.controller) return;
+
+    // Color notifications
+    device.controller.onHighColorChange = (color) => {
+      onUpdateDevice({ highColor: color, savedHighColor: color });
+    };
+    device.controller.onLowColorChange = (color) => {
+      onUpdateDevice({ lowColor: color, savedLowColor: color });
+    };
+
+    // Series coefficients notifications
+    device.controller.onLeftSeriesCoefficientsChange = (coeffs) => {
+      onUpdateDevice({ leftSeriesCoefficients: coeffs, savedLeftSeriesCoefficients: coeffs });
+    };
+    device.controller.onRightSeriesCoefficientsChange = (coeffs) => {
+      onUpdateDevice({ rightSeriesCoefficients: coeffs, savedRightSeriesCoefficients: coeffs });
+    };
+
+    // Pattern change
+    device.controller.onPatternChange = (patternIndex) => {
+      onUpdateDevice({ patternIndex });
+    };
+
+    // Brightness change
+    device.controller.onBrightnessChange = (brightness) => {
+      onUpdateDevice({ brightness });
+    };
+
+    // Clean up on unmount
+    return () => {
+      device.controller.onHighColorChange = undefined;
+      device.controller.onLowColorChange = undefined;
+      device.controller.onLeftSeriesCoefficientsChange = undefined;
+      device.controller.onRightSeriesCoefficientsChange = undefined;
+      device.controller.onPatternChange = undefined;
+      device.controller.onBrightnessChange = undefined;
+    };
+  }, [device.controller, onUpdateDevice]);
 
   const handleConnect = async () => {
     onUpdateDevice({ isConnecting: true, error: null });
@@ -226,6 +269,22 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
     }
   };
 
+  const handlePulseBrightness = async () => {
+    if (device.isConnected && device.isAuthenticated) {
+      setIsPulsing(true);
+      try {
+        await device.controller.pulseBrightness(pulseTargetBrightness, pulseDuration);
+        // Reset pulsing state after the duration
+        setTimeout(() => {
+          setIsPulsing(false);
+        }, pulseDuration);
+      } catch (e: any) {
+        onUpdateDevice({ error: e.message || 'Failed to send pulse command' });
+        setIsPulsing(false);
+      }
+    }
+  };
+
   return (
     <Box>
       {/* Connection Status and Controls */}
@@ -355,6 +414,50 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
             </CardContent>
           </Card>
         </Box>
+
+        {/* Pulse Control */}
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Brightness Pulse
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Target Brightness"
+                type="number"
+                value={pulseTargetBrightness}
+                onChange={(e) => setPulseTargetBrightness(Number(e.target.value))}
+                disabled={!device.isConnected || !device.isAuthenticated}
+                size="small"
+                sx={{ width: 150 }}
+                inputProps={{ min: 0, max: 255, step: 1 }}
+                helperText="0-255"
+              />
+              <TextField
+                label="Duration (ms)"
+                type="number"
+                value={pulseDuration}
+                onChange={(e) => setPulseDuration(Number(e.target.value))}
+                disabled={!device.isConnected || !device.isAuthenticated}
+                size="small"
+                sx={{ width: 150 }}
+                inputProps={{ min: 100, max: 10000, step: 100 }}
+                helperText="100-10000ms"
+              />
+              <Button
+                variant="contained"
+                onClick={handlePulseBrightness}
+                disabled={!device.isConnected || !device.isAuthenticated || isPulsing}
+                color="secondary"
+              >
+                {isPulsing ? 'Pulsing...' : 'Pulse Brightness'}
+              </Button>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Pulses brightness to the target level and returns to previous level over the specified duration.
+            </Typography>
+          </CardContent>
+        </Card>
 
         {/* Color Controls */}
         <Card>

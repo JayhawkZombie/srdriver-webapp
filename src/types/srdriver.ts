@@ -8,6 +8,7 @@ export const LOW_COLOR_CHARACTERISTIC_UUID = '8cdb8d7f-d2aa-4621-a91f-ca3f547319
 export const LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID = '762ff1a5-8965-4d5c-b98e-4faf9b382267';
 export const RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID = '386e0c80-fb59-4e8b-b5d7-6eca4d68ce33';
 export const AUTH_CHARACTERISTIC_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+export const COMMAND_CHARACTERISTIC_UUID = 'c1862b70-e0ce-4b1b-9734-d7629eb8d712';
 
 // Device name
 export const DEVICE_NAME = 'SRDriver';
@@ -47,6 +48,8 @@ export interface ISRDriverController {
   getLowColor(): Promise<RGBColor>;
   getLeftSeriesCoefficients(): Promise<[number, number, number]>;
   getRightSeriesCoefficients(): Promise<[number, number, number]>;
+  sendCommand(command: string): Promise<void>;
+  pulseBrightness(targetBrightness: number, durationMs: number): Promise<void>;
   onBrightnessChange?(value: number): void;
   onPatternChange?(index: number): void;
   onHighColorChange?(color: RGBColor): void;

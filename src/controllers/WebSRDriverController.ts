@@ -9,6 +9,7 @@ import {
   LOW_COLOR_CHARACTERISTIC_UUID,
   LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
   RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
+  COMMAND_CHARACTERISTIC_UUID,
   AUTH_CHARACTERISTIC_UUID,
   DEVICE_NAME
 } from '../types/srdriver';
@@ -23,6 +24,7 @@ export class WebSRDriverController implements ISRDriverController {
   private leftSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private rightSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private authCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private authenticated: boolean = false;
 
   // Callbacks
@@ -203,6 +205,7 @@ export class WebSRDriverController implements ISRDriverController {
     this.leftSeriesCoefficientsCharacteristic = null;
     this.rightSeriesCoefficientsCharacteristic = null;
     this.authCharacteristic = null;
+    this.commandCharacteristic = null;
     console.log('Disconnected from SRDriver');
   }
 
@@ -263,6 +266,7 @@ export class WebSRDriverController implements ISRDriverController {
       this.lowColorCharacteristic = await controlService.getCharacteristic(LOW_COLOR_CHARACTERISTIC_UUID);
       this.leftSeriesCoefficientsCharacteristic = await controlService.getCharacteristic(LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
       this.rightSeriesCoefficientsCharacteristic = await controlService.getCharacteristic(RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
+      this.commandCharacteristic = await controlService.getCharacteristic(COMMAND_CHARACTERISTIC_UUID);
       console.log('Got all control characteristics');
 
       // Set up notifications for control characteristics
@@ -413,6 +417,21 @@ export class WebSRDriverController implements ISRDriverController {
     const coeffsString = decoder.decode(value);
     const coeffs = coeffsString.split(',').map(s => parseFloat(s)) as [number, number, number];
     return coeffs;
+  }
+
+  async sendCommand(command: string): Promise<void> {
+    if (!this.commandCharacteristic) {
+      throw new Error('Not connected to SRDriver');
+    }
+    
+    const encoder = new TextEncoder();
+    await this.commandCharacteristic.writeValue(encoder.encode(command));
+    console.log(`Sent command: ${command}`);
+  }
+
+  async pulseBrightness(targetBrightness: number, durationMs: number): Promise<void> {
+    const command = `pulse_brightness:${targetBrightness},${durationMs}`;
+    await this.sendCommand(command);
   }
 
   private async setupAuthNotifications(): Promise<void> {
