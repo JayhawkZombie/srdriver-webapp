@@ -45,7 +45,11 @@ function App() {
       highColor: {r: 255, g: 255, b: 255},
       lowColor: {r: 0, g: 0, b: 0},
       savedHighColor: {r: 255, g: 255, b: 255},
-      savedLowColor: {r: 0, g: 0, b: 0}
+      savedLowColor: {r: 0, g: 0, b: 0},
+      leftSeriesCoefficients: [0.0, 0.0, 0.0],
+      rightSeriesCoefficients: [0.0, 0.0, 0.0],
+      savedLeftSeriesCoefficients: [0.0, 0.0, 0.0],
+      savedRightSeriesCoefficients: [0.0, 0.0, 0.0]
     };
     
     setDevices([...devices, newDevice]);

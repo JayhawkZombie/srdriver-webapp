@@ -14,4 +14,8 @@ export interface Device {
   lowColor: {r: number, g: number, b: number};
   savedHighColor: {r: number, g: number, b: number};
   savedLowColor: {r: number, g: number, b: number};
+  leftSeriesCoefficients: [number, number, number];
+  rightSeriesCoefficients: [number, number, number];
+  savedLeftSeriesCoefficients: [number, number, number];
+  savedRightSeriesCoefficients: [number, number, number];
 } 

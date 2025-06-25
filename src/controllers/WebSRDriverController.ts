@@ -7,6 +7,8 @@ import {
   PATTERN_INDEX_CHARACTERISTIC_UUID,
   HIGH_COLOR_CHARACTERISTIC_UUID,
   LOW_COLOR_CHARACTERISTIC_UUID,
+  LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
+  RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
   AUTH_CHARACTERISTIC_UUID,
   DEVICE_NAME
 } from '../types/srdriver';
@@ -18,6 +20,8 @@ export class WebSRDriverController implements ISRDriverController {
   private patternCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private highColorCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private lowColorCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private leftSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private rightSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private authCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private authenticated: boolean = false;
 
@@ -26,6 +30,8 @@ export class WebSRDriverController implements ISRDriverController {
   onPatternChange?: (index: number) => void;
   onHighColorChange?: (color: RGBColor) => void;
   onLowColorChange?: (color: RGBColor) => void;
+  onLeftSeriesCoefficientsChange?: (coeffs: [number, number, number]) => void;
+  onRightSeriesCoefficientsChange?: (coeffs: [number, number, number]) => void;
   onAuthenticationChange?: (authenticated: boolean) => void;
 
   // Debug method to help troubleshoot device discovery
@@ -194,6 +200,8 @@ export class WebSRDriverController implements ISRDriverController {
     this.patternCharacteristic = null;
     this.highColorCharacteristic = null;
     this.lowColorCharacteristic = null;
+    this.leftSeriesCoefficientsCharacteristic = null;
+    this.rightSeriesCoefficientsCharacteristic = null;
     this.authCharacteristic = null;
     console.log('Disconnected from SRDriver');
   }
@@ -253,6 +261,8 @@ export class WebSRDriverController implements ISRDriverController {
       this.patternCharacteristic = await controlService.getCharacteristic(PATTERN_INDEX_CHARACTERISTIC_UUID);
       this.highColorCharacteristic = await controlService.getCharacteristic(HIGH_COLOR_CHARACTERISTIC_UUID);
       this.lowColorCharacteristic = await controlService.getCharacteristic(LOW_COLOR_CHARACTERISTIC_UUID);
+      this.leftSeriesCoefficientsCharacteristic = await controlService.getCharacteristic(LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
+      this.rightSeriesCoefficientsCharacteristic = await controlService.getCharacteristic(RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
       console.log('Got all control characteristics');
 
       // Set up notifications for control characteristics
@@ -359,6 +369,52 @@ export class WebSRDriverController implements ISRDriverController {
     return { r, g, b };
   }
 
+  async setLeftSeriesCoefficients(coeffs: [number, number, number]): Promise<void> {
+    if (!this.leftSeriesCoefficientsCharacteristic) {
+      throw new Error('Not connected to SRDriver');
+    }
+    
+    const encoder = new TextEncoder();
+    const coeffsString = `${coeffs[0].toFixed(2)},${coeffs[1].toFixed(2)},${coeffs[2].toFixed(2)}`;
+    await this.leftSeriesCoefficientsCharacteristic.writeValue(encoder.encode(coeffsString));
+    console.log(`Set left series coefficients to: ${coeffsString}`);
+  }
+
+  async setRightSeriesCoefficients(coeffs: [number, number, number]): Promise<void> {
+    if (!this.rightSeriesCoefficientsCharacteristic) {
+      throw new Error('Not connected to SRDriver');
+    }
+    
+    const encoder = new TextEncoder();
+    const coeffsString = `${coeffs[0].toFixed(2)},${coeffs[1].toFixed(2)},${coeffs[2].toFixed(2)}`;
+    await this.rightSeriesCoefficientsCharacteristic.writeValue(encoder.encode(coeffsString));
+    console.log(`Set right series coefficients to: ${coeffsString}`);
+  }
+
+  async getLeftSeriesCoefficients(): Promise<[number, number, number]> {
+    if (!this.leftSeriesCoefficientsCharacteristic) {
+      throw new Error('Not connected to SRDriver');
+    }
+    
+    const value = await this.leftSeriesCoefficientsCharacteristic.readValue();
+    const decoder = new TextDecoder();
+    const coeffsString = decoder.decode(value);
+    const coeffs = coeffsString.split(',').map(s => parseFloat(s)) as [number, number, number];
+    return coeffs;
+  }
+
+  async getRightSeriesCoefficients(): Promise<[number, number, number]> {
+    if (!this.rightSeriesCoefficientsCharacteristic) {
+      throw new Error('Not connected to SRDriver');
+    }
+    
+    const value = await this.rightSeriesCoefficientsCharacteristic.readValue();
+    const decoder = new TextDecoder();
+    const coeffsString = decoder.decode(value);
+    const coeffs = coeffsString.split(',').map(s => parseFloat(s)) as [number, number, number];
+    return coeffs;
+  }
+
   private async setupAuthNotifications(): Promise<void> {
     try {
       // Set up notifications for each characteristic if they support it
@@ -420,6 +476,28 @@ export class WebSRDriverController implements ISRDriverController {
           const colorString = decoder.decode(value.value!);
           const [r, g, b] = colorString.split(',').map(s => parseInt(s, 10));
           this.onLowColorChange?.({ r, g, b });
+        });
+      }
+
+      if (this.leftSeriesCoefficientsCharacteristic?.properties.notify) {
+        await this.leftSeriesCoefficientsCharacteristic.startNotifications();
+        this.leftSeriesCoefficientsCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
+          const value = event.target as BluetoothRemoteGATTCharacteristic;
+          const decoder = new TextDecoder();
+          const coeffsString = decoder.decode(value.value!);
+          const coeffs = coeffsString.split(',').map(s => parseFloat(s)) as [number, number, number];
+          this.onLeftSeriesCoefficientsChange?.(coeffs);
+        });
+      }
+
+      if (this.rightSeriesCoefficientsCharacteristic?.properties.notify) {
+        await this.rightSeriesCoefficientsCharacteristic.startNotifications();
+        this.rightSeriesCoefficientsCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
+          const value = event.target as BluetoothRemoteGATTCharacteristic;
+          const decoder = new TextDecoder();
+          const coeffsString = decoder.decode(value.value!);
+          const coeffs = coeffsString.split(',').map(s => parseFloat(s)) as [number, number, number];
+          this.onRightSeriesCoefficientsChange?.(coeffs);
         });
       }
     } catch (error) {

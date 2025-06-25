@@ -21,7 +21,8 @@ import {
   BugReport as DebugIcon,
   Palette as PaletteIcon,
   Lock as LockIcon,
-  LockOpen as LockOpenIcon
+  LockOpen as LockOpenIcon,
+  Functions as FunctionsIcon
 } from '@mui/icons-material';
 import { Device } from '../types/Device';
 import { DEFAULT_AUTH_PIN } from '../types/srdriver';
@@ -95,6 +96,16 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
       try {
         const lowColor = await device.controller.getLowColor();
         onUpdateDevice({ lowColor, savedLowColor: lowColor });
+      } catch {}
+      
+      try {
+        const leftCoeffs = await device.controller.getLeftSeriesCoefficients();
+        onUpdateDevice({ leftSeriesCoefficients: leftCoeffs, savedLeftSeriesCoefficients: leftCoeffs });
+      } catch {}
+      
+      try {
+        const rightCoeffs = await device.controller.getRightSeriesCoefficients();
+        onUpdateDevice({ rightSeriesCoefficients: rightCoeffs, savedRightSeriesCoefficients: rightCoeffs });
       } catch {}
     } catch (e: any) {
       onUpdateDevice({ error: e.message || 'Failed to connect' });
@@ -183,6 +194,34 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
         });
       } catch (e: any) {
         onUpdateDevice({ error: e.message || 'Failed to save colors' });
+      }
+    }
+  };
+
+  const handleLeftSeriesCoefficientsChange = (index: number, value: number) => {
+    const newCoeffs: [number, number, number] = [...device.leftSeriesCoefficients];
+    newCoeffs[index] = value;
+    onUpdateDevice({ leftSeriesCoefficients: newCoeffs });
+  };
+
+  const handleRightSeriesCoefficientsChange = (index: number, value: number) => {
+    const newCoeffs: [number, number, number] = [...device.rightSeriesCoefficients];
+    newCoeffs[index] = value;
+    onUpdateDevice({ rightSeriesCoefficients: newCoeffs });
+  };
+
+  const handleSaveSeriesCoefficients = async () => {
+    if (device.isConnected && device.isAuthenticated) {
+      try {
+        await device.controller.setLeftSeriesCoefficients(device.leftSeriesCoefficients);
+        await device.controller.setRightSeriesCoefficients(device.rightSeriesCoefficients);
+        
+        onUpdateDevice({
+          savedLeftSeriesCoefficients: device.leftSeriesCoefficients,
+          savedRightSeriesCoefficients: device.rightSeriesCoefficients
+        });
+      } catch (e: any) {
+        onUpdateDevice({ error: e.message || 'Failed to save series coefficients' });
       }
     }
   };
@@ -403,6 +442,153 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                 startIcon={<PaletteIcon />}
               >
                 Save Colors
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Series Coefficients Controls */}
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              <FunctionsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+              Series Coefficients
+            </Typography>
+            
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              {/* Left Series Coefficients */}
+              <Box sx={{ flex: 1, minWidth: 300 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Left Series Coefficients
+                </Typography>
+                <Box sx={{ px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Coefficient 1: {device.leftSeriesCoefficients[0].toFixed(2)}
+                  </Typography>
+                  <Slider
+                    value={device.leftSeriesCoefficients[0]}
+                    onChange={(event, value) => handleLeftSeriesCoefficientsChange(0, value as number)}
+                    min={-2}
+                    max={2}
+                    step={0.01}
+                    disabled={!device.isConnected || !device.isAuthenticated}
+                    valueLabelDisplay="auto"
+                    marks={[
+                      { value: -2, label: '-2' },
+                      { value: 0, label: '0' },
+                      { value: 2, label: '2' }
+                    ]}
+                  />
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
+                    Coefficient 2: {device.leftSeriesCoefficients[1].toFixed(2)}
+                  </Typography>
+                  <Slider
+                    value={device.leftSeriesCoefficients[1]}
+                    onChange={(event, value) => handleLeftSeriesCoefficientsChange(1, value as number)}
+                    min={-2}
+                    max={2}
+                    step={0.01}
+                    disabled={!device.isConnected || !device.isAuthenticated}
+                    valueLabelDisplay="auto"
+                    marks={[
+                      { value: -2, label: '-2' },
+                      { value: 0, label: '0' },
+                      { value: 2, label: '2' }
+                    ]}
+                  />
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
+                    Coefficient 3: {device.leftSeriesCoefficients[2].toFixed(2)}
+                  </Typography>
+                  <Slider
+                    value={device.leftSeriesCoefficients[2]}
+                    onChange={(event, value) => handleLeftSeriesCoefficientsChange(2, value as number)}
+                    min={-2}
+                    max={2}
+                    step={0.01}
+                    disabled={!device.isConnected || !device.isAuthenticated}
+                    valueLabelDisplay="auto"
+                    marks={[
+                      { value: -2, label: '-2' },
+                      { value: 0, label: '0' },
+                      { value: 2, label: '2' }
+                    ]}
+                  />
+                </Box>
+              </Box>
+
+              {/* Right Series Coefficients */}
+              <Box sx={{ flex: 1, minWidth: 300 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Right Series Coefficients
+                </Typography>
+                <Box sx={{ px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Coefficient 1: {device.rightSeriesCoefficients[0].toFixed(2)}
+                  </Typography>
+                  <Slider
+                    value={device.rightSeriesCoefficients[0]}
+                    onChange={(event, value) => handleRightSeriesCoefficientsChange(0, value as number)}
+                    min={-2}
+                    max={2}
+                    step={0.01}
+                    disabled={!device.isConnected || !device.isAuthenticated}
+                    valueLabelDisplay="auto"
+                    marks={[
+                      { value: -2, label: '-2' },
+                      { value: 0, label: '0' },
+                      { value: 2, label: '2' }
+                    ]}
+                  />
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
+                    Coefficient 2: {device.rightSeriesCoefficients[1].toFixed(2)}
+                  </Typography>
+                  <Slider
+                    value={device.rightSeriesCoefficients[1]}
+                    onChange={(event, value) => handleRightSeriesCoefficientsChange(1, value as number)}
+                    min={-2}
+                    max={2}
+                    step={0.01}
+                    disabled={!device.isConnected || !device.isAuthenticated}
+                    valueLabelDisplay="auto"
+                    marks={[
+                      { value: -2, label: '-2' },
+                      { value: 0, label: '0' },
+                      { value: 2, label: '2' }
+                    ]}
+                  />
+                  
+                  <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
+                    Coefficient 3: {device.rightSeriesCoefficients[2].toFixed(2)}
+                  </Typography>
+                  <Slider
+                    value={device.rightSeriesCoefficients[2]}
+                    onChange={(event, value) => handleRightSeriesCoefficientsChange(2, value as number)}
+                    min={-2}
+                    max={2}
+                    step={0.01}
+                    disabled={!device.isConnected || !device.isAuthenticated}
+                    valueLabelDisplay="auto"
+                    marks={[
+                      { value: -2, label: '-2' },
+                      { value: 0, label: '0' },
+                      { value: 2, label: '2' }
+                    ]}
+                  />
+                </Box>
+              </Box>
+            </Box>
+
+            <Box sx={{ mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={handleSaveSeriesCoefficients}
+                disabled={!device.isConnected || !device.isAuthenticated}
+                startIcon={<FunctionsIcon />}
+              >
+                Save Series Coefficients
               </Button>
             </Box>
           </CardContent>
