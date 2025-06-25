@@ -4,6 +4,7 @@ import {
   BLE_SERVICE_UUID, 
   CONTROL_SERVICE_UUID,
   BRIGHTNESS_CHARACTERISTIC_UUID,
+  SPEED_CHARACTERISTIC_UUID,
   PATTERN_INDEX_CHARACTERISTIC_UUID,
   HIGH_COLOR_CHARACTERISTIC_UUID,
   LOW_COLOR_CHARACTERISTIC_UUID,
@@ -18,6 +19,7 @@ export class WebSRDriverController implements ISRDriverController {
   private device: BluetoothDevice | null = null;
   private service: BluetoothRemoteGATTService | null = null;
   private brightnessCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private speedCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private patternCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private highColorCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private lowColorCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
@@ -29,6 +31,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   // Callbacks
   onBrightnessChange?: (value: number) => void;
+  onSpeedChange?: (value: number) => void;
   onPatternChange?: (index: number) => void;
   onHighColorChange?: (color: RGBColor) => void;
   onLowColorChange?: (color: RGBColor) => void;
@@ -198,6 +201,7 @@ export class WebSRDriverController implements ISRDriverController {
     }
     this.device = null;
     this.service = null;
+    this.speedCharacteristic = null;
     this.brightnessCharacteristic = null;
     this.patternCharacteristic = null;
     this.highColorCharacteristic = null;
@@ -261,6 +265,7 @@ export class WebSRDriverController implements ISRDriverController {
       // Get control characteristics
       console.log('Getting control characteristics...');
       this.brightnessCharacteristic = await controlService.getCharacteristic(BRIGHTNESS_CHARACTERISTIC_UUID);
+      this.speedCharacteristic = await controlService.getCharacteristic(SPEED_CHARACTERISTIC_UUID);
       this.patternCharacteristic = await controlService.getCharacteristic(PATTERN_INDEX_CHARACTERISTIC_UUID);
       this.highColorCharacteristic = await controlService.getCharacteristic(HIGH_COLOR_CHARACTERISTIC_UUID);
       this.lowColorCharacteristic = await controlService.getCharacteristic(LOW_COLOR_CHARACTERISTIC_UUID);
@@ -281,6 +286,17 @@ export class WebSRDriverController implements ISRDriverController {
 
   isAuthenticated(): boolean {
     return this.authenticated;
+  }
+
+  async setSpeed(value: number): Promise<void> {
+    if (!this.speedCharacteristic) {
+      throw new Error('Not connected to SRDriver');
+    }
+    
+    const encoder = new TextEncoder();
+    const valueString = Math.round(value).toString();
+    await this.speedCharacteristic.writeValue(encoder.encode(valueString));
+    console.log(`Set speed to: ${valueString}`);
   }
 
   async setBrightness(value: number): Promise<void> {
@@ -333,6 +349,17 @@ export class WebSRDriverController implements ISRDriverController {
     }
     
     const value = await this.brightnessCharacteristic.readValue();
+    const decoder = new TextDecoder();
+    const valueString = decoder.decode(value);
+    return parseInt(valueString, 10);
+  }
+
+  async getSpeed(): Promise<number> {
+    if (!this.speedCharacteristic) {
+      throw new Error('Not connected to SRDriver');
+    }
+    
+    const value = await this.speedCharacteristic.readValue();
     const decoder = new TextDecoder();
     const valueString = decoder.decode(value);
     return parseInt(valueString, 10);
@@ -462,6 +489,17 @@ export class WebSRDriverController implements ISRDriverController {
           const valueString = decoder.decode(value.value!);
           const brightness = parseInt(valueString, 10);
           this.onBrightnessChange?.(brightness);
+        });
+      }
+
+      if (this.speedCharacteristic?.properties.notify) {
+        await this.speedCharacteristic.startNotifications();
+        this.speedCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
+          const value = event.target as BluetoothRemoteGATTCharacteristic;
+          const decoder = new TextDecoder();
+          const valueString = decoder.decode(value.value!);
+          const speed = parseInt(valueString, 10);
+          this.onSpeedChange?.(speed);
         });
       }
 

@@ -42,6 +42,7 @@ function App() {
       error: null,
       brightness: 128,
       patternIndex: 0,
+      speed: 1,
       highColor: {r: 255, g: 255, b: 255},
       lowColor: {r: 0, g: 0, b: 0},
       savedHighColor: {r: 255, g: 255, b: 255},

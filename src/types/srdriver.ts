@@ -2,6 +2,7 @@
 export const BLE_SERVICE_UUID = 'a1862b70-e0ce-4b1b-9734-d7629eb8d710'; // Auth service
 export const CONTROL_SERVICE_UUID = 'b1862b70-e0ce-4b1b-9734-d7629eb8d711'; // Control service (only after auth)
 export const BRIGHTNESS_CHARACTERISTIC_UUID = '4df3a1f9-2a42-43ee-ac96-f7db09abb4f0';
+export const SPEED_CHARACTERISTIC_UUID = "a5fb3bc5-9633-4b85-8a42-7756f11ef7ac";
 export const PATTERN_INDEX_CHARACTERISTIC_UUID = 'e95785e0-220e-4cd9-8839-7e92595e47b0';
 export const HIGH_COLOR_CHARACTERISTIC_UUID = '932334a3-8544-4edc-ba49-15055eb1c877';
 export const LOW_COLOR_CHARACTERISTIC_UUID = '8cdb8d7f-d2aa-4621-a91f-ca3f54731950';

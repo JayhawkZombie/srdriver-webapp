@@ -9,6 +9,7 @@ export interface Device {
   isAuthenticated: boolean;
   error: string | null;
   brightness: number;
+  speed: number;
   patternIndex: number;
   highColor: {r: number, g: number, b: number};
   lowColor: {r: number, g: number, b: number};

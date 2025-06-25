@@ -98,6 +98,11 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
       onUpdateDevice({ brightness });
     };
 
+    // Speed change
+    device.controller.onSpeedChange = (speed) => {
+      onUpdateDevice({ speed });
+    };
+
     // Clean up on unmount
     return () => {
       device.controller.onHighColorChange = undefined;
@@ -106,6 +111,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
       device.controller.onRightSeriesCoefficientsChange = undefined;
       device.controller.onPatternChange = undefined;
       device.controller.onBrightnessChange = undefined;
+      device.controller.onSpeedChange = undefined;
     };
   }, [device.controller, onUpdateDevice]);
 
@@ -124,6 +130,11 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
       try {
         const brightness = await device.controller.getBrightness();
         onUpdateDevice({ brightness });
+      } catch {}
+
+      try {
+        const speed = await device.controller.getSpeed();
+        onUpdateDevice({ speed });
       } catch {}
       
       try {
@@ -201,6 +212,18 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
         await device.controller.setBrightness(brightness);
       } catch (e: any) {
         onUpdateDevice({ error: e.message || 'Failed to set brightness' });
+      }
+    }
+  };
+
+  const handleSpeedChange = async (event: Event, value: number | number[]) => {
+    const speed = value as number;
+    onUpdateDevice({ speed });
+    if (device.isConnected && device.isAuthenticated) {
+      try {
+        await device.controller.setSpeed(speed);
+      } catch (e: any) {
+        onUpdateDevice({ error: e.message || 'Failed to set speed' });
       }
     }
   };
@@ -387,6 +410,33 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
               </Box>
               <Typography variant="body2" color="text.secondary" align="center">
                 Current: {device.brightness}
+              </Typography>
+            </CardContent>
+          </Card>
+
+          {/* Speed Control */}
+          <Card sx={{ flex: 1, minWidth: 300 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Speed
+              </Typography>
+              <Box sx={{ px: 2 }}>
+                <Slider
+                  value={device.speed}
+                  onChange={handleSpeedChange}
+                  min={0}
+                  max={100}
+                  disabled={!device.isConnected || !device.isAuthenticated}
+                  valueLabelDisplay="auto"
+                  marks={[
+                    { value: 0, label: '0' },
+                    { value: 50, label: '50' },
+                    { value: 100, label: '100' }
+                  ]}
+                />
+              </Box>
+              <Typography variant="body2" color="text.secondary" align="center">
+                Current: {device.speed}
               </Typography>
             </CardContent>
           </Card>
