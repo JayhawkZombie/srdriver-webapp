@@ -38,7 +38,6 @@ function App() {
       controller: new WebSRDriverController(),
       isConnected: false,
       isConnecting: false,
-      isAuthenticated: false,
       error: null,
       brightness: 128,
       patternIndex: 0,

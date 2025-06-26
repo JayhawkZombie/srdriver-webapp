@@ -25,7 +25,6 @@ import {
   Functions as FunctionsIcon
 } from '@mui/icons-material';
 import { Device } from '../types/Device';
-import { DEFAULT_AUTH_PIN } from '../types/srdriver';
 
 interface DevicePanelProps {
   device: Device;
@@ -63,8 +62,6 @@ const patternNames = [
 ];
 
 const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => {
-  const [pin, setPin] = useState(DEFAULT_AUTH_PIN);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [pulseDuration, setPulseDuration] = useState(1000);
   const [pulseTargetBrightness, setPulseTargetBrightness] = useState(255);
   const [isPulsing, setIsPulsing] = useState(false);
@@ -120,43 +117,31 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
     try {
       await device.controller.connect();
       onUpdateDevice({ isConnected: true });
-      
-      // Set up authentication change callback
-      device.controller.onAuthenticationChange = (authenticated: boolean) => {
-        onUpdateDevice({ isAuthenticated: authenticated });
-      };
-      
       // Read current values from device
       try {
         const brightness = await device.controller.getBrightness();
         onUpdateDevice({ brightness });
       } catch {}
-
       try {
         const speed = await device.controller.getSpeed();
         onUpdateDevice({ speed });
       } catch {}
-      
       try {
         const patternIndex = await device.controller.getPattern();
         onUpdateDevice({ patternIndex });
       } catch {}
-      
       try {
         const highColor = await device.controller.getHighColor();
         onUpdateDevice({ highColor, savedHighColor: highColor });
       } catch {}
-      
       try {
         const lowColor = await device.controller.getLowColor();
         onUpdateDevice({ lowColor, savedLowColor: lowColor });
       } catch {}
-      
       try {
         const leftCoeffs = await device.controller.getLeftSeriesCoefficients();
         onUpdateDevice({ leftSeriesCoefficients: leftCoeffs, savedLeftSeriesCoefficients: leftCoeffs });
       } catch {}
-      
       try {
         const rightCoeffs = await device.controller.getRightSeriesCoefficients();
         onUpdateDevice({ rightSeriesCoefficients: rightCoeffs, savedRightSeriesCoefficients: rightCoeffs });
@@ -172,29 +157,11 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
     onUpdateDevice({ isConnecting: true, error: null });
     try {
       await device.controller.disconnect();
-      onUpdateDevice({ isConnected: false, isAuthenticated: false });
+      onUpdateDevice({ isConnected: false });
     } catch (e: any) {
       onUpdateDevice({ error: e.message || 'Failed to disconnect' });
     } finally {
       onUpdateDevice({ isConnecting: false });
-    }
-  };
-
-  const handleAuthenticate = async () => {
-    if (!device.isConnected) return;
-    
-    setIsAuthenticating(true);
-    // Wait a bit
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    try {
-      const success = await device.controller.authenticate(pin);
-      if (!success) {
-        onUpdateDevice({ error: 'Authentication failed - wrong PIN' });
-      }
-    } catch (e: any) {
-      onUpdateDevice({ error: e.message || 'Authentication failed' });
-    } finally {
-      setIsAuthenticating(false);
     }
   };
 
@@ -209,7 +176,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
   const handleBrightnessChange = async (event: Event, value: number | number[]) => {
     const brightness = value as number;
     onUpdateDevice({ brightness });
-    if (device.isConnected && device.isAuthenticated) {
+    if (device.isConnected) {
       try {
         await device.controller.setBrightness(brightness);
       } catch (e: any) {
@@ -221,7 +188,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
   const handleSpeedChange = async (event: Event, value: number | number[]) => {
     const speed = value as number;
     onUpdateDevice({ speed });
-    if (device.isConnected && device.isAuthenticated) {
+    if (device.isConnected) {
       try {
         await device.controller.setSpeed(speed);
       } catch (e: any) {
@@ -233,7 +200,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
   const handlePatternChange = async (event: any) => {
     const patternIndex = Number(event.target.value);
     onUpdateDevice({ patternIndex });
-    if (device.isConnected && device.isAuthenticated) {
+    if (device.isConnected) {
       try {
         await device.controller.setPattern(patternIndex);
       } catch (e: any) {
@@ -251,7 +218,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
   };
 
   const handleSaveColors = async () => {
-    if (device.isConnected && device.isAuthenticated) {
+    if (device.isConnected) {
       try {
         await device.controller.setHighColor(device.highColor);
         await device.controller.setLowColor(device.lowColor);
@@ -279,7 +246,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
   };
 
   const handleSaveSeriesCoefficients = async () => {
-    if (device.isConnected && device.isAuthenticated) {
+    if (device.isConnected) {
       try {
         await device.controller.setLeftSeriesCoefficients(device.leftSeriesCoefficients);
         await device.controller.setRightSeriesCoefficients(device.rightSeriesCoefficients);
@@ -295,7 +262,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
   };
 
   const handlePulseBrightness = async () => {
-    if (device.isConnected && device.isAuthenticated) {
+    if (device.isConnected) {
       setIsPulsing(true);
       try {
         await device.controller.pulseBrightness(pulseTargetBrightness, pulseDuration);
@@ -342,41 +309,6 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
             </Button>
           </Stack>
 
-          {/* Authentication Status */}
-          {device.isConnected && (
-            <Box sx={{ mb: 2 }}>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <Chip
-                  icon={device.isAuthenticated ? <LockOpenIcon /> : <LockIcon />}
-                  label={device.isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
-                  color={device.isAuthenticated ? 'success' : 'warning'}
-                  variant="outlined"
-                />
-                
-                {!device.isAuthenticated && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <TextField
-                      label="PIN"
-                      type="password"
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value)}
-                      size="small"
-                      sx={{ width: 120 }}
-                    />
-                    <Button
-                      variant="contained"
-                      onClick={handleAuthenticate}
-                      disabled={isAuthenticating}
-                      size="small"
-                    >
-                      {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
-                    </Button>
-                  </Box>
-                )}
-              </Stack>
-            </Box>
-          )}
-
           {device.error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {device.error}
@@ -401,7 +333,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                   onChange={handleBrightnessChange}
                   min={0}
                   max={255}
-                  disabled={!device.isConnected || !device.isAuthenticated}
+                  disabled={!device.isConnected}
                   valueLabelDisplay="auto"
                   marks={[
                     { value: 0, label: '0' },
@@ -428,7 +360,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                   onChange={handleSpeedChange}
                   min={0}
                   max={100}
-                  disabled={!device.isConnected || !device.isAuthenticated}
+                  disabled={!device.isConnected}
                   valueLabelDisplay="auto"
                   marks={[
                     { value: 0, label: '0' },
@@ -449,7 +381,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
               <Typography variant="h6" gutterBottom>
                 Pattern
               </Typography>
-              <FormControl fullWidth disabled={!device.isConnected || !device.isAuthenticated}>
+              <FormControl fullWidth disabled={!device.isConnected}>
                 <InputLabel>Select Pattern</InputLabel>
                 <Select
                   value={device.patternIndex}
@@ -479,7 +411,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                 type="number"
                 value={pulseTargetBrightness}
                 onChange={(e) => setPulseTargetBrightness(Number(e.target.value))}
-                disabled={!device.isConnected || !device.isAuthenticated}
+                disabled={!device.isConnected}
                 size="small"
                 sx={{ width: 150 }}
                 inputProps={{ min: 0, max: 255, step: 1 }}
@@ -490,7 +422,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                 type="number"
                 value={pulseDuration}
                 onChange={(e) => setPulseDuration(Number(e.target.value))}
-                disabled={!device.isConnected || !device.isAuthenticated}
+                disabled={!device.isConnected}
                 size="small"
                 sx={{ width: 150 }}
                 inputProps={{ min: 100, max: 10000, step: 100 }}
@@ -499,7 +431,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
               <Button
                 variant="contained"
                 onClick={handlePulseBrightness}
-                disabled={!device.isConnected || !device.isAuthenticated || isPulsing}
+                disabled={!device.isConnected || isPulsing}
                 color="secondary"
               >
                 {isPulsing ? 'Pulsing...' : 'Pulse Brightness'}
@@ -530,7 +462,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     type="color"
                     value={rgbToHex(device.highColor.r, device.highColor.g, device.highColor.b)}
                     onChange={handleHighColorChange}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     style={{ width: 50, height: 40, border: 'none', borderRadius: 4 }}
                   />
                   <Box>
@@ -564,7 +496,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     type="color"
                     value={rgbToHex(device.lowColor.r, device.lowColor.g, device.lowColor.b)}
                     onChange={handleLowColorChange}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     style={{ width: 50, height: 40, border: 'none', borderRadius: 4 }}
                   />
                   <Box>
@@ -593,7 +525,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
               <Button
                 variant="contained"
                 onClick={handleSaveColors}
-                disabled={!device.isConnected || !device.isAuthenticated}
+                disabled={!device.isConnected}
                 startIcon={<PaletteIcon />}
               >
                 Save Colors
@@ -626,7 +558,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     min={-2}
                     max={2}
                     step={0.01}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     valueLabelDisplay="auto"
                     marks={[
                       { value: -2, label: '-2' },
@@ -644,7 +576,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     min={-2}
                     max={2}
                     step={0.01}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     valueLabelDisplay="auto"
                     marks={[
                       { value: -2, label: '-2' },
@@ -662,7 +594,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     min={-2}
                     max={2}
                     step={0.01}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     valueLabelDisplay="auto"
                     marks={[
                       { value: -2, label: '-2' },
@@ -688,7 +620,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     min={-2}
                     max={2}
                     step={0.01}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     valueLabelDisplay="auto"
                     marks={[
                       { value: -2, label: '-2' },
@@ -706,7 +638,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     min={-2}
                     max={2}
                     step={0.01}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     valueLabelDisplay="auto"
                     marks={[
                       { value: -2, label: '-2' },
@@ -724,7 +656,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
                     min={-2}
                     max={2}
                     step={0.01}
-                    disabled={!device.isConnected || !device.isAuthenticated}
+                    disabled={!device.isConnected}
                     valueLabelDisplay="auto"
                     marks={[
                       { value: -2, label: '-2' },
@@ -740,7 +672,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
               <Button
                 variant="contained"
                 onClick={handleSaveSeriesCoefficients}
-                disabled={!device.isConnected || !device.isAuthenticated}
+                disabled={!device.isConnected}
                 startIcon={<FunctionsIcon />}
               >
                 Save Series Coefficients

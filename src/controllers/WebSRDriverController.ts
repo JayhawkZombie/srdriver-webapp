@@ -1,7 +1,6 @@
 import { 
   ISRDriverController, 
-  RGBColor, 
-  BLE_SERVICE_UUID, 
+  RGBColor,
   CONTROL_SERVICE_UUID,
   BRIGHTNESS_CHARACTERISTIC_UUID,
   SPEED_CHARACTERISTIC_UUID,
@@ -11,7 +10,6 @@ import {
   LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
   RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
   COMMAND_CHARACTERISTIC_UUID,
-  AUTH_CHARACTERISTIC_UUID,
   DEVICE_NAME
 } from '../types/srdriver';
 
@@ -25,9 +23,7 @@ export class WebSRDriverController implements ISRDriverController {
   private lowColorCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private leftSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private rightSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
-  private authCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
-  private authenticated: boolean = false;
 
   // Callbacks
   onBrightnessChange?: (value: number) => void;
@@ -37,7 +33,6 @@ export class WebSRDriverController implements ISRDriverController {
   onLowColorChange?: (color: RGBColor) => void;
   onLeftSeriesCoefficientsChange?: (coeffs: [number, number, number]) => void;
   onRightSeriesCoefficientsChange?: (coeffs: [number, number, number]) => void;
-  onAuthenticationChange?: (authenticated: boolean) => void;
 
   // Debug method to help troubleshoot device discovery
   async debugDeviceDiscovery(): Promise<void> {
@@ -56,7 +51,7 @@ export class WebSRDriverController implements ISRDriverController {
       try {
         const device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: [BLE_SERVICE_UUID]
+          optionalServices: [CONTROL_SERVICE_UUID]
         });
         
         console.log('Found device:', {
@@ -74,11 +69,11 @@ export class WebSRDriverController implements ISRDriverController {
           console.log('Available services:', services.map(s => s.uuid));
           
           // Check if our service is available
-          const hasOurService = services.some(s => s.uuid.toLowerCase() === BLE_SERVICE_UUID.toLowerCase());
+          const hasOurService = services.some(s => s.uuid.toLowerCase() === CONTROL_SERVICE_UUID.toLowerCase());
           console.log('Our service available:', hasOurService);
           
           if (hasOurService) {
-            const service = await server.getPrimaryService(BLE_SERVICE_UUID);
+            const service = await server.getPrimaryService(CONTROL_SERVICE_UUID);
             const characteristics = await service.getCharacteristics();
             console.log('Available characteristics:', characteristics.map(c => c.uuid));
           }
@@ -97,97 +92,43 @@ export class WebSRDriverController implements ISRDriverController {
 
   async connect(): Promise<boolean> {
     try {
-      // Check if Web Bluetooth is supported
       if (!navigator.bluetooth) {
-        throw new Error('Web Bluetooth API is not supported in this browser');
+        throw new Error("Web Bluetooth API is not supported in this browser");
       }
-
-      console.log('Starting BLE device discovery...');
-      
-      // Try multiple discovery strategies
-      let device: BluetoothDevice | null = null;
-      
-      // Strategy 1: Try with exact name filter
-      try {
-        console.log('Trying to find device with exact name:', DEVICE_NAME);
-        device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: DEVICE_NAME }],
-          optionalServices: [BLE_SERVICE_UUID, CONTROL_SERVICE_UUID]
-        });
-        console.log('Found device with exact name:', device.name);
-      } catch (error) {
-        console.log('Exact name filter failed, trying service-based discovery...');
-        
-        // Strategy 2: Try with service-based discovery (more flexible)
-        try {
-          device = await navigator.bluetooth.requestDevice({
-            filters: [{ services: [BLE_SERVICE_UUID] }],
-            optionalServices: [BLE_SERVICE_UUID, CONTROL_SERVICE_UUID]
-          });
-          console.log('Found device with service filter:', device.name);
-        } catch (serviceError) {
-          console.log('Service-based discovery failed, trying name prefix...');
-          
-          // Strategy 3: Try with name prefix (in case device name has variations)
-          try {
-            device = await navigator.bluetooth.requestDevice({
-              filters: [{ namePrefix: 'SR' }],
-              optionalServices: [BLE_SERVICE_UUID, CONTROL_SERVICE_UUID]
-            });
-            console.log('Found device with name prefix:', device.name);
-          } catch (prefixError) {
-            console.log('All discovery strategies failed');
-            throw new Error('No compatible SRDriver device found. Please ensure the device is powered on and in range.');
-          }
-        }
-      }
-
+      console.log("Starting BLE device discovery...");
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [CONTROL_SERVICE_UUID]
+      });
       if (!device) {
-        throw new Error('No device selected');
+        throw new Error("No device selected");
       }
-
       this.device = device;
-      console.log('Selected device:', device.name, 'ID:', device.id);
-
-      // Connect to GATT server
-      console.log('Connecting to GATT server...');
       const server = await this.device.gatt?.connect();
       if (!server) {
-        throw new Error('Failed to connect to GATT server');
+        throw new Error("Failed to connect to GATT server");
       }
-      console.log('Connected to GATT server');
-
-      // Get the service
-      console.log('Getting primary service...');
-      this.service = await server.getPrimaryService(BLE_SERVICE_UUID);
+      // Get all available services
+      const services = await server.getPrimaryServices();
+      console.log('Available services:', services.map(s => s.uuid));
+      // Check if our control service is available
+      const hasControlService = services.some(s => s.uuid.toLowerCase() === CONTROL_SERVICE_UUID.toLowerCase());
+      if (!hasControlService) {
+        throw new Error("SRDriver control service not found on device");
+      }
+      this.service = await server.getPrimaryService(CONTROL_SERVICE_UUID);
       if (!this.service) {
-        throw new Error('Failed to get primary service');
+        throw new Error("Failed to get control service");
       }
-      console.log('Got primary service');
-
-      // Get characteristics
-      console.log('Getting characteristics...');
-      this.authCharacteristic = await this.service.getCharacteristic(AUTH_CHARACTERISTIC_UUID);
-      console.log('Got auth characteristic');
-
-      // // Immediately check authentication status
-      // try {
-      //   const value = await this.authCharacteristic.readValue();
-      //   const decoder = new TextDecoder();
-      //   const response = decoder.decode(value);
-      //   if (response === '1') {
-      //     this.authenticated = true;
-      //     this.onAuthenticationChange?.(true);
-      //     console.log('Already authenticated on connect');
-      //   }
-      // } catch (e) {
-      //   console.warn('Could not read initial auth status:', e);
-      // }
-
-      // Set up notifications if supported
-      await this.setupAuthNotifications();
-
-      console.log('Successfully connected to SRDriver');
+      // Get all control characteristics
+      this.brightnessCharacteristic = await this.service.getCharacteristic(BRIGHTNESS_CHARACTERISTIC_UUID);
+      this.speedCharacteristic = await this.service.getCharacteristic(SPEED_CHARACTERISTIC_UUID);
+      this.patternCharacteristic = await this.service.getCharacteristic(PATTERN_INDEX_CHARACTERISTIC_UUID);
+      this.highColorCharacteristic = await this.service.getCharacteristic(HIGH_COLOR_CHARACTERISTIC_UUID);
+      this.lowColorCharacteristic = await this.service.getCharacteristic(LOW_COLOR_CHARACTERISTIC_UUID);
+      this.leftSeriesCoefficientsCharacteristic = await this.service.getCharacteristic(LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
+      this.rightSeriesCoefficientsCharacteristic = await this.service.getCharacteristic(RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
+      this.commandCharacteristic = await this.service.getCharacteristic(COMMAND_CHARACTERISTIC_UUID);
       return true;
     } catch (error) {
       console.error('Failed to connect to SRDriver:', error);
@@ -208,113 +149,12 @@ export class WebSRDriverController implements ISRDriverController {
     this.lowColorCharacteristic = null;
     this.leftSeriesCoefficientsCharacteristic = null;
     this.rightSeriesCoefficientsCharacteristic = null;
-    this.authCharacteristic = null;
     this.commandCharacteristic = null;
     console.log('Disconnected from SRDriver');
   }
 
   isConnected(): boolean {
     return this.device?.gatt?.connected ?? false;
-  }
-
-  async authenticate(pin: string): Promise<boolean> {
-    if (!this.authCharacteristic) {
-      throw new Error('No auth characteristic');
-    }
-
-    const attemptToAuthenticate = async () => {
-      console.log('Attempting to authenticate...');
-      const encoder = new TextEncoder();
-      await this.authCharacteristic?.writeValue(encoder.encode(pin));
-      
-      // Read the response
-      const value = await this.authCharacteristic?.readValue();
-      const decoder = new TextDecoder();
-      const response = decoder.decode(value);
-
-      this.authenticated = response === '1';
-      this.onAuthenticationChange?.(this.authenticated);
-      console.log(`Authentication ${this.authenticated ? 'successful' : 'failed'}`);
-      
-      if (this.authenticated) {
-        // Connect to control service after successful authentication
-        await this.connectToControlService();
-      }
-
-      return this.authenticated;
-    };
-    
-    try {
-      const attempt = await attemptToAuthenticate();
-      if (!attempt) {
-        console.log('Authentication failed (not throwing), trying again...');
-        // Trying to disconnect and reconnect to get the new characteristics, otherwise
-        // we will think we failed to authenticate because the characteristics
-        // are not available.
-        await this.disconnect();
-        await this.connect();
-        const attempt2 = await attemptToAuthenticate();
-        if (!attempt2) {
-          console.error('Authentication failed (not throwing), not trying again...');
-          return false;
-        }
-        return true;
-      }
-    } catch (error) {
-      console.error('Authentication threw an error:', error);
-      // Trying to disconnect and reconnect to get the new characteristics, otherwise
-      // we will think we failed to authenticate because the characteristics
-      // are not available.
-      console.log("Trying one more time");
-      // await this.disconnect();
-      // await this.connect();
-      const attempt = await attemptToAuthenticate();
-      if (!attempt) {
-        console.error('Authentication failed (not throwing), not trying again...');
-        return false;
-      }
-      return true;
-    }
-    return false;
-  }
-
-  private async connectToControlService(): Promise<void> {
-    if (!this.device?.gatt?.connected) {
-      throw new Error('Not connected to device');
-    }
-    
-    try {
-      console.log('Connecting to control service...');
-      const controlService = await this.device.gatt.getPrimaryService(CONTROL_SERVICE_UUID);
-      if (!controlService) {
-        throw new Error('Failed to get control service');
-      }
-      console.log('Got control service');
-
-      // Get control characteristics
-      console.log('Getting control characteristics...');
-      this.brightnessCharacteristic = await controlService.getCharacteristic(BRIGHTNESS_CHARACTERISTIC_UUID);
-      this.speedCharacteristic = await controlService.getCharacteristic(SPEED_CHARACTERISTIC_UUID);
-      this.patternCharacteristic = await controlService.getCharacteristic(PATTERN_INDEX_CHARACTERISTIC_UUID);
-      this.highColorCharacteristic = await controlService.getCharacteristic(HIGH_COLOR_CHARACTERISTIC_UUID);
-      this.lowColorCharacteristic = await controlService.getCharacteristic(LOW_COLOR_CHARACTERISTIC_UUID);
-      this.leftSeriesCoefficientsCharacteristic = await controlService.getCharacteristic(LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
-      this.rightSeriesCoefficientsCharacteristic = await controlService.getCharacteristic(RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
-      this.commandCharacteristic = await controlService.getCharacteristic(COMMAND_CHARACTERISTIC_UUID);
-      console.log('Got all control characteristics');
-
-      // Set up notifications for control characteristics
-      await this.setupControlNotifications();
-      
-      console.log('Successfully connected to control service');
-    } catch (error) {
-      console.error('Failed to connect to control service:', error);
-      throw error;
-    }
-  }
-
-  isAuthenticated(): boolean {
-    return this.authenticated;
   }
 
   async setSpeed(value: number): Promise<void> {
@@ -488,106 +328,5 @@ export class WebSRDriverController implements ISRDriverController {
   async pulseBrightness(targetBrightness: number, durationMs: number): Promise<void> {
     const command = `pulse_brightness:${targetBrightness},${durationMs}`;
     await this.sendCommand(command);
-  }
-
-  private async setupAuthNotifications(): Promise<void> {
-    try {
-      // Set up notifications for each characteristic if they support it
-      if (this.authCharacteristic?.properties.notify) {
-        await this.authCharacteristic.startNotifications();
-        this.authCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const authenticated = decoder.decode(value.value!) === 'true';
-          this.onAuthenticationChange?.(authenticated);
-        });
-      }
-    } catch (error) {
-      console.warn('Failed to set up notifications:', error);
-    }
-  }
-
-  private async setupControlNotifications(): Promise<void> {
-    try {
-      // Set up notifications for each characteristic if they support it
-      if (this.brightnessCharacteristic?.properties.notify) {
-        await this.brightnessCharacteristic.startNotifications();
-        this.brightnessCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const valueString = decoder.decode(value.value!);
-          const brightness = parseInt(valueString, 10);
-          this.onBrightnessChange?.(brightness);
-        });
-      }
-
-      if (this.speedCharacteristic?.properties.notify) {
-        await this.speedCharacteristic.startNotifications();
-        this.speedCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const valueString = decoder.decode(value.value!);
-          const speed = parseInt(valueString, 10);
-          this.onSpeedChange?.(speed);
-        });
-      }
-
-      if (this.patternCharacteristic?.properties.notify) {
-        await this.patternCharacteristic.startNotifications();
-        this.patternCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const valueString = decoder.decode(value.value!);
-          const pattern = parseInt(valueString, 10);
-          this.onPatternChange?.(pattern);
-        });
-      }
-
-      if (this.highColorCharacteristic?.properties.notify) {
-        await this.highColorCharacteristic.startNotifications();
-        this.highColorCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const colorString = decoder.decode(value.value!);
-          const [r, g, b] = colorString.split(',').map(s => parseInt(s, 10));
-          this.onHighColorChange?.({ r, g, b });
-        });
-      }
-
-      if (this.lowColorCharacteristic?.properties.notify) {
-        await this.lowColorCharacteristic.startNotifications();
-        this.lowColorCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const colorString = decoder.decode(value.value!);
-          const [r, g, b] = colorString.split(',').map(s => parseInt(s, 10));
-          this.onLowColorChange?.({ r, g, b });
-        });
-      }
-
-      if (this.leftSeriesCoefficientsCharacteristic?.properties.notify) {
-        await this.leftSeriesCoefficientsCharacteristic.startNotifications();
-        this.leftSeriesCoefficientsCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const coeffsString = decoder.decode(value.value!);
-          const coeffs = coeffsString.split(',').map(s => parseFloat(s)) as [number, number, number];
-          this.onLeftSeriesCoefficientsChange?.(coeffs);
-        });
-      }
-
-      if (this.rightSeriesCoefficientsCharacteristic?.properties.notify) {
-        await this.rightSeriesCoefficientsCharacteristic.startNotifications();
-        this.rightSeriesCoefficientsCharacteristic.addEventListener('characteristicvaluechanged', (event: Event) => {
-          const value = event.target as BluetoothRemoteGATTCharacteristic;
-          const decoder = new TextDecoder();
-          const coeffsString = decoder.decode(value.value!);
-          const coeffs = coeffsString.split(',').map(s => parseFloat(s)) as [number, number, number];
-          this.onRightSeriesCoefficientsChange?.(coeffs);
-        });
-      }
-    } catch (error) {
-      console.warn('Failed to set up notifications:', error);
-    }
   }
 } 

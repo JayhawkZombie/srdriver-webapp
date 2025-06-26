@@ -6,7 +6,6 @@ export interface Device {
   controller: WebSRDriverController;
   isConnected: boolean;
   isConnecting: boolean;
-  isAuthenticated: boolean;
   error: string | null;
   brightness: number;
   speed: number;
