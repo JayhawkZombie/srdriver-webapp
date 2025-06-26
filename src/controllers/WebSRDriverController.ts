@@ -219,34 +219,63 @@ export class WebSRDriverController implements ISRDriverController {
 
   async authenticate(pin: string): Promise<boolean> {
     if (!this.authCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No auth characteristic');
     }
-    
-    try {
+
+    const attemptToAuthenticate = async () => {
+      console.log('Attempting to authenticate...');
       const encoder = new TextEncoder();
-      await this.authCharacteristic.writeValue(encoder.encode(pin));
+      await this.authCharacteristic?.writeValue(encoder.encode(pin));
       
       // Read the response
-      const value = await this.authCharacteristic.readValue();
+      const value = await this.authCharacteristic?.readValue();
       const decoder = new TextDecoder();
       const response = decoder.decode(value);
-      
+
       this.authenticated = response === '1';
       this.onAuthenticationChange?.(this.authenticated);
+      console.log(`Authentication ${this.authenticated ? 'successful' : 'failed'}`);
       
       if (this.authenticated) {
         // Connect to control service after successful authentication
         await this.connectToControlService();
       }
-      
-      console.log(`Authentication ${this.authenticated ? 'successful' : 'failed'}`);
+
       return this.authenticated;
+    };
+    
+    try {
+      const attempt = await attemptToAuthenticate();
+      if (!attempt) {
+        console.log('Authentication failed (not throwing), trying again...');
+        // Trying to disconnect and reconnect to get the new characteristics, otherwise
+        // we will think we failed to authenticate because the characteristics
+        // are not available.
+        await this.disconnect();
+        await this.connect();
+        const attempt2 = await attemptToAuthenticate();
+        if (!attempt2) {
+          console.error('Authentication failed (not throwing), not trying again...');
+          return false;
+        }
+        return true;
+      }
     } catch (error) {
-      console.error('Authentication failed:', error);
-      this.authenticated = false;
-      this.onAuthenticationChange?.(false);
-      return false;
+      console.error('Authentication threw an error:', error);
+      // Trying to disconnect and reconnect to get the new characteristics, otherwise
+      // we will think we failed to authenticate because the characteristics
+      // are not available.
+      console.log("Trying one more time");
+      // await this.disconnect();
+      // await this.connect();
+      const attempt = await attemptToAuthenticate();
+      if (!attempt) {
+        console.error('Authentication failed (not throwing), not trying again...');
+        return false;
+      }
+      return true;
     }
+    return false;
   }
 
   private async connectToControlService(): Promise<void> {
@@ -290,7 +319,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async setSpeed(value: number): Promise<void> {
     if (!this.speedCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No speed characteristic');
     }
     
     const encoder = new TextEncoder();
@@ -301,7 +330,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async setBrightness(value: number): Promise<void> {
     if (!this.brightnessCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No brightness characteristic');
     }
     
     const encoder = new TextEncoder();
@@ -312,7 +341,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async setPattern(index: number): Promise<void> {
     if (!this.patternCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No pattern characteristic');
     }
     
     const encoder = new TextEncoder();
@@ -323,7 +352,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async setHighColor(color: RGBColor): Promise<void> {
     if (!this.highColorCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No high color characteristic');
     }
     
     const encoder = new TextEncoder();
@@ -334,7 +363,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async setLowColor(color: RGBColor): Promise<void> {
     if (!this.lowColorCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No low color characteristic');
     }
     
     const encoder = new TextEncoder();
@@ -345,7 +374,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async getBrightness(): Promise<number> {
     if (!this.brightnessCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No brightness characteristic');
     }
     
     const value = await this.brightnessCharacteristic.readValue();
@@ -356,7 +385,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async getSpeed(): Promise<number> {
     if (!this.speedCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No speed characteristic');
     }
     
     const value = await this.speedCharacteristic.readValue();
@@ -367,7 +396,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async getPattern(): Promise<number> {
     if (!this.patternCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No pattern characteristic');
     }
     
     const value = await this.patternCharacteristic.readValue();
@@ -378,7 +407,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async getHighColor(): Promise<RGBColor> {
     if (!this.highColorCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No high color characteristic');
     }
     
     const value = await this.highColorCharacteristic.readValue();
@@ -390,7 +419,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async getLowColor(): Promise<RGBColor> {
     if (!this.lowColorCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No low color characteristic');
     }
     
     const value = await this.lowColorCharacteristic.readValue();
@@ -402,7 +431,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async setLeftSeriesCoefficients(coeffs: [number, number, number]): Promise<void> {
     if (!this.leftSeriesCoefficientsCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No left series coefficients characteristic');
     }
     
     const encoder = new TextEncoder();
@@ -413,7 +442,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async setRightSeriesCoefficients(coeffs: [number, number, number]): Promise<void> {
     if (!this.rightSeriesCoefficientsCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No right series coefficients characteristic');
     }
     
     const encoder = new TextEncoder();
@@ -424,7 +453,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async getLeftSeriesCoefficients(): Promise<[number, number, number]> {
     if (!this.leftSeriesCoefficientsCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No left series coefficients characteristic');
     }
     
     const value = await this.leftSeriesCoefficientsCharacteristic.readValue();
@@ -436,7 +465,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async getRightSeriesCoefficients(): Promise<[number, number, number]> {
     if (!this.rightSeriesCoefficientsCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No right series coefficients characteristic');
     }
     
     const value = await this.rightSeriesCoefficientsCharacteristic.readValue();
@@ -448,7 +477,7 @@ export class WebSRDriverController implements ISRDriverController {
 
   async sendCommand(command: string): Promise<void> {
     if (!this.commandCharacteristic) {
-      throw new Error('Not connected to SRDriver');
+      throw new Error('No command characteristic');
     }
     
     const encoder = new TextEncoder();

@@ -184,6 +184,8 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
     if (!device.isConnected) return;
     
     setIsAuthenticating(true);
+    // Wait a bit
+    await new Promise(resolve => setTimeout(resolve, 1000));
     try {
       const success = await device.controller.authenticate(pin);
       if (!success) {
