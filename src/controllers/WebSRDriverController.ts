@@ -51,7 +51,8 @@ export class WebSRDriverController implements ISRDriverController {
       try {
         const device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: [CONTROL_SERVICE_UUID]
+          filters: [{ name: "SRDriver" }],
+          // optionalServices: [CONTROL_SERVICE_UUID]
         });
         
         console.log('Found device:', {
@@ -96,10 +97,39 @@ export class WebSRDriverController implements ISRDriverController {
         throw new Error("Web Bluetooth API is not supported in this browser");
       }
       console.log("Starting BLE device discovery...");
-      const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [CONTROL_SERVICE_UUID]
-      });
+      let device: BluetoothDevice | null = null;
+      // Strategy 1: Try with exact name filter
+      try {
+        console.log('Trying to find device with exact control service:', CONTROL_SERVICE_UUID);
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: [CONTROL_SERVICE_UUID] }],
+        });
+        console.log('Found device with exact control service:', device.name);
+      } catch (error) {
+        console.log('Exact control service filter failed, trying namePrefix...');
+        // Strategy 2: Try with namePrefix
+        try {
+          device = await navigator.bluetooth.requestDevice({
+            filters: [{ namePrefix: 'SR' }],
+            optionalServices: [CONTROL_SERVICE_UUID]
+          });
+          console.log('Found device with name prefix:', device.name);
+        } catch (prefixError) {
+          console.log('Name prefix filter failed, trying all devices...');
+          // Strategy 3: Try with service filter
+          try {
+            device = await navigator.bluetooth.requestDevice({
+              // filters: [{ services: [CONTROL_SERVICE_UUID] }],
+              acceptAllDevices: true,
+              // optionalServices: [CONTROL_SERVICE_UUID]
+            });
+            console.log('Found device with service filter:', device.name);
+          } catch (serviceError) {
+            console.log('All discovery strategies failed');
+            throw new Error('No compatible SRDriver device found. Please ensure the device is powered on and in range.');
+          }
+        }
+      }
       if (!device) {
         throw new Error("No device selected");
       }
