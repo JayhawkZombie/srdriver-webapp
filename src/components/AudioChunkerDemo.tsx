@@ -62,7 +62,7 @@ const AudioChunkerDemo: React.FC = () => {
                 fftSeq = [...fftSeq, magnitudes];
                 setFftSequence(fftSeq);
                 // Process next chunk after a short delay
-                setTimeout(() => processChunk(idx + 1), 10); // 10ms delay for UI responsiveness
+                setTimeout(() => processChunk(idx + 1), 1); // 1ms delay for faster UI responsiveness
             };
             processChunk(0);
             const chunkDurationMs = (windowSize / sampleRate) * 1000;
@@ -140,19 +140,19 @@ const AudioChunkerDemo: React.FC = () => {
                     <h3>Chunking Summary</h3>
                     <ul>
                         <li>
-                            <strong>Number of Chunks:</strong>{" "}
+                            <strong>Number of Chunks:</strong>{' '}
                             {summary.numChunks}
                         </li>
                         <li>
-                            <strong>Chunk Duration:</strong>{" "}
+                            <strong>Chunk Duration:</strong>{' '}
                             {summary.chunkDurationMs.toFixed(2)} ms
                         </li>
                         <li>
-                            <strong>Total Audio Duration:</strong>{" "}
+                            <strong>Total Audio Duration:</strong>{' '}
                             {summary.totalDurationMs.toFixed(2)} ms
                         </li>
                         <li>
-                            <strong>Window Size:</strong> {summary.windowSize}{" "}
+                            <strong>Window Size:</strong> {summary.windowSize}{' '}
                             samples
                         </li>
                         <li>
@@ -160,26 +160,11 @@ const AudioChunkerDemo: React.FC = () => {
                         </li>
                         {summary.firstChunkFFT && (
                             <li>
-                                <strong>First Chunk FFT (first 8 bins):</strong>{" "}
-                                {summary.firstChunkFFT.map((v, i) => v.toFixed(2)).join(", ")}
+                                <strong>First Chunk FFT (first 8 bins):</strong>{' '}
+                                {summary.firstChunkFFT.map((v, i) => v.toFixed(2)).join(', ')}
                             </li>
                         )}
                     </ul>
-                    {summary.firstChunkFFTMagnitudes && (
-                        <div style={{ marginTop: 32 }}>
-                            <h4>FFT Spectrum (First Chunk)</h4>
-                            <Plot
-                                data={[{
-                                    x: Array.from({ length: Math.min(128, summary.firstChunkFFTMagnitudes.length) }, (_, i) => i),
-                                    y: Array.from(summary.firstChunkFFTMagnitudes).slice(0, 128),
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    marker: { color: 'blue' },
-                                }]}
-                                layout={{ width: 600, height: 300, title: 'FFT Magnitude Spectrum (First 128 Bins)' }}
-                            />
-                        </div>
-                    )}
                 </div>
             )}
             {fftSequence.length > 0 && audioBufferRef.current && (
@@ -187,7 +172,7 @@ const AudioChunkerDemo: React.FC = () => {
                     fftSequence={fftSequence}
                     sampleRate={audioBufferRef.current.sampleRate}
                     windowSize={windowSize}
-                    maxSlices={64}
+                    hopSize={hopSize}
                 />
             )}
         </div>
