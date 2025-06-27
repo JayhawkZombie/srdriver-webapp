@@ -50,21 +50,14 @@ const AudioChunkerDemo: React.FC = () => {
             let firstChunk: Float32Array | null = null;
             let fftSeq: (Float32Array | number[])[] = [];
             const chunks = Array.from(chunkPCMData(pcmData, windowSize, hopSize));
-            const processChunk = (idx: number) => {
-                if (idx >= chunks.length) {
-                    // All done
-                    return;
-                }
+            for (let idx = 0; idx < chunks.length; idx++) {
                 const chunk = chunks[idx];
                 numChunks++;
                 if (idx === 0) firstChunk = chunk;
                 const magnitudes = computeFFTMagnitude(chunk);
-                fftSeq = [...fftSeq, magnitudes];
-                setFftSequence(fftSeq);
-                // Process next chunk after a short delay
-                setTimeout(() => processChunk(idx + 1), 1); // 1ms delay for faster UI responsiveness
-            };
-            processChunk(0);
+                fftSeq.push(magnitudes);
+            }
+            setFftSequence(fftSeq);
             const chunkDurationMs = (windowSize / sampleRate) * 1000;
             const totalDurationMs = (pcmData.length / sampleRate) * 1000;
             let firstChunkFFT: number[] | undefined = undefined;
@@ -173,6 +166,7 @@ const AudioChunkerDemo: React.FC = () => {
                     sampleRate={audioBufferRef.current.sampleRate}
                     windowSize={windowSize}
                     hopSize={hopSize}
+                    audioBuffer={audioBufferRef.current}
                 />
             )}
         </div>
