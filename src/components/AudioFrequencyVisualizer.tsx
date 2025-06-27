@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Plot from 'react-plotly.js';
-import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem, FormGroup } from '@mui/material';
+import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem, FormGroup, Card, CardContent } from '@mui/material';
 import { SelectChangeEvent } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -31,14 +32,31 @@ interface AudioFrequencyVisualizerProps {
   audioBuffer?: AudioBuffer;
 }
 
-// Standard frequency bands (Hz) and colors
-const STANDARD_BANDS = [
+const LIGHT_BAND_COLORS = [
   { name: 'Bass', freq: 60, color: 'blue' },
   { name: 'Low Mid', freq: 250, color: 'green' },
   { name: 'Mid', freq: 1000, color: 'orange' },
   { name: 'Treble', freq: 4000, color: 'red' },
   { name: 'High Treble', freq: 8000, color: 'purple' },
 ];
+const DARK_BAND_COLORS = [
+  { name: 'Bass', freq: 60, color: '#4FC3F7' },      // light blue/cyan
+  { name: 'Low Mid', freq: 250, color: '#81C784' }, // light green
+  { name: 'Mid', freq: 1000, color: '#FFD54F' },    // yellow/gold
+  { name: 'Treble', freq: 4000, color: '#FF8A65' }, // orange
+  { name: 'High Treble', freq: 8000, color: '#BA68C8' }, // light purple
+];
+
+// Helper to lighten a hex color for dark mode
+function lightenColor(hex: string, amount = 0.5) {
+  // hex: "#RRGGBB"
+  const num = parseInt(hex.replace('#', ''), 16);
+  let r = (num >> 16) + Math.round((255 - (num >> 16)) * amount);
+  let g = ((num >> 8) & 0x00FF) + Math.round((255 - ((num >> 8) & 0x00FF)) * amount);
+  let b = (num & 0x0000FF) + Math.round((255 - (num & 0x0000FF)) * amount);
+  r = Math.min(255, r); g = Math.min(255, g); b = Math.min(255, b);
+  return `rgb(${r},${g},${b})`;
+}
 
 const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   fftSequence,
@@ -48,12 +66,21 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   audioBuffer,
   // maxSlices = 64, // unused for this plot
 }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const plotBg = isDark ? theme.palette.background.paper : '#fafbfc';
+  const cardBg = isDark ? theme.palette.background.default : '#f5f7fa';
+  const axisColor = isDark ? theme.palette.text.primary : '#222';
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const STANDARD_BANDS = isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS;
+
   // --- Playback state (move hooks to top) ---
   const [playbackTime, setPlaybackTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, etc.
   const [followCursor, setFollowCursor] = useState(false);
   const [windowSec, setWindowSec] = useState(4); // default window size in seconds
+  const [snapToWindow, setSnapToWindow] = useState(true); // New: snap to window toggle
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   // Audio playback refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -65,7 +92,10 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const [showFirstDerivative, setShowFirstDerivative] = useState(true);
   const [showSecondDerivative, setShowSecondDerivative] = useState(false);
   const [showImpulses, setShowImpulses] = useState(false);
-  const [impulseThreshold, setImpulseThreshold] = useState(50); // Default, can be tuned
+  // Per-band impulse thresholds
+  const [impulseThresholds, setImpulseThresholds] = useState<number[]>(
+    (isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS).map(() => 50)
+  ); // Default 50 for each band
 
   const displaySequence = fftSequence;
   const numBins = displaySequence[0]?.length || 0;
@@ -84,9 +114,19 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
       xRange = [0, windowSec];
     }
   } else {
-    // Follow cursor, keep window centered on playbackTime
+    // Follow cursor
     if (windowSec >= maxTime) {
       xRange = [0, maxTime];
+    } else if (snapToWindow) {
+      // Snap to window: jump to next window when cursor passes window boundary
+      const windowIdx = Math.floor(playbackTime / windowSec);
+      let start = windowIdx * windowSec;
+      let end = start + windowSec;
+      if (end > maxTime) {
+        end = maxTime;
+        start = Math.max(0, end - windowSec);
+      }
+      xRange = [start, end];
     } else if (playbackTime < windowSec / 2) {
       xRange = [0, windowSec];
     } else if (playbackTime > maxTime - windowSec / 2) {
@@ -184,7 +224,237 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     // eslint-disable-next-line
   }, [fftSequence.length]);
 
-  if (numBins === 0) return null;
+  // Memoize all per-band calculations outside the map to avoid hook errors
+  const bandDataArr = useMemo(() => {
+    return STANDARD_BANDS.map((band: { name: string; freq: number; color: string }, bandIdx: number) => {
+      // Find the bin closest to the band's frequency
+      let binIdx = 0;
+      let minDiff = Infinity;
+      for (let i = 0; i < freqs.length; i++) {
+        const diff = Math.abs(freqs[i] - band.freq);
+        if (diff < minDiff) {
+          minDiff = diff;
+          binIdx = i;
+        }
+      }
+      const magnitudes = displaySequence.map(row => row[binIdx] ?? 0);
+      const derivatives = magnitudes.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
+      const secondDerivatives = derivatives.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
+      const impulseStrengths = secondDerivatives.map((v) => Math.abs(v));
+      // Find visible window for y-axis auto-fit
+      const [xMin, xMax] = xRange;
+      const visibleIndices = times.map((t, i) => (t >= xMin && t <= xMax ? i : -1)).filter(i => i >= 0);
+      const visibleMagnitudes = visibleIndices.map(i => magnitudes[i]);
+      const visibleDerivatives = visibleIndices.map(i => derivatives[i]);
+      const visibleSecondDerivatives = visibleIndices.map(i => secondDerivatives[i]);
+      // Find min/max for y-axis (add margin)
+      let yMin = Math.min(...visibleMagnitudes);
+      let yMax = Math.max(...visibleMagnitudes);
+      if (showFirstDerivative) {
+        yMin = Math.min(yMin, ...visibleDerivatives);
+        yMax = Math.max(yMax, ...visibleDerivatives);
+      }
+      if (showSecondDerivative) {
+        yMin = Math.min(yMin, ...visibleSecondDerivatives);
+        yMax = Math.max(yMax, ...visibleSecondDerivatives);
+      }
+      // Add margin
+      const margin = (yMax - yMin) * 0.1 || 1;
+      yMin -= margin;
+      yMax += margin;
+      // --- Impulse threshold slider range/step logic ---
+      // Use abs(secondDerivatives) for impulse strengths
+      const visibleImpulseStrengths = visibleSecondDerivatives.map(v => Math.abs(v));
+      const bandMin = Math.min(...visibleImpulseStrengths, 0);
+      const bandMax = Math.max(...visibleImpulseStrengths, 1);
+      let sliderMin = bandMin;
+      let sliderMax = bandMax * 0.5;
+      if (sliderMax === sliderMin) sliderMax = sliderMin + 1;
+      // Use a finer step for small ranges
+      let sliderStep = Math.max((sliderMax - sliderMin) / 100, 0.001);
+      // Impulse detection for plotting
+      const threshold = impulseThresholds[bandIdx] ?? 50;
+      const impulseIndices = impulseStrengths
+        .map((v, i) => (v > threshold ? i : -1))
+        .filter(i => i > 0);
+      // Impulse times, values, and strengths
+      const impulseTimes = impulseIndices.map(i => times[i]);
+      const impulseValues = impulseIndices.map(i => magnitudes[i]);
+      const impulseStrengthVals = impulseIndices.map(i => impulseStrengths[i]);
+      // Normalize strengths for color mapping
+      const minStrength = Math.min(...impulseStrengthVals, 0);
+      const maxStrength = Math.max(...impulseStrengthVals, 1);
+      const normStrengths = impulseStrengthVals.map(s => (s - minStrength) / (maxStrength - minStrength || 1));
+      // Map to color spectrum (blue to red)
+      const impulseColors = normStrengths.map(t => `hsl(${240 - 240 * t}, 100%, 50%)`);
+      return {
+        band,
+        bandIdx,
+        binIdx,
+        magnitudes,
+        derivatives,
+        secondDerivatives,
+        impulseStrengths,
+        visibleIndices,
+        visibleMagnitudes,
+        visibleDerivatives,
+        visibleSecondDerivatives,
+        yMin,
+        yMax,
+        sliderMin,
+        sliderMax,
+        sliderStep,
+        impulseIndices,
+        impulseTimes,
+        impulseValues,
+        impulseStrengthVals,
+        impulseColors,
+        normStrengths
+      };
+    });
+  }, [displaySequence, freqs, xRange, showFirstDerivative, showSecondDerivative, impulseThresholds, times, numBins]);
+
+  const bandPlots = useMemo(() => {
+    return bandDataArr.map((data: any) => {
+      const { band, bandIdx, binIdx, magnitudes, derivatives, secondDerivatives, yMin, yMax, sliderMin, sliderMax, sliderStep, impulseTimes, impulseValues, impulseColors } = data;
+      // Cursor as a trace (vertical line)
+      const cursorTrace = {
+        x: [playbackTime, playbackTime],
+        y: [yMin, yMax],
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'red', width: 4, dash: 'solid' },
+        name: 'Cursor',
+        showlegend: false,
+      };
+      // Traces array
+      const traces: Partial<Plotly.PlotData>[] = [
+        {
+          x: times,
+          y: magnitudes,
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: band.color, width: 2 },
+          name: band.name,
+        },
+      ];
+      if (showFirstDerivative) {
+        const derivativeColor = isDark
+          ? lightenColor(band.color, 0.5)
+          : 'rgba(255,0,255,0.5)';
+        traces.push({
+          x: times,
+          y: derivatives,
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: derivativeColor, width: 3 },
+          name: band.name + ' Rate of Change',
+          yaxis: 'y2',
+        } as Partial<Plotly.PlotData>);
+      }
+      if (showSecondDerivative) {
+        traces.push({
+          x: times,
+          y: secondDerivatives,
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: 'cyan', width: 2 },
+          name: band.name + ' 2nd Derivative',
+          yaxis: 'y3',
+        } as Partial<Plotly.PlotData>);
+      }
+      if (showImpulses && impulseTimes.length > 0) {
+        traces.push({
+          x: impulseTimes,
+          y: impulseValues,
+          type: 'scatter',
+          mode: 'markers',
+          marker: { color: impulseColors, size: 10, symbol: 'x' },
+          name: band.name + ' Impulse',
+        } as Partial<Plotly.PlotData>);
+      }
+      traces.push(cursorTrace as Partial<Plotly.PlotData>);
+      return (
+        <Card key={band.name} sx={{ mb: 2, bgcolor: cardBg, boxShadow: 2, p: 0.5 }}>
+          <CardContent sx={{ p: 1.2, pb: 1 }}>
+            {/* Compact header: threshold slider to the left of the label */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1, overflow: 'visible' }}>
+              {showImpulses && (
+                <>
+                  <Typography variant="body2" sx={{ color: band.color, minWidth: 60, fontWeight: 500, fontSize: 13 }}>
+                    {band.name} Threshold:
+                  </Typography>
+                  <Slider
+                    min={sliderMin}
+                    max={sliderMax}
+                    step={sliderStep}
+                    value={impulseThresholds[bandIdx]}
+                    onChange={(_, v) => {
+                      const newThresholds = [...impulseThresholds];
+                      newThresholds[bandIdx] = typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0);
+                      setImpulseThresholds(newThresholds);
+                    }}
+                    valueLabelDisplay="on"
+                    valueLabelFormat={v => v.toFixed(1)}
+                    size="small"
+                    sx={{ width: 130, ml: 0, mr: 2 }}
+                    marks={false}
+                  />
+                </>
+              )}
+              <div style={{ color: band.color, fontWeight: 700, fontSize: 16, margin: 0, lineHeight: 1 }}>{band.name} ({Math.round(freqs[binIdx])} Hz)</div>
+            </Box>
+            <Box sx={{ width: '100%', p: 0.5, pt: 0, pb: 0, boxSizing: 'border-box' }}>
+              <Plot
+                data={traces}
+                layout={{
+                  height: 280,
+                  margin: { l: 40, r: 10, t: 10, b: 24 },
+                  xaxis: {
+                    title: 'Time (seconds)',
+                    automargin: true,
+                    range: xRange,
+                    titlefont: { size: 11 },
+                    tickfont: { size: 9 },
+                    color: axisColor,
+                    gridcolor: gridColor,
+                  },
+                  yaxis: {
+                    title: 'Magnitude',
+                    automargin: true,
+                    range: [yMin, yMax],
+                    titlefont: { size: 11 },
+                    tickfont: { size: 9 },
+                    color: axisColor,
+                    gridcolor: gridColor,
+                  },
+                  yaxis2: {
+                    overlaying: 'y',
+                    side: 'right',
+                    showgrid: false,
+                    zeroline: false,
+                    showticklabels: false,
+                  },
+                  yaxis3: {
+                    overlaying: 'y',
+                    side: 'right',
+                    showgrid: false,
+                    zeroline: false,
+                    showticklabels: false,
+                    position: 1.0,
+                  },
+                  paper_bgcolor: plotBg,
+                  plot_bgcolor: plotBg,
+                }}
+                config={{ displayModeBar: false, responsive: true }}
+                style={{ width: '100%' }}
+              />
+            </Box>
+          </CardContent>
+        </Card>
+      );
+    });
+  }, [bandDataArr, showFirstDerivative, showSecondDerivative, showImpulses, impulseThresholds, playbackTime, xRange, times, freqs, numBins, maxTime, cardBg, plotBg, axisColor, gridColor]);
 
   // Controls
   const handlePlay = () => {
@@ -202,166 +472,14 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   };
   const handleSpeedChange = (e: SelectChangeEvent<number>) => setPlaybackSpeed(Number(e.target.value));
 
-  // --- Band plots with playback cursor ---
-  const bandPlots = STANDARD_BANDS.map(band => {
-    // Find the bin closest to the band's frequency
-    let binIdx = 0;
-    let minDiff = Infinity;
-    for (let i = 0; i < freqs.length; i++) {
-      const diff = Math.abs(freqs[i] - band.freq);
-      if (diff < minDiff) {
-        minDiff = diff;
-        binIdx = i;
-      }
-    }
-    // Extract the magnitude for this bin over all chunks
-    const magnitudes = displaySequence.map(row => row[binIdx] ?? 0);
-    // Compute the first derivative (finite difference)
-    const derivatives = magnitudes.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
-    // Compute the second derivative
-    const secondDerivatives = derivatives.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
-    // Impulse detection: indices where abs(secondDerivatives) > threshold
-    const impulseStrengths = secondDerivatives.map((v) => Math.abs(v));
-    const impulseIndices = impulseStrengths
-      .map((v, i) => (v > impulseThreshold ? i : -1))
-      .filter(i => i > 0);
-    // Impulse times, values, and strengths
-    const impulseTimes = impulseIndices.map(i => times[i]);
-    const impulseValues = impulseIndices.map(i => magnitudes[i]);
-    const impulseStrengthVals = impulseIndices.map(i => impulseStrengths[i]);
-    // Normalize strengths for color mapping
-    const minStrength = Math.min(...impulseStrengthVals, 0);
-    const maxStrength = Math.max(...impulseStrengthVals, 1);
-    const normStrengths = impulseStrengthVals.map(s => (s - minStrength) / (maxStrength - minStrength || 1));
-    // Map to color spectrum (blue to red)
-    // We'll use HSL: 240deg (blue) to 0deg (red)
-    const impulseColors = normStrengths.map(t => `hsl(${240 - 240 * t}, 100%, 50%)`);
-
-    // Find visible window for y-axis auto-fit
-    const [xMin, xMax] = xRange;
-    const visibleIndices = times.map((t, i) => (t >= xMin && t <= xMax ? i : -1)).filter(i => i >= 0);
-    const visibleMagnitudes = visibleIndices.map(i => magnitudes[i]);
-    const visibleDerivatives = visibleIndices.map(i => derivatives[i]);
-    const visibleSecondDerivatives = visibleIndices.map(i => secondDerivatives[i]);
-    // Find min/max for y-axis (add margin)
-    let yMin = Math.min(...visibleMagnitudes);
-    let yMax = Math.max(...visibleMagnitudes);
-    if (showFirstDerivative) {
-      yMin = Math.min(yMin, ...visibleDerivatives);
-      yMax = Math.max(yMax, ...visibleDerivatives);
-    }
-    if (showSecondDerivative) {
-      yMin = Math.min(yMin, ...visibleSecondDerivatives);
-      yMax = Math.max(yMax, ...visibleSecondDerivatives);
-    }
-    // Add margin
-    const margin = (yMax - yMin) * 0.1 || 1;
-    yMin -= margin;
-    yMax += margin;
-
-    // Cursor as a trace (vertical line)
-    const cursorTrace = {
-      x: [playbackTime, playbackTime],
-      y: [yMin, yMax],
-      type: 'scatter',
-      mode: 'lines',
-      line: { color: 'red', width: 4, dash: 'solid' },
-      name: 'Cursor',
-      showlegend: false,
-    };
-    // Traces array
-    const traces: Partial<Plotly.PlotData>[] = [
-      {
-        x: times,
-        y: magnitudes,
-        type: 'scatter',
-        mode: 'lines',
-        line: { color: band.color, width: 2 },
-        name: band.name,
-      },
-    ];
-    if (showFirstDerivative) {
-      traces.push({
-        x: times,
-        y: derivatives,
-        type: 'scatter',
-        mode: 'lines',
-        line: { color: 'rgba(255,0,255,0.8)', width: 3 },
-        name: band.name + ' Rate of Change',
-        yaxis: 'y2',
-      } as Partial<Plotly.PlotData>);
-    }
-    if (showSecondDerivative) {
-      traces.push({
-        x: times,
-        y: secondDerivatives,
-        type: 'scatter',
-        mode: 'lines',
-        line: { color: 'cyan', width: 2 },
-        name: band.name + ' 2nd Derivative',
-        yaxis: 'y3',
-      } as Partial<Plotly.PlotData>);
-    }
-    if (showImpulses && impulseTimes.length > 0) {
-      traces.push({
-        x: impulseTimes,
-        y: impulseValues,
-        type: 'scatter',
-        mode: 'markers',
-        marker: { color: impulseColors, size: 10, symbol: 'x' },
-        name: band.name + ' Impulse',
-      } as Partial<Plotly.PlotData>);
-    }
-    traces.push(cursorTrace as Partial<Plotly.PlotData>);
-    return (
-      <div style={{ marginBottom: 32 }} key={band.name}>
-        <h4 style={{ color: band.color, margin: '8px 0' }}>{band.name} ({Math.round(freqs[binIdx])} Hz)</h4>
-        <Plot
-          data={traces}
-          layout={{
-            height: 140,
-            margin: { l: 60, r: 30, t: 30, b: 40 },
-            xaxis: {
-              title: 'Time (seconds)',
-              automargin: true,
-              range: xRange,
-            },
-            yaxis: {
-              title: 'Magnitude',
-              automargin: true,
-              range: [yMin, yMax],
-            },
-            yaxis2: {
-              overlaying: 'y',
-              side: 'right',
-              showgrid: false,
-              zeroline: false,
-              showticklabels: false,
-            },
-            yaxis3: {
-              overlaying: 'y',
-              side: 'right',
-              showgrid: false,
-              zeroline: false,
-              showticklabels: false,
-              position: 1.0,
-            },
-            paper_bgcolor: '#fafbfc',
-            plot_bgcolor: '#fafbfc',
-          }}
-          config={{ displayModeBar: false, responsive: true }}
-          style={{ width: '100%' }}
-        />
-      </div>
-    );
-  });
+  if (numBins === 0) return null;
 
   return (
     <Box
       sx={{
         width: '100%',
-        margin: '2rem 0',
-        p: 2,
+        margin: '1rem 0',
+        p: 1.2,
         border: '1px solid',
         borderColor: 'divider',
         borderRadius: 2,
@@ -371,10 +489,10 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
         overflowX: 'auto',
       }}
     >
-      <Typography variant="h5" sx={{ mb: 2 }}>
+      <Typography variant="h5" sx={{ mb: 1 }}>
         Frequency Band Magnitude Over Time
       </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
         <ButtonGroup variant="contained" size="small">
           <Button onClick={handlePlay} disabled={isPlaying || playbackTime >= maxTime}>Play</Button>
           <Button onClick={handlePause} disabled={!isPlaying}>Pause</Button>
@@ -402,6 +520,11 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
           control={<Checkbox checked={followCursor} onChange={e => setFollowCursor(e.target.checked)} />}
           label="Follow Cursor"
           sx={{ ml: 2 }}
+        />
+        <FormControlLabel
+          control={<Checkbox checked={snapToWindow} onChange={e => setSnapToWindow(e.target.checked)} />}
+          label="Snap to Window"
+          sx={{ ml: 1 }}
         />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2, minWidth: 180 }}>
           <Typography variant="body2">Window Size:</Typography>
@@ -431,22 +554,8 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
           control={<Checkbox checked={showImpulses} onChange={e => setShowImpulses(e.target.checked)} />}
           label="Show Impulses"
         />
-        {showImpulses && (
-          <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
-            <Typography variant="body2" sx={{ mr: 1 }}>Impulse Threshold:</Typography>
-            <Slider
-              min={1}
-              max={200}
-              value={impulseThreshold}
-              onChange={(_, v) => setImpulseThreshold(Number(v))}
-              valueLabelDisplay="auto"
-              size="small"
-              sx={{ width: 100 }}
-            />
-          </Box>
-        )}
       </FormGroup>
-      {bandPlots}
+      {bandPlots.length === 0 ? null : bandPlots}
     </Box>
   );
 };

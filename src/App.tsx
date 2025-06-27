@@ -225,7 +225,7 @@ function App() {
             <Tab label="Audio Chunker" />
           </Tabs>
         </AppBar>
-        <Container maxWidth="lg" sx={{ flexGrow: 1, py: 3 }}>
+        <Container maxWidth={false} sx={{ flexGrow: 1, width: '100%', py: 1, px: 0, m: 0 }}>
           {mainTab === 0 ? (
             devices.length === 0 ? (
               <Box sx={{ 
