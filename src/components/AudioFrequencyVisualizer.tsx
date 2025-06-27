@@ -187,6 +187,8 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     }
     // Extract the magnitude for this bin over all chunks
     const magnitudes = displaySequence.map(row => row[binIdx] ?? 0);
+    // Compute the derivative (finite difference)
+    const derivatives = magnitudes.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
     // Cursor as a trace (vertical line)
     const cursorTrace = {
       x: [playbackTime, playbackTime],
@@ -210,6 +212,15 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
               line: { color: band.color, width: 2 },
               name: band.name,
             },
+            {
+              x: times,
+              y: derivatives,
+              type: 'scatter',
+              mode: 'lines',
+              line: { color: 'magenta', width: 2, dash: 'dash' },
+              name: band.name + ' Rate of Change',
+              yaxis: 'y2',
+            },
             cursorTrace,
           ]}
           layout={{
@@ -223,6 +234,13 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
             yaxis: {
               title: 'Magnitude',
               automargin: true,
+            },
+            yaxis2: {
+              overlaying: 'y',
+              side: 'right',
+              showgrid: false,
+              zeroline: false,
+              showticklabels: false,
             },
             paper_bgcolor: '#fafbfc',
             plot_bgcolor: '#fafbfc',
