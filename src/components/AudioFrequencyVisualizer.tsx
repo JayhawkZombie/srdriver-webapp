@@ -10,6 +10,9 @@ import { FixedSizeList as List } from 'react-window';
 import { UPlot } from 'react-uplot';
 import uPlot from 'uplot';
 import useAudioFrequencyData from './useAudioFrequencyData';
+import BandSelector from './BandSelector';
+import GlobalControls from './GlobalControls';
+import DerivativeImpulseToggles from './DerivativeImpulseToggles';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -458,65 +461,32 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
       <Typography variant="h5" sx={{ mb: 1 }}>
         Frequency Band Magnitude Over Time
       </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
-        <Typography variant="body2" sx={{ ml: 2 }}>
-          Time: {playbackTime.toFixed(2)}s / {maxTime.toFixed(2)}s
-        </Typography>
-        <FormControlLabel
-          control={<Checkbox checked={followCursor} onChange={e => setFollowCursor(e.target.checked)} />}
-          label="Follow Cursor"
-          sx={{ ml: 2 }}
-        />
-        <FormControlLabel
-          control={<Checkbox checked={snapToWindow} onChange={e => setSnapToWindow(e.target.checked)} />}
-          label="Snap to Window"
-          sx={{ ml: 1 }}
-        />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2, minWidth: 180 }}>
-          <Typography variant="body2">Window Size:</Typography>
-          <Slider
-            min={2}
-            max={Math.max(2, Math.ceil(maxTime))}
-            value={windowSec}
-            onChange={(_, v) => setWindowSec(Number(v))}
-            valueLabelDisplay="auto"
-            size="small"
-            sx={{ width: 180 }}
-          />
-          <Typography variant="body2">{windowSec}s</Typography>
-        </Box>
-      </Box>
-      {/* New: Derivative/Impulse toggles and threshold */}
-      <FormGroup row sx={{ mb: 2 }}>
-        <FormControlLabel
-          control={<Checkbox checked={showFirstDerivative} onChange={e => setShowFirstDerivative(e.target.checked)} />}
-          label="Show 1st Derivative"
-        />
-        <FormControlLabel
-          control={<Checkbox checked={showSecondDerivative} onChange={e => setShowSecondDerivative(e.target.checked)} />}
-          label="Show 2nd Derivative"
-        />
-        <FormControlLabel
-          control={<Checkbox checked={showImpulses} onChange={e => setShowImpulses(e.target.checked)} />}
-          label="Show Impulses"
-        />
-      </FormGroup>
+      {/* Global controls */}
+      <GlobalControls
+        windowSec={windowSec}
+        maxTime={maxTime}
+        onWindowSecChange={setWindowSec}
+        followCursor={followCursor}
+        onFollowCursorChange={setFollowCursor}
+        snapToWindow={snapToWindow}
+        onSnapToWindowChange={setSnapToWindow}
+      />
+      {/* Derivative/Impulse toggles */}
+      <DerivativeImpulseToggles
+        showFirstDerivative={showFirstDerivative}
+        onShowFirstDerivative={setShowFirstDerivative}
+        showSecondDerivative={showSecondDerivative}
+        onShowSecondDerivative={setShowSecondDerivative}
+        showImpulses={showImpulses}
+        onShowImpulses={setShowImpulses}
+      />
       {/* New: Band selection toggle */}
       <Box sx={{ mb: 2 }}>
-        <ToggleButtonGroup
-          value={selectedBands[0] || ''}
-          exclusive
-          onChange={(_, newBand) => {
-            if (newBand) setSelectedBands([newBand]);
-          }}
-          aria-label="Band selection"
-        >
-          {bandPlotsData.map(data => (
-            <ToggleButton key={data.band.name} value={data.band.name} aria-label={data.band.name}>
-              {data.band.name}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+        <BandSelector
+          bands={bandPlotsData.map(data => ({ name: data.band.name }))}
+          selectedBand={selectedBands[0] || ''}
+          onSelect={bandName => setSelectedBands([bandName])}
+        />
       </Box>
       {/* Band plot list (no virtualization) */}
       {bandPlotsData.map(data => (
