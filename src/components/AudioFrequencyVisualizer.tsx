@@ -294,6 +294,27 @@ const BandUPlotCard = memo(({
     series: simpleSeries,
   };
 
+  // Find impulse trace (mode: 'markers')
+  const impulseTrace = data.traces.find(t => t.mode === 'markers');
+  let impulseY: number[] = [];
+  if (impulseTrace && impulseTrace.x && impulseTrace.y && Array.isArray(impulseTrace.x) && Array.isArray(impulseTrace.y)) {
+    // For each windowedX, if it matches an impulse x, set y to impulse value, else NaN
+    impulseY = windowedX.map(x => {
+      const idx = (impulseTrace.x as number[]).findIndex(tx => Math.abs(tx - x) < 1e-6);
+      return idx !== -1 ? (impulseTrace.y as number[])[idx] : NaN;
+    });
+  }
+
+  if (impulseY.length > 0) {
+    simpleUData.push(new Float64Array(impulseY));
+    simpleSeries.push({
+      label: 'Impulses',
+      stroke: 'magenta',
+      width: 0,
+      points: { show: true, size: 8, stroke: 'magenta', fill: 'magenta' },
+    } as any);
+  }
+
   return (
     <Card sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
       <CardContent sx={{ p: 1.2, pb: 1 }}>
@@ -715,7 +736,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
           key={data.band.name}
           sx={{ display: selectedBands.includes(data.band.name) ? 'block' : 'none' }}
         >
-          <BandUPlotCard
+          <BandPlotCard
             data={data}
             xRange={xRange}
             axisColor={axisColor}
