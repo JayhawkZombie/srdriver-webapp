@@ -9,6 +9,7 @@ import useBandPlots, { BandPlotData } from './useBandPlots';
 import { FixedSizeList as List } from 'react-window';
 import { UPlot } from 'react-uplot';
 import uPlot from 'uplot';
+import useAudioFrequencyData from './useAudioFrequencyData';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -361,250 +362,38 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const [showFirstDerivative, setShowFirstDerivative] = useState(false);
   const [showSecondDerivative, setShowSecondDerivative] = useState(false);
   const [showImpulses, setShowImpulses] = useState(true);
-  // Per-band impulse thresholds
-  const [impulseThresholds, setImpulseThresholds] = useState<number[]>(
-    (isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS).map(() => 50)
-  ); // Default 50 for each band
 
   const playbackTime = externalPlaybackTime !== undefined ? externalPlaybackTime : internalPlaybackTime;
-  const displaySequence = fftSequence;
-  const numBins = displaySequence[0]?.length || 0;
 
-  // X axis: time (seconds)
-  const times = Array.from({ length: displaySequence.length }, (_, i) => (i * hopSize) / sampleRate);
-  // Determine the max time
-  const maxTime = times.length > 0 ? times[times.length - 1] : 0;
-  // Window logic: useMemo to ensure xRange updates with playbackTime and controls
-  const xRange: [number, number] = React.useMemo(() => {
-    if (!followCursor) {
-      // Show full song if windowSec >= maxTime, else show window from 0
-      if (windowSec >= maxTime) {
-        return [0, maxTime];
-      } else {
-        return [0, windowSec];
-      }
-    } else {
-      // Follow cursor
-      if (windowSec >= maxTime) {
-        return [0, maxTime];
-      } else if (snapToWindow) {
-        // Snap to window: jump to next window when cursor passes window boundary
-        const windowIdx = Math.floor(playbackTime / windowSec);
-        let start = windowIdx * windowSec;
-        let end = start + windowSec;
-        if (end > maxTime) {
-          end = maxTime;
-          start = Math.max(0, end - windowSec);
-        }
-        return [start, end];
-      } else if (playbackTime < windowSec / 2) {
-        return [0, windowSec];
-      } else if (playbackTime > maxTime - windowSec / 2) {
-        return [maxTime - windowSec, maxTime];
-      } else {
-        return [playbackTime - windowSec / 2, playbackTime + windowSec / 2];
-      }
-    }
-  }, [playbackTime, windowSec, snapToWindow, followCursor, maxTime]);
-  // Frequency for each bin
-  const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
-
-  // --- Audio playback logic ---
-  // Clean up audio context and source
-  const stopAudio = () => {
-    if (sourceNodeRef.current) {
-      try { sourceNodeRef.current.stop(); } catch {}
-      sourceNodeRef.current.disconnect();
-      sourceNodeRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-  };
-
-  // Start audio at a given offset
-  const startAudio = (offset: number) => {
-    if (!audioBuffer) return;
-    stopAudio();
-    const ctx = new window.AudioContext();
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(ctx.destination);
-    source.start(0, offset);
-    audioContextRef.current = ctx;
-    sourceNodeRef.current = source;
-    playbackStartTimeRef.current = ctx.currentTime - offset;
-    // When audio ends, pause
-    source.onended = () => {
-      setIsPlaying(false);
-      setInternalPlaybackTime(maxTime);
-      stopAudio();
-    };
-  };
-
-  // Start/stop timer and audio
-  useEffect(() => {
-    if (isPlaying) {
-      if (audioBuffer) {
-        // Start audio playback
-        startAudio(playbackTime);
-        // Sync playbackTime to audio context
-        intervalRef.current = setInterval(() => {
-          const ctx = audioContextRef.current;
-          if (ctx) {
-            const t = ctx.currentTime - playbackStartTimeRef.current;
-            setInternalPlaybackTime(t > maxTime ? maxTime : t);
-            if (t >= maxTime) {
-              setIsPlaying(false);
-              stopAudio();
-            }
-          }
-        }, 50);
-      } else {
-        // Fallback: timer only
-        intervalRef.current = setInterval(() => {
-          setInternalPlaybackTime((prev) => {
-            const next = prev + 0.05 * playbackSpeed; // 50ms steps
-            return next > maxTime ? maxTime : next;
-          });
-        }, 50);
-      }
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      stopAudio();
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      stopAudio();
-    };
-    // eslint-disable-next-line
-  }, [isPlaying, playbackSpeed, maxTime, audioBuffer]);
-
-  // Reset playback if new data is loaded (only when fftSequence length goes from 0 to >0)
-  useEffect(() => {
-    if (fftSequence.length > 0) {
-      setInternalPlaybackTime(0);
-      setIsPlaying(false);
-      pausedAtRef.current = 0;
-      stopAudio();
-    }
-    // eslint-disable-next-line
-  }, [fftSequence.length]);
-
-  const [bandDataArr, setBandDataArr] = useState<any[]>([]); // Precomputed per-band data
-  const [visualizing, setVisualizing] = useState(false); // Optional: show spinner while worker runs
-  const [hasSetThresholds, setHasSetThresholds] = useState(false); // Track if thresholds have been set for current data
-  // Visualization status message
-  const [visualizationStatus, setVisualizationStatus] = useState<string>('Preparing visualizations...');
-
-  // --- Profiling state ---
-  // const [renderCount, setRenderCount] = useState(0);
-  // const [lastRenderDuration, setLastRenderDuration] = useState(0);
-  // const bandPlotsRenderCount = useRef(0);
-  // const bandPlotsLastDuration = useRef(0);
-
-  // Precompute all band data in a worker when fftSequence or bands/colors change
-  useEffect(() => {
-    if (!fftSequence || fftSequence.length === 0) {
-      setBandDataArr([]);
-      return;
-    }
-    setVisualizing(true);
-    setVisualizationStatus('Preparing visualizations...');
-    const worker = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url));
-    // Convert Float32Array[] to number[][] for transfer
-    const fftSeqArr = fftSequence.map(row => Array.from(row));
-    worker.onmessage = (e) => {
-      if (e.data.status) {
-        setVisualizationStatus(e.data.status);
-      }
-      setBandDataArr(e.data.bandDataArr);
-      setVisualizing(false);
-    };
-    setVisualizationStatus('Computing band data...');
-    worker.postMessage({
-      fftSequence: fftSeqArr,
-      bands: STANDARD_BANDS,
-      sampleRate,
-      hopSize,
-    });
-    return () => worker.terminate();
-    // eslint-disable-next-line
-  }, [fftSequence, sampleRate, hopSize, isDark]);
-
-  // When bandDataArr changes, reset hasSetThresholds
-  useEffect(() => {
-    setHasSetThresholds(false);
-  }, [bandDataArr]);
-
-  // When showImpulses is toggled on, set thresholds to middle of slider range for each band, but only once per data load
-  useEffect(() => {
-    if (bandDataArr.length > 0 && !hasSetThresholds) {
-      setImpulseThresholds(bandDataArr.map(band => {
-        const visibleImpulseStrengths = band.impulseStrengths.map((v: number) => Math.abs(v));
-        const bandMin = Math.min(...visibleImpulseStrengths, 0);
-        const bandMax = Math.max(...visibleImpulseStrengths, 1);
-        let sliderMin = bandMin;
-        let sliderMax = bandMax;
-        if (sliderMax === sliderMin) sliderMax = sliderMin + 1;
-        return (sliderMin + sliderMax) / 2;
-      }));
-      setHasSetThresholds(true);
-    }
-  }, [bandDataArr, hasSetThresholds]);
-
-  // Clamp impulseThresholds to visible slider range for each band
-  useEffect(() => {
-    if (!bandDataArr.length) return;
-    const newThresholds = bandDataArr.map((data, bandIdx) => {
-      const visibleSecondDerivatives = data.secondDerivatives as number[];
-      const visibleImpulseStrengths = visibleSecondDerivatives.map((v) => Math.abs(v));
-      const bandMin = Math.min(...visibleImpulseStrengths, 0);
-      const bandMax = Math.max(...visibleImpulseStrengths, 1);
-      let sliderMin = bandMin;
-      let sliderMax = bandMax;
-      if (sliderMax === sliderMin) sliderMax = sliderMin + 1;
-      let threshold = impulseThresholds[bandIdx] ?? 50;
-      if (threshold < sliderMin || threshold > sliderMax) {
-        threshold = (sliderMin + sliderMax) / 2;
-      }
-      return threshold;
-    });
-    if (JSON.stringify(newThresholds) !== JSON.stringify(impulseThresholds)) {
-      setImpulseThresholds(newThresholds);
-    }
-    // Only run when bandDataArr or impulseThresholds changes
-  }, [bandDataArr, impulseThresholds]);
-
-  // --- Memoized bandPlots ---
-  const bandPlotsData = useBandPlots({
-    bandDataArr,
+  // --- Use new computation hook ---
+  const {
+    bandPlotsData,
+    impulseThresholds,
+    setImpulseThresholds,
+    visualizing,
+    visualizationStatus,
     xRange,
+    maxTime,
+    freqs,
+  } = useAudioFrequencyData({
+    fftSequence,
+    sampleRate,
+    hopSize,
+    bands: STANDARD_BANDS,
     showFirstDerivative,
     showSecondDerivative,
     showImpulses,
-    impulseThresholds,
     playbackTime,
+    windowSec,
+    followCursor,
+    snapToWindow,
     isDark,
-    hopSize,
-    sampleRate,
-    freqs,
     axisColor,
     gridColor,
     plotBg,
-    setImpulseThresholds,
   });
 
-  // Track overall render count and duration
-  // useEffect(() => {
-  //   const t0 = performance.now();
-  //   setRenderCount(c => c + 1);
-  //   setLastRenderDuration(performance.now() - t0);
-  // });
+  const numBins = fftSequence[0]?.length || 0;
 
   // Controls
   const handlePlay = () => {
@@ -618,7 +407,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     if (externalPlaybackTime === undefined) setInternalPlaybackTime(0);
     setIsPlaying(false);
     pausedAtRef.current = 0;
-    stopAudio();
   };
   const handleSpeedChange = (e: SelectChangeEvent<number>) => setPlaybackSpeed(Number(e.target.value));
 
