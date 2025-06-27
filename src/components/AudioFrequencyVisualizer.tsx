@@ -30,6 +30,10 @@ interface AudioFrequencyVisualizerProps {
    * The decoded AudioBuffer for playback (optional)
    */
   audioBuffer?: AudioBuffer;
+  /**
+   * (Optional) Playback time in seconds, to externally control the cursor (e.g. from wavesurfer)
+   */
+  playbackTime?: number;
 }
 
 const LIGHT_BAND_COLORS = [
@@ -64,6 +68,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   windowSize,
   hopSize,
   audioBuffer,
+  playbackTime: externalPlaybackTime,
   // maxSlices = 64, // unused for this plot
 }) => {
   const theme = useTheme();
@@ -75,7 +80,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const STANDARD_BANDS = isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS;
 
   // --- Playback state (move hooks to top) ---
-  const [playbackTime, setPlaybackTime] = useState(0);
+  const [internalPlaybackTime, setInternalPlaybackTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, etc.
   const [followCursor, setFollowCursor] = useState(false);
@@ -97,6 +102,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     (isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS).map(() => 50)
   ); // Default 50 for each band
 
+  const playbackTime = externalPlaybackTime !== undefined ? externalPlaybackTime : internalPlaybackTime;
   const displaySequence = fftSequence;
   const numBins = displaySequence[0]?.length || 0;
 
@@ -104,37 +110,38 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const times = Array.from({ length: displaySequence.length }, (_, i) => (i * hopSize) / sampleRate);
   // Determine the max time
   const maxTime = times.length > 0 ? times[times.length - 1] : 0;
-  // Window logic
-  let xRange: [number, number];
-  if (!followCursor) {
-    // Show full song if windowSec >= maxTime, else show window from 0
-    if (windowSec >= maxTime) {
-      xRange = [0, maxTime];
-    } else {
-      xRange = [0, windowSec];
-    }
-  } else {
-    // Follow cursor
-    if (windowSec >= maxTime) {
-      xRange = [0, maxTime];
-    } else if (snapToWindow) {
-      // Snap to window: jump to next window when cursor passes window boundary
-      const windowIdx = Math.floor(playbackTime / windowSec);
-      let start = windowIdx * windowSec;
-      let end = start + windowSec;
-      if (end > maxTime) {
-        end = maxTime;
-        start = Math.max(0, end - windowSec);
+  // Window logic: useMemo to ensure xRange updates with playbackTime and controls
+  const xRange: [number, number] = React.useMemo(() => {
+    if (!followCursor) {
+      // Show full song if windowSec >= maxTime, else show window from 0
+      if (windowSec >= maxTime) {
+        return [0, maxTime];
+      } else {
+        return [0, windowSec];
       }
-      xRange = [start, end];
-    } else if (playbackTime < windowSec / 2) {
-      xRange = [0, windowSec];
-    } else if (playbackTime > maxTime - windowSec / 2) {
-      xRange = [maxTime - windowSec, maxTime];
     } else {
-      xRange = [playbackTime - windowSec / 2, playbackTime + windowSec / 2];
+      // Follow cursor
+      if (windowSec >= maxTime) {
+        return [0, maxTime];
+      } else if (snapToWindow) {
+        // Snap to window: jump to next window when cursor passes window boundary
+        const windowIdx = Math.floor(playbackTime / windowSec);
+        let start = windowIdx * windowSec;
+        let end = start + windowSec;
+        if (end > maxTime) {
+          end = maxTime;
+          start = Math.max(0, end - windowSec);
+        }
+        return [start, end];
+      } else if (playbackTime < windowSec / 2) {
+        return [0, windowSec];
+      } else if (playbackTime > maxTime - windowSec / 2) {
+        return [maxTime - windowSec, maxTime];
+      } else {
+        return [playbackTime - windowSec / 2, playbackTime + windowSec / 2];
+      }
     }
-  }
+  }, [playbackTime, windowSec, snapToWindow, followCursor, maxTime]);
   // Frequency for each bin
   const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
 
@@ -167,7 +174,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     // When audio ends, pause
     source.onended = () => {
       setIsPlaying(false);
-      setPlaybackTime(maxTime);
+      setInternalPlaybackTime(maxTime);
       stopAudio();
     };
   };
@@ -183,7 +190,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
           const ctx = audioContextRef.current;
           if (ctx) {
             const t = ctx.currentTime - playbackStartTimeRef.current;
-            setPlaybackTime(t > maxTime ? maxTime : t);
+            setInternalPlaybackTime(t > maxTime ? maxTime : t);
             if (t >= maxTime) {
               setIsPlaying(false);
               stopAudio();
@@ -193,7 +200,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
       } else {
         // Fallback: timer only
         intervalRef.current = setInterval(() => {
-          setPlaybackTime((prev) => {
+          setInternalPlaybackTime((prev) => {
             const next = prev + 0.05 * playbackSpeed; // 50ms steps
             return next > maxTime ? maxTime : next;
           });
@@ -216,7 +223,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   // Reset playback if new data is loaded (only when fftSequence length goes from 0 to >0)
   useEffect(() => {
     if (fftSequence.length > 0) {
-      setPlaybackTime(0);
+      setInternalPlaybackTime(0);
       setIsPlaying(false);
       pausedAtRef.current = 0;
       stopAudio();
@@ -465,7 +472,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     pausedAtRef.current = playbackTime;
   };
   const handleReset = () => {
-    setPlaybackTime(0);
+    if (externalPlaybackTime === undefined) setInternalPlaybackTime(0);
     setIsPlaying(false);
     pausedAtRef.current = 0;
     stopAudio();

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
     Box,
     Paper,
@@ -19,6 +19,7 @@ import {
 import { computeFFTMagnitude } from "../controllers/fftUtils";
 import Plot from 'react-plotly.js';
 import AudioFrequencyVisualizer from './AudioFrequencyVisualizer';
+import WaveSurfer from "wavesurfer.js";
 
 interface ChunkSummary {
     numChunks: number;
@@ -42,11 +43,17 @@ const AudioChunkerDemo: React.FC = () => {
     const audioBufferRef = useRef<AudioBuffer | null>(null);
     const [fftSequence, setFftSequence] = useState<(Float32Array | number[])[]>([]);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [audioUrl, setAudioUrl] = useState<string | undefined>(undefined);
+    const waveformRef = useRef<HTMLDivElement | null>(null);
+    const wavesurferRef = useRef<WaveSurfer | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [playbackTime, setPlaybackTime] = useState(0);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
             setSummary(null);
+            setAudioUrl(URL.createObjectURL(e.target.files[0]));
         }
     };
 
@@ -100,6 +107,40 @@ const AudioChunkerDemo: React.FC = () => {
         }
     };
 
+    useEffect(() => {
+        if (!audioUrl || !waveformRef.current) return;
+        if (wavesurferRef.current) {
+            wavesurferRef.current.destroy();
+        }
+        wavesurferRef.current = WaveSurfer.create({
+            container: waveformRef.current,
+            waveColor: "#90caf9",
+            progressColor: "#1976d2",
+            height: 100,
+            barWidth: 2,
+            cursorColor: "#f50057",
+        });
+        wavesurferRef.current.load(audioUrl);
+        wavesurferRef.current.on('finish', () => setIsPlaying(false));
+        // Listen to playback position
+        wavesurferRef.current.on('audioprocess', (time: number) => {
+            setPlaybackTime(time);
+        });
+        wavesurferRef.current.on('interaction', () => {
+            setPlaybackTime(wavesurferRef.current?.getCurrentTime() || 0);
+        });
+        return () => {
+            wavesurferRef.current?.destroy();
+        };
+    }, [audioUrl]);
+
+    const handlePlayPause = () => {
+        if (wavesurferRef.current) {
+            wavesurferRef.current.playPause();
+            setIsPlaying(wavesurferRef.current.isPlaying());
+        }
+    };
+
     return (
         <Paper
             elevation={2}
@@ -138,7 +179,21 @@ const AudioChunkerDemo: React.FC = () => {
                     </Typography>
                 </Stack>
             </Box>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+            {audioUrl && (
+                <Box sx={{ mt: 2 }}>
+                    <div ref={waveformRef} />
+                    <Button
+                        variant="contained"
+                        size="small"
+                        sx={{ mt: 1 }}
+                        onClick={handlePlayPause}
+                        disabled={!audioUrl}
+                    >
+                        {isPlaying ? 'Pause' : 'Play'}
+                    </Button>
+                </Box>
+            )}
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
                 <TextField
                     label="Window Size"
                     type="number"
@@ -200,6 +255,7 @@ const AudioChunkerDemo: React.FC = () => {
                     windowSize={windowSize}
                     hopSize={hopSize}
                     audioBuffer={audioBufferRef.current}
+                    playbackTime={playbackTime}
                 />
             )}
         </Paper>
