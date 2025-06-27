@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
+import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem } from '@mui/material';
+import { SelectChangeEvent } from '@mui/material';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -50,6 +52,8 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const [playbackTime, setPlaybackTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, etc.
+  const [followCursor, setFollowCursor] = useState(false);
+  const [windowSec, setWindowSec] = useState(4); // default window size in seconds
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   // Audio playback refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -64,8 +68,27 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const times = Array.from({ length: displaySequence.length }, (_, i) => (i * hopSize) / sampleRate);
   // Determine the max time
   const maxTime = times.length > 0 ? times[times.length - 1] : 0;
-  // Show the entire song at once
-  let xRange: [number, number] = [0, maxTime];
+  // Window logic
+  let xRange: [number, number];
+  if (!followCursor) {
+    // Show full song if windowSec >= maxTime, else show window from 0
+    if (windowSec >= maxTime) {
+      xRange = [0, maxTime];
+    } else {
+      xRange = [0, windowSec];
+    }
+  } else {
+    // Follow cursor, keep window centered on playbackTime
+    if (windowSec >= maxTime) {
+      xRange = [0, maxTime];
+    } else if (playbackTime < windowSec / 2) {
+      xRange = [0, windowSec];
+    } else if (playbackTime > maxTime - windowSec / 2) {
+      xRange = [maxTime - windowSec, maxTime];
+    } else {
+      xRange = [playbackTime - windowSec / 2, playbackTime + windowSec / 2];
+    }
+  }
   // Frequency for each bin
   const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
 
@@ -171,7 +194,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     pausedAtRef.current = 0;
     stopAudio();
   };
-  const handleSpeedChange = (e: React.ChangeEvent<HTMLSelectElement>) => setPlaybackSpeed(Number(e.target.value));
+  const handleSpeedChange = (e: SelectChangeEvent<number>) => setPlaybackSpeed(Number(e.target.value));
 
   // --- Band plots with playback cursor ---
   const bandPlots = STANDARD_BANDS.map(band => {
@@ -217,7 +240,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
               y: derivatives,
               type: 'scatter',
               mode: 'lines',
-              line: { color: 'magenta', width: 2, dash: 'dash' },
+              line: { color: 'rgba(255,0,255,0.8)', width: 3 },
               name: band.name + ' Rate of Change',
               yaxis: 'y2',
             },
@@ -253,36 +276,68 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   });
 
   return (
-    <div style={{
-      maxWidth: 700,
-      margin: '2rem auto',
-      padding: '1rem',
-      border: '1px solid #ccc',
-      borderRadius: 8,
-      background: '#fafbfc',
-      maxHeight: 600,
-      overflowY: 'auto',
-      overflowX: 'auto',
-    }}>
-      <h3 style={{ marginBottom: 16 }}>Frequency Band Magnitude Over Time</h3>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-        <button onClick={handlePlay} disabled={isPlaying || playbackTime >= maxTime}>Play</button>
-        <button onClick={handlePause} disabled={!isPlaying}>Pause</button>
-        <button onClick={handleReset}>Reset</button>
-        <label style={{ marginLeft: 16 }}>
-          Speed:
-          <select value={playbackSpeed} onChange={handleSpeedChange} style={{ marginLeft: 8 }}>
-            <option value={0.5}>0.5x</option>
-            <option value={1}>1x</option>
-            <option value={2}>2x</option>
-            <option value={4}>4x</option>
-            <option value={8}>8x</option>
-          </select>
-        </label>
-        <span style={{ marginLeft: 16 }}>Time: {playbackTime.toFixed(2)}s / {maxTime.toFixed(2)}s</span>
-      </div>
+    <Box
+      sx={{
+        maxWidth: 700,
+        margin: '2rem auto',
+        p: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        bgcolor: 'background.paper',
+        maxHeight: 600,
+        overflowY: 'auto',
+        overflowX: 'auto',
+      }}
+    >
+      <Typography variant="h5" sx={{ mb: 2 }}>
+        Frequency Band Magnitude Over Time
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <ButtonGroup variant="contained" size="small">
+          <Button onClick={handlePlay} disabled={isPlaying || playbackTime >= maxTime}>Play</Button>
+          <Button onClick={handlePause} disabled={!isPlaying}>Pause</Button>
+          <Button onClick={handleReset}>Reset</Button>
+        </ButtonGroup>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
+          <Typography variant="body2">Speed:</Typography>
+          <Select
+            value={playbackSpeed}
+            onChange={handleSpeedChange}
+            size="small"
+            sx={{ minWidth: 60 }}
+          >
+            <MenuItem value={0.5}>0.5x</MenuItem>
+            <MenuItem value={1}>1x</MenuItem>
+            <MenuItem value={2}>2x</MenuItem>
+            <MenuItem value={4}>4x</MenuItem>
+            <MenuItem value={8}>8x</MenuItem>
+          </Select>
+        </Box>
+        <Typography variant="body2" sx={{ ml: 2 }}>
+          Time: {playbackTime.toFixed(2)}s / {maxTime.toFixed(2)}s
+        </Typography>
+        <FormControlLabel
+          control={<Checkbox checked={followCursor} onChange={e => setFollowCursor(e.target.checked)} />}
+          label="Follow Cursor"
+          sx={{ ml: 2 }}
+        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2, minWidth: 180 }}>
+          <Typography variant="body2">Window Size:</Typography>
+          <Slider
+            min={2}
+            max={Math.max(2, Math.ceil(maxTime))}
+            value={windowSec}
+            onChange={(_, v) => setWindowSec(Number(v))}
+            valueLabelDisplay="auto"
+            size="small"
+            sx={{ width: 100 }}
+          />
+          <Typography variant="body2">{windowSec}s</Typography>
+        </Box>
+      </Box>
       {bandPlots}
-    </div>
+    </Box>
   );
 };
 
