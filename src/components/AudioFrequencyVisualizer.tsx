@@ -94,9 +94,9 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const pausedAtRef = useRef<number>(0); // Where we paused
 
   // --- New state for toggles and impulse threshold ---
-  const [showFirstDerivative, setShowFirstDerivative] = useState(true);
+  const [showFirstDerivative, setShowFirstDerivative] = useState(false);
   const [showSecondDerivative, setShowSecondDerivative] = useState(false);
-  const [showImpulses, setShowImpulses] = useState(false);
+  const [showImpulses, setShowImpulses] = useState(true);
   // Per-band impulse thresholds
   const [impulseThresholds, setImpulseThresholds] = useState<number[]>(
     (isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS).map(() => 50)
@@ -320,6 +320,16 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
       };
     });
   }, [displaySequence, freqs, xRange, showFirstDerivative, showSecondDerivative, impulseThresholds, times, numBins]);
+
+  // When showImpulses is toggled on, set thresholds to top of slider for each band
+  useEffect(() => {
+    if (showImpulses) {
+      // bandDataArr is recalculated on every render, so it's always up to date
+      setImpulseThresholds(bandDataArr.map(band => band.sliderMax));
+    }
+    // Only run when showImpulses changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showImpulses]);
 
   const bandPlots = useMemo(() => {
     return bandDataArr.map((data: any) => {
