@@ -1,5 +1,17 @@
 import React, { useState, useRef } from "react";
 import {
+    Box,
+    Paper,
+    Typography,
+    Button,
+    TextField,
+    Stack,
+    Divider,
+    List,
+    ListItem,
+    ListItemText
+} from '@mui/material';
+import {
     decodeAudioFile,
     getMonoPCMData,
     chunkPCMData,
@@ -29,12 +41,17 @@ const AudioChunkerDemo: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const audioBufferRef = useRef<AudioBuffer | null>(null);
     const [fftSequence, setFftSequence] = useState<(Float32Array | number[])[]>([]);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
             setSummary(null);
         }
+    };
+
+    const handleFileButtonClick = () => {
+        fileInputRef.current?.click();
     };
 
     const handleProcess = async () => {
@@ -84,81 +101,97 @@ const AudioChunkerDemo: React.FC = () => {
     };
 
     return (
-        <div
-            style={{
-                maxWidth: 700,
-                margin: "2rem auto",
-                padding: "1rem",
-                border: "1px solid #ccc",
-                borderRadius: 8,
+        <Paper
+            elevation={2}
+            sx={{
+                width: '100%',
+                margin: '2rem 0',
+                p: 2,
+                borderRadius: 2,
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
+                minWidth: 320,
             }}
         >
-            <h2>Audio Chunker Demo</h2>
-            <div style={{ marginBottom: 16 }}>
-                <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleFileChange}
+            <Typography variant="h6" sx={{ mb: 1 }}>
+                Audio Chunker Demo
+            </Typography>
+            <Box sx={{ mb: 1, p: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleFileChange}
+                        style={{ display: 'none' }}
+                    />
+                    <Button
+                        variant="contained"
+                        size="small"
+                        onClick={handleFileButtonClick}
+                    >
+                        Choose File
+                    </Button>
+                    <Typography variant="body2" sx={{ ml: 1, minWidth: 120, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {file ? file.name : 'No file chosen'}
+                    </Typography>
+                </Stack>
+            </Box>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                <TextField
+                    label="Window Size"
+                    type="number"
+                    size="small"
+                    value={windowSize}
+                    onChange={e => setWindowSize(Number(e.target.value))}
+                    inputProps={{ min: 128, step: 128, style: { width: 80 } }}
                 />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-                <label>
-                    Window Size:
-                    <input
-                        type="number"
-                        min={128}
-                        step={128}
-                        value={windowSize}
-                        onChange={(e) => setWindowSize(Number(e.target.value))}
-                        style={{ marginLeft: 8, width: 80 }}
-                    />
-                </label>
-                <label style={{ marginLeft: 16 }}>
-                    Hop Size:
-                    <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={hopSize}
-                        onChange={(e) => setHopSize(Number(e.target.value))}
-                        style={{ marginLeft: 8, width: 80 }}
-                    />
-                </label>
-            </div>
-            <button onClick={handleProcess} disabled={!file || loading}>
-                {loading ? "Processing..." : "Process Audio"}
-            </button>
+                <TextField
+                    label="Hop Size"
+                    type="number"
+                    size="small"
+                    value={hopSize}
+                    onChange={e => setHopSize(Number(e.target.value))}
+                    inputProps={{ min: 1, step: 1, style: { width: 80 } }}
+                />
+                <Button
+                    variant="contained"
+                    size="small"
+                    onClick={handleProcess}
+                    disabled={!file || loading}
+                >
+                    {loading ? 'Processing...' : 'Process Audio'}
+                </Button>
+            </Stack>
             {summary && (
-                <div style={{ marginTop: 24 }}>
-                    <h3>Chunking Summary</h3>
-                    <ul>
-                        <li>
-                            <strong>Number of Chunks:</strong>{' '}
-                            {summary.numChunks}
-                        </li>
-                        <li>
-                            <strong>Chunk Duration:</strong>{' '}
-                            {summary.chunkDurationMs.toFixed(2)} ms
-                        </li>
-                        <li>
-                            <strong>Total Audio Duration:</strong>{' '}
-                            {summary.totalDurationMs.toFixed(2)} ms
-                        </li>
-                        <li>
-                            <strong>Window Size:</strong> {summary.windowSize}{' '}
-                            samples
-                        </li>
-                        <li>
-                            <strong>Hop Size:</strong> {summary.hopSize} samples
-                        </li>
+                <Box sx={{ mt: 2, mb: 1, bgcolor: 'background.default', borderRadius: 1, p: 1 }}>
+                    <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+                        Chunking Summary
+                    </Typography>
+                    <List dense disablePadding>
+                        <ListItem disableGutters>
+                            <ListItemText primary={<><strong>Number of Chunks:</strong> {summary.numChunks}</>} />
+                        </ListItem>
+                        <ListItem disableGutters>
+                            <ListItemText primary={<><strong>Chunk Duration:</strong> {summary.chunkDurationMs.toFixed(2)} ms</>} />
+                        </ListItem>
+                        <ListItem disableGutters>
+                            <ListItemText primary={<><strong>Total Audio Duration:</strong> {summary.totalDurationMs.toFixed(2)} ms</>} />
+                        </ListItem>
+                        <ListItem disableGutters>
+                            <ListItemText primary={<><strong>Window Size:</strong> {summary.windowSize} samples</>} />
+                        </ListItem>
+                        <ListItem disableGutters>
+                            <ListItemText primary={<><strong>Hop Size:</strong> {summary.hopSize} samples</>} />
+                        </ListItem>
                         {summary.firstChunkFFT && (
-                            <li>
-                                <strong>First Chunk FFT (first 8 bins):</strong>{' '}
-                                {summary.firstChunkFFT.map((v, i) => v.toFixed(2)).join(', ')}
-                            </li>
+                            <ListItem disableGutters>
+                                <ListItemText primary={<><strong>First Chunk FFT (first 8 bins):</strong> {summary.firstChunkFFT.map((v, i) => v.toFixed(2)).join(', ')}</>} />
+                            </ListItem>
                         )}
-                    </ul>
-                </div>
+                    </List>
+                </Box>
             )}
             {fftSequence.length > 0 && audioBufferRef.current && (
                 <AudioFrequencyVisualizer
@@ -169,7 +202,7 @@ const AudioChunkerDemo: React.FC = () => {
                     audioBuffer={audioBufferRef.current}
                 />
             )}
-        </div>
+        </Paper>
     );
 };
 

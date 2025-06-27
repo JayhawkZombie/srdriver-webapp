@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Plot from 'react-plotly.js';
-import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem } from '@mui/material';
+import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem, FormGroup } from '@mui/material';
 import { SelectChangeEvent } from '@mui/material';
 
 interface AudioFrequencyVisualizerProps {
@@ -60,6 +60,12 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const playbackStartTimeRef = useRef<number>(0); // When audio started (context time)
   const pausedAtRef = useRef<number>(0); // Where we paused
+
+  // --- New state for toggles and impulse threshold ---
+  const [showFirstDerivative, setShowFirstDerivative] = useState(true);
+  const [showSecondDerivative, setShowSecondDerivative] = useState(false);
+  const [showImpulses, setShowImpulses] = useState(false);
+  const [impulseThreshold, setImpulseThreshold] = useState(50); // Default, can be tuned
 
   const displaySequence = fftSequence;
   const numBins = displaySequence[0]?.length || 0;
@@ -210,44 +216,110 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     }
     // Extract the magnitude for this bin over all chunks
     const magnitudes = displaySequence.map(row => row[binIdx] ?? 0);
-    // Compute the derivative (finite difference)
+    // Compute the first derivative (finite difference)
     const derivatives = magnitudes.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
+    // Compute the second derivative
+    const secondDerivatives = derivatives.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
+    // Impulse detection: indices where abs(secondDerivatives) > threshold
+    const impulseStrengths = secondDerivatives.map((v) => Math.abs(v));
+    const impulseIndices = impulseStrengths
+      .map((v, i) => (v > impulseThreshold ? i : -1))
+      .filter(i => i > 0);
+    // Impulse times, values, and strengths
+    const impulseTimes = impulseIndices.map(i => times[i]);
+    const impulseValues = impulseIndices.map(i => magnitudes[i]);
+    const impulseStrengthVals = impulseIndices.map(i => impulseStrengths[i]);
+    // Normalize strengths for color mapping
+    const minStrength = Math.min(...impulseStrengthVals, 0);
+    const maxStrength = Math.max(...impulseStrengthVals, 1);
+    const normStrengths = impulseStrengthVals.map(s => (s - minStrength) / (maxStrength - minStrength || 1));
+    // Map to color spectrum (blue to red)
+    // We'll use HSL: 240deg (blue) to 0deg (red)
+    const impulseColors = normStrengths.map(t => `hsl(${240 - 240 * t}, 100%, 50%)`);
+
+    // Find visible window for y-axis auto-fit
+    const [xMin, xMax] = xRange;
+    const visibleIndices = times.map((t, i) => (t >= xMin && t <= xMax ? i : -1)).filter(i => i >= 0);
+    const visibleMagnitudes = visibleIndices.map(i => magnitudes[i]);
+    const visibleDerivatives = visibleIndices.map(i => derivatives[i]);
+    const visibleSecondDerivatives = visibleIndices.map(i => secondDerivatives[i]);
+    // Find min/max for y-axis (add margin)
+    let yMin = Math.min(...visibleMagnitudes);
+    let yMax = Math.max(...visibleMagnitudes);
+    if (showFirstDerivative) {
+      yMin = Math.min(yMin, ...visibleDerivatives);
+      yMax = Math.max(yMax, ...visibleDerivatives);
+    }
+    if (showSecondDerivative) {
+      yMin = Math.min(yMin, ...visibleSecondDerivatives);
+      yMax = Math.max(yMax, ...visibleSecondDerivatives);
+    }
+    // Add margin
+    const margin = (yMax - yMin) * 0.1 || 1;
+    yMin -= margin;
+    yMax += margin;
+
     // Cursor as a trace (vertical line)
     const cursorTrace = {
       x: [playbackTime, playbackTime],
-      y: [0, Math.max(Math.max(...magnitudes) * 1.1, 1)],
+      y: [yMin, yMax],
       type: 'scatter',
       mode: 'lines',
       line: { color: 'red', width: 4, dash: 'solid' },
       name: 'Cursor',
       showlegend: false,
     };
+    // Traces array
+    const traces: Partial<Plotly.PlotData>[] = [
+      {
+        x: times,
+        y: magnitudes,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: band.color, width: 2 },
+        name: band.name,
+      },
+    ];
+    if (showFirstDerivative) {
+      traces.push({
+        x: times,
+        y: derivatives,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'rgba(255,0,255,0.8)', width: 3 },
+        name: band.name + ' Rate of Change',
+        yaxis: 'y2',
+      } as Partial<Plotly.PlotData>);
+    }
+    if (showSecondDerivative) {
+      traces.push({
+        x: times,
+        y: secondDerivatives,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'cyan', width: 2 },
+        name: band.name + ' 2nd Derivative',
+        yaxis: 'y3',
+      } as Partial<Plotly.PlotData>);
+    }
+    if (showImpulses && impulseTimes.length > 0) {
+      traces.push({
+        x: impulseTimes,
+        y: impulseValues,
+        type: 'scatter',
+        mode: 'markers',
+        marker: { color: impulseColors, size: 10, symbol: 'x' },
+        name: band.name + ' Impulse',
+      } as Partial<Plotly.PlotData>);
+    }
+    traces.push(cursorTrace as Partial<Plotly.PlotData>);
     return (
-      <div style={{ marginBottom: 32 }}>
+      <div style={{ marginBottom: 32 }} key={band.name}>
         <h4 style={{ color: band.color, margin: '8px 0' }}>{band.name} ({Math.round(freqs[binIdx])} Hz)</h4>
         <Plot
-          data={[
-            {
-              x: times,
-              y: magnitudes,
-              type: 'scatter',
-              mode: 'lines',
-              line: { color: band.color, width: 2 },
-              name: band.name,
-            },
-            {
-              x: times,
-              y: derivatives,
-              type: 'scatter',
-              mode: 'lines',
-              line: { color: 'rgba(255,0,255,0.8)', width: 3 },
-              name: band.name + ' Rate of Change',
-              yaxis: 'y2',
-            },
-            cursorTrace,
-          ]}
+          data={traces}
           layout={{
-            height: 120,
+            height: 140,
             margin: { l: 60, r: 30, t: 30, b: 40 },
             xaxis: {
               title: 'Time (seconds)',
@@ -257,6 +329,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
             yaxis: {
               title: 'Magnitude',
               automargin: true,
+              range: [yMin, yMax],
             },
             yaxis2: {
               overlaying: 'y',
@@ -264,6 +337,14 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
               showgrid: false,
               zeroline: false,
               showticklabels: false,
+            },
+            yaxis3: {
+              overlaying: 'y',
+              side: 'right',
+              showgrid: false,
+              zeroline: false,
+              showticklabels: false,
+              position: 1.0,
             },
             paper_bgcolor: '#fafbfc',
             plot_bgcolor: '#fafbfc',
@@ -278,8 +359,8 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   return (
     <Box
       sx={{
-        maxWidth: 700,
-        margin: '2rem auto',
+        width: '100%',
+        margin: '2rem 0',
         p: 2,
         border: '1px solid',
         borderColor: 'divider',
@@ -331,11 +412,40 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
             onChange={(_, v) => setWindowSec(Number(v))}
             valueLabelDisplay="auto"
             size="small"
-            sx={{ width: 100 }}
+            sx={{ width: 180 }}
           />
           <Typography variant="body2">{windowSec}s</Typography>
         </Box>
       </Box>
+      {/* New: Derivative/Impulse toggles and threshold */}
+      <FormGroup row sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={<Checkbox checked={showFirstDerivative} onChange={e => setShowFirstDerivative(e.target.checked)} />}
+          label="Show 1st Derivative"
+        />
+        <FormControlLabel
+          control={<Checkbox checked={showSecondDerivative} onChange={e => setShowSecondDerivative(e.target.checked)} />}
+          label="Show 2nd Derivative"
+        />
+        <FormControlLabel
+          control={<Checkbox checked={showImpulses} onChange={e => setShowImpulses(e.target.checked)} />}
+          label="Show Impulses"
+        />
+        {showImpulses && (
+          <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
+            <Typography variant="body2" sx={{ mr: 1 }}>Impulse Threshold:</Typography>
+            <Slider
+              min={1}
+              max={200}
+              value={impulseThreshold}
+              onChange={(_, v) => setImpulseThreshold(Number(v))}
+              valueLabelDisplay="auto"
+              size="small"
+              sx={{ width: 100 }}
+            />
+          </Box>
+        )}
+      </FormGroup>
       {bandPlots}
     </Box>
   );
