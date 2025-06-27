@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import Plot from 'react-plotly.js';
-import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem, FormGroup, Card, CardContent, Skeleton, CircularProgress } from '@mui/material';
+import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem, FormGroup, Card, CardContent, Skeleton, CircularProgress, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { SelectChangeEvent } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 // @ts-ignore
 import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
 import useBandPlots, { BandPlotData } from './useBandPlots';
+import { FixedSizeList as List } from 'react-window';
+import { UPlot } from 'react-uplot';
+import uPlot from 'uplot';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -160,6 +163,117 @@ const BandPlotCard = memo(({
     </CardContent>
   </Card>
 ));
+
+// New: uPlot-based band plot card
+const BandUPlotCard = memo(({
+  data,
+  xRange,
+  axisColor,
+  gridColor,
+  plotBg,
+  showImpulses,
+  impulseThresholds,
+  setImpulseThresholds,
+}: {
+  data: BandPlotData;
+  xRange: [number, number];
+  axisColor: string;
+  gridColor: string;
+  plotBg: string;
+  showImpulses: boolean;
+  impulseThresholds: number[];
+  setImpulseThresholds: (thresholds: number[]) => void;
+}) => {
+  // Prepare uPlot data: [x, y]
+  const mainTrace = data.traces[0];
+  const xArr = mainTrace.x as number[];
+  const yArr = mainTrace.y as number[];
+  const x = new Float64Array(xArr);
+  const y = new Float64Array(yArr);
+  const uData = [x, y];
+  const validData = x.length > 0 && y.length > 0 && x.length === y.length;
+  // Only render UPlot after mount
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => { setMounted(true); }, []);
+  // uPlot options
+  const options: uPlot.Options = {
+    width: 600,
+    height: 280,
+    title: data.band.name + ` (${Math.round(data.freq)} Hz)`,
+    scales: {
+      x: { time: false, min: xRange[0], max: xRange[1] },
+      y: { auto: true },
+    },
+    axes: [
+      {
+        stroke: axisColor,
+        grid: { stroke: gridColor },
+        label: 'Time (seconds)',
+      },
+      {
+        stroke: axisColor,
+        grid: { stroke: gridColor },
+        label: 'Magnitude',
+      },
+    ],
+    series: [
+      {}, // x
+      {
+        label: data.band.name,
+        stroke: data.band.color,
+        width: 2,
+      },
+    ],
+    hooks: {},
+    // TODO: Add tooltips, impulses, derivatives, cursor, etc.
+  };
+  return (
+    <Card key={data.band.name} sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
+      <CardContent sx={{ p: 1.2, pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1, overflow: 'visible' }}>
+          {showImpulses && (
+            <>
+              <Typography variant="body2" sx={{ color: data.band.color, minWidth: 60, fontWeight: 500, fontSize: 13 }}>
+                {data.band.name} Threshold:
+              </Typography>
+              <Slider
+                min={data.sliderMin}
+                max={data.sliderMax}
+                step={data.sliderStep}
+                value={data.threshold}
+                onChange={(_, v) => {
+                  const newThresholds = [...impulseThresholds];
+                  newThresholds[data.bandIdx] = typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0);
+                  setImpulseThresholds(newThresholds);
+                }}
+                valueLabelDisplay="on"
+                valueLabelFormat={v => (typeof v === 'number' ? v.toFixed(1) : v)}
+                size="small"
+                sx={{ width: 130, ml: 0, mr: 2 }}
+                marks={false}
+              />
+            </>
+          )}
+          <div style={{ color: data.band.color, fontWeight: 700, fontSize: 16, margin: 0, lineHeight: 1 }}>{data.band.name} ({Math.round(data.freq)} Hz)</div>
+        </Box>
+        <Box sx={{ width: '100%', p: 0.5, pt: 0, pb: 0, boxSizing: 'border-box' }}>
+          {mounted && validData ? (
+            (() => {
+              try {
+                return <UPlot options={options} data={uData} />;
+              } catch (err) {
+                console.error('UPlot render error:', err, { x, y, uData, options });
+                return <Typography color="error">Plot error: {String(err)}</Typography>;
+              }
+            })()
+          ) : (
+            <Typography color="error">No data to plot</Typography>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+});
 
 const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   fftSequence,
@@ -457,6 +571,15 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   };
   const handleSpeedChange = (e: SelectChangeEvent<number>) => setPlaybackSpeed(Number(e.target.value));
 
+  // --- Band selection state ---
+  const [selectedBands, setSelectedBands] = useState<string[]>([]);
+  useEffect(() => {
+    if (bandPlotsData.length > 0 && selectedBands.length === 0) {
+      setSelectedBands([bandPlotsData[0].band.name]);
+    }
+  }, [bandPlotsData]);
+  const visibleBandPlots = bandPlotsData.filter(data => selectedBands.includes(data.band.name));
+
   if (numBins === 0) return null;
 
   if (visualizing) {
@@ -494,11 +617,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
         overflowX: 'auto',
       }}
     >
-      {/* Profiling info */}
-      {/* <Box sx={{ mb: 1, color: 'text.secondary', fontSize: 12 }}>
-        <div>AudioFrequencyVisualizer renders: {renderCount} (last: {lastRenderDuration.toFixed(2)} ms)</div>
-        <div>bandPlots renders: {bandPlotsRenderCount.current} (last: {bandPlotsLastDuration.current.toFixed(2)} ms)</div>
-      </Box> */}
       <Typography variant="h5" sx={{ mb: 1 }}>
         Frequency Band Magnitude Over Time
       </Typography>
@@ -565,19 +683,41 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
           label="Show Impulses"
         />
       </FormGroup>
-      {bandPlotsData.length === 0 ? null : bandPlotsData.map((data: BandPlotData) => (
-        <BandPlotCard
-          key={data.band.name}
-          data={data}
-          xRange={xRange}
-          axisColor={axisColor}
-          gridColor={gridColor}
-          plotBg={plotBg}
-          showImpulses={showImpulses}
-          impulseThresholds={impulseThresholds}
-          setImpulseThresholds={setImpulseThresholds}
-        />
-      ))}
+      {/* New: Band selection toggle */}
+      <Box sx={{ mb: 2 }}>
+        <ToggleButtonGroup
+          value={selectedBands[0] || ''}
+          exclusive
+          onChange={(_, newBand) => {
+            if (newBand) setSelectedBands([newBand]);
+          }}
+          aria-label="Band selection"
+        >
+          {bandPlotsData.map(data => (
+            <ToggleButton key={data.band.name} value={data.band.name} aria-label={data.band.name}>
+              {data.band.name}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      </Box>
+      {/* Band plot list (no virtualization) */}
+      {visibleBandPlots.length === 0 ? null : (
+        <>
+          {visibleBandPlots.map(data => (
+            <BandUPlotCard
+              key={data.band.name}
+              data={data}
+              xRange={xRange}
+              axisColor={axisColor}
+              gridColor={gridColor}
+              plotBg={plotBg}
+              showImpulses={showImpulses}
+              impulseThresholds={impulseThresholds}
+              setImpulseThresholds={setImpulseThresholds}
+            />
+          ))}
+        </>
+      )}
     </Box>
   );
 };
