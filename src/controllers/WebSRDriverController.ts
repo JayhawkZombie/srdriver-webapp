@@ -159,6 +159,70 @@ export class WebSRDriverController implements ISRDriverController {
       this.leftSeriesCoefficientsCharacteristic = await this.service.getCharacteristic(LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
       this.rightSeriesCoefficientsCharacteristic = await this.service.getCharacteristic(RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
       this.commandCharacteristic = await this.service.getCharacteristic(COMMAND_CHARACTERISTIC_UUID);
+
+      // --- Setup notifications for all characteristics ---
+      // Helper to parse and call the right callback
+      const parseAndNotify = (charName: string, value: DataView) => {
+        const decoder = new TextDecoder();
+        const str = decoder.decode(value);
+        switch (charName) {
+          case 'brightness':
+            if (this.onBrightnessChange) this.onBrightnessChange(parseInt(str, 10));
+            break;
+          case 'speed':
+            if (this.onSpeedChange) this.onSpeedChange(parseInt(str, 10));
+            break;
+          case 'pattern':
+            if (this.onPatternChange) this.onPatternChange(parseInt(str, 10));
+            break;
+          case 'highColor': {
+            const [r, g, b] = str.split(',').map(s => parseInt(s, 10));
+            if (this.onHighColorChange) this.onHighColorChange({ r, g, b });
+            break;
+          }
+          case 'lowColor': {
+            const [r, g, b] = str.split(',').map(s => parseInt(s, 10));
+            if (this.onLowColorChange) this.onLowColorChange({ r, g, b });
+            break;
+          }
+          case 'leftSeriesCoefficients': {
+            const coeffs = str.split(',').map(s => parseFloat(s));
+            if (this.onLeftSeriesCoefficientsChange) this.onLeftSeriesCoefficientsChange(coeffs as [number, number, number]);
+            break;
+          }
+          case 'rightSeriesCoefficients': {
+            const coeffs = str.split(',').map(s => parseFloat(s));
+            if (this.onRightSeriesCoefficientsChange) this.onRightSeriesCoefficientsChange(coeffs as [number, number, number]);
+            break;
+          }
+        }
+      };
+
+      // Setup notification for a characteristic
+      const setupNotification = async (char: BluetoothRemoteGATTCharacteristic | null, name: string) => {
+        if (!char) return;
+        try {
+          await char.startNotifications();
+          char.addEventListener('characteristicvaluechanged', (event: Event) => {
+            const target = event.target as BluetoothRemoteGATTCharacteristic;
+            if (target && target.value) {
+              parseAndNotify(name, target.value);
+            }
+          });
+        } catch (e) {
+          console.warn(`Failed to start notifications for ${name}:`, e);
+        }
+      };
+
+      await setupNotification(this.brightnessCharacteristic, 'brightness');
+      await setupNotification(this.speedCharacteristic, 'speed');
+      await setupNotification(this.patternCharacteristic, 'pattern');
+      await setupNotification(this.highColorCharacteristic, 'highColor');
+      await setupNotification(this.lowColorCharacteristic, 'lowColor');
+      await setupNotification(this.leftSeriesCoefficientsCharacteristic, 'leftSeriesCoefficients');
+      await setupNotification(this.rightSeriesCoefficientsCharacteristic, 'rightSeriesCoefficients');
+      // Command characteristic does not need notification
+
       return true;
     } catch (error) {
       console.error('Failed to connect to SRDriver:', error);

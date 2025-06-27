@@ -250,11 +250,15 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onUpdateDevice }) => 
       try {
         await device.controller.setLeftSeriesCoefficients(device.leftSeriesCoefficients);
         await device.controller.setRightSeriesCoefficients(device.rightSeriesCoefficients);
-        
-        onUpdateDevice({
-          savedLeftSeriesCoefficients: device.leftSeriesCoefficients,
-          savedRightSeriesCoefficients: device.rightSeriesCoefficients
-        });
+        // Read back the actual values from the device to ensure UI is in sync
+        try {
+          const leftCoeffs = await device.controller.getLeftSeriesCoefficients();
+          onUpdateDevice({ leftSeriesCoefficients: leftCoeffs, savedLeftSeriesCoefficients: leftCoeffs });
+        } catch {}
+        try {
+          const rightCoeffs = await device.controller.getRightSeriesCoefficients();
+          onUpdateDevice({ rightSeriesCoefficients: rightCoeffs, savedRightSeriesCoefficients: rightCoeffs });
+        } catch {}
       } catch (e: any) {
         onUpdateDevice({ error: e.message || 'Failed to save series coefficients' });
       }
