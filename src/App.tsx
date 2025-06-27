@@ -29,12 +29,14 @@ import {
 import { WebSRDriverController } from './controllers/WebSRDriverController';
 import { Device } from './types/Device';
 import DevicePanel from './components/DevicePanel';
+import AudioChunkerDemo from './components/AudioChunkerDemo';
 import './App.css';
 
 function App() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDeviceIndex, setSelectedDeviceIndex] = useState<number>(0);
   const [isAddingDevice, setIsAddingDevice] = useState(false);
+  const [mainTab, setMainTab] = useState<number>(0); // 0 = Devices, 1 = Audio Chunker
 
   const getInitialMode = () => {
     const saved = localStorage.getItem('colorMode');
@@ -205,40 +207,48 @@ function App() {
                 />
               )}
             </Toolbar>
+            <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)} centered>
+              <Tab label="Devices" />
+              <Tab label="Audio Chunker" />
+            </Tabs>
           </AppBar>
 
           <Container maxWidth="lg" sx={{ flexGrow: 1, py: 3 }}>
-            {devices.length === 0 ? (
-              <Box sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                height: '100%',
-                textAlign: 'center'
-              }}>
-                <BluetoothIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
-                <Typography variant="h5" color="text.secondary" gutterBottom>
-                  No Devices Connected
-                </Typography>
-                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                  Click "Add Device" to connect to an SRDriver
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={addDevice}
-                  size="large"
-                >
-                  Add Your First Device
-                </Button>
-              </Box>
-            ) : selectedDevice ? (
-              <DevicePanel
-                device={selectedDevice}
-                onUpdateDevice={(updates) => updateDevice(selectedDevice.id, updates)}
-              />
-            ) : null}
+            {mainTab === 0 ? (
+              devices.length === 0 ? (
+                <Box sx={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  height: '100%',
+                  textAlign: 'center'
+                }}>
+                  <BluetoothIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                  <Typography variant="h5" color="text.secondary" gutterBottom>
+                    No Devices Connected
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                    Click "Add Device" to connect to an SRDriver
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={addDevice}
+                    size="large"
+                  >
+                    Add Your First Device
+                  </Button>
+                </Box>
+              ) : selectedDevice ? (
+                <DevicePanel
+                  device={selectedDevice}
+                  onUpdateDevice={(updates) => updateDevice(selectedDevice.id, updates)}
+                />
+              ) : null
+            ) : (
+              <AudioChunkerDemo />
+            )}
           </Container>
         </Box>
       </Box>
