@@ -183,75 +183,89 @@ const AudioChunkerDemo: React.FC = () => {
                     </Typography>
                 </Stack>
             </Box>
-            {audioUrl && (
-                <Box sx={{ mt: 2 }}>
-                    <div ref={waveformRef} />
-                    <Button
-                        variant="contained"
-                        size="small"
-                        sx={{ mt: 1 }}
-                        onClick={handlePlayPause}
-                        disabled={!audioUrl}
-                    >
-                        {isPlaying ? 'Pause' : 'Play'}
-                    </Button>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-start" sx={{ width: '100%' }}>
+                {/* Left: waveform and controls */}
+                <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
+                    {audioUrl && (
+                        <Box sx={{ mt: 2 }}>
+                            <div ref={waveformRef} />
+                            <Button
+                                variant="contained"
+                                size="small"
+                                sx={{ mt: 1 }}
+                                onClick={handlePlayPause}
+                                disabled={!audioUrl}
+                            >
+                                {isPlaying ? 'Pause' : 'Play'}
+                            </Button>
+                        </Box>
+                    )}
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
+                        <TextField
+                            label="Window Size"
+                            type="number"
+                            size="small"
+                            value={windowSize}
+                            onChange={e => setWindowSize(Number(e.target.value))}
+                            inputProps={{ min: 128, step: 128, style: { width: 80 } }}
+                        />
+                        <TextField
+                            label="Hop Size"
+                            type="number"
+                            size="small"
+                            value={hopSize}
+                            onChange={e => setHopSize(Number(e.target.value))}
+                            inputProps={{ min: 1, step: 1, style: { width: 80 } }}
+                        />
+                        <Button
+                            variant="contained"
+                            size="small"
+                            onClick={handleProcess}
+                            disabled={!file || loading}
+                        >
+                            {loading ? 'Processing...' : 'Process Audio'}
+                        </Button>
+                    </Stack>
+                    {/* Move chunking summary here as a compact inline summary or icon+tooltip */}
+                    {summary && (
+                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
+                            <Typography variant="body2" color="text.secondary">
+                                <strong>Chunks:</strong> {summary.numChunks}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                <strong>Chunk:</strong> {summary.chunkDurationMs.toFixed(2)} ms
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                <strong>Total:</strong> {summary.totalDurationMs.toFixed(2)} ms
+                            </Typography>
+                        </Stack>
+                    )}
+                    {!loading && fftSequence.length > 0 && audioBufferRef.current && (
+                        <AudioFrequencyVisualizer
+                            fftSequence={fftSequence}
+                            sampleRate={audioBufferRef.current.sampleRate}
+                            windowSize={windowSize}
+                            hopSize={hopSize}
+                            audioBuffer={audioBufferRef.current}
+                            playbackTime={playbackTime}
+                        />
+                    )}
                 </Box>
-            )}
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
-                <TextField
-                    label="Window Size"
-                    type="number"
-                    size="small"
-                    value={windowSize}
-                    onChange={e => setWindowSize(Number(e.target.value))}
-                    inputProps={{ min: 128, step: 128, style: { width: 80 } }}
-                />
-                <TextField
-                    label="Hop Size"
-                    type="number"
-                    size="small"
-                    value={hopSize}
-                    onChange={e => setHopSize(Number(e.target.value))}
-                    inputProps={{ min: 1, step: 1, style: { width: 80 } }}
-                />
-                <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleProcess}
-                    disabled={!file || loading}
-                >
-                    {loading ? 'Processing...' : 'Process Audio'}
-                </Button>
+                {/* Right: Visualizer → Lights Connection Placeholder */}
+                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%' }}>
+                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
+                            Visualizer → Lights Connection
+                        </Typography>
+                        <Button variant="outlined" color="primary" disabled>
+                            Connect (Coming Soon)
+                        </Button>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                            Placeholder for BLE/Device connection from visualizer
+                        </Typography>
+                    </Paper>
+                </Box>
             </Stack>
-            {summary && (
-                <Box sx={{ mt: 2, mb: 1, bgcolor: 'background.default', borderRadius: 1, p: 1 }}>
-                    <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
-                        Chunking Summary
-                    </Typography>
-                    <List dense disablePadding>
-                        <ListItem disableGutters>
-                            <ListItemText primary={<><strong>Number of Chunks:</strong> {summary.numChunks}</>} />
-                        </ListItem>
-                        <ListItem disableGutters>
-                            <ListItemText primary={<><strong>Chunk Duration:</strong> {summary.chunkDurationMs.toFixed(2)} ms</>} />
-                        </ListItem>
-                        <ListItem disableGutters>
-                            <ListItemText primary={<><strong>Total Audio Duration:</strong> {summary.totalDurationMs.toFixed(2)} ms</>} />
-                        </ListItem>
-                        <ListItem disableGutters>
-                            <ListItemText primary={<><strong>Window Size:</strong> {summary.windowSize} samples</>} />
-                        </ListItem>
-                        <ListItem disableGutters>
-                            <ListItemText primary={<><strong>Hop Size:</strong> {summary.hopSize} samples</>} />
-                        </ListItem>
-                        {summary.firstChunkFFT && (
-                            <ListItem disableGutters>
-                                <ListItemText primary={<><strong>First Chunk FFT (first 8 bins):</strong> {summary.firstChunkFFT.map((v, i) => v.toFixed(2)).join(', ')}</>} />
-                            </ListItem>
-                        )}
-                    </List>
-                </Box>
-            )}
             {loading && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 120, my: 2, width: '100%' }}>
                     <CircularProgress />
@@ -278,16 +292,6 @@ const AudioChunkerDemo: React.FC = () => {
                         ))}
                     </Box>
                 </Box>
-            )}
-            {!loading && fftSequence.length > 0 && audioBufferRef.current && (
-                <AudioFrequencyVisualizer
-                    fftSequence={fftSequence}
-                    sampleRate={audioBufferRef.current.sampleRate}
-                    windowSize={windowSize}
-                    hopSize={hopSize}
-                    audioBuffer={audioBufferRef.current}
-                    playbackTime={playbackTime}
-                />
             )}
         </Paper>
     );

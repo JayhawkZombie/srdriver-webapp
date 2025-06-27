@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { PlotData } from 'plotly.js';
+import { PlotData, PlotType, Dash } from 'plotly.js';
 
 interface BandData {
   band: { name: string; color: string };
@@ -16,20 +16,19 @@ export interface BandPlotData {
   bandIdx: number;
   binIdx: number;
   mainTraces: Partial<PlotData>[];
+  traces: { [key: string]: Partial<PlotData> };
   cursorTrace: Partial<PlotData>;
   sliderMin: number;
   sliderMax: number;
   sliderStep: number;
   threshold: number;
   freq: number;
+  // traces: { [key: string]: Partial<PlotData> }; // keep for internal use
 }
 
 interface UseBandPlotsProps {
   bandDataArr: BandData[];
   xRange: [number, number];
-  showFirstDerivative: boolean;
-  showSecondDerivative: boolean;
-  showImpulses: boolean;
   impulseThresholds: number[];
   playbackTime: number;
   isDark: boolean;
@@ -54,9 +53,6 @@ function lightenColor(hex: string, amount = 0.5) {
 const useBandPlots = ({
   bandDataArr,
   xRange,
-  showFirstDerivative,
-  showSecondDerivative,
-  showImpulses,
   impulseThresholds,
   playbackTime,
   isDark,
@@ -79,14 +75,8 @@ const useBandPlots = ({
       const visibleSecondDerivatives = visibleIndices.map(i => secondDerivatives[i]);
       let yMin = Math.min(...visibleMagnitudes);
       let yMax = Math.max(...visibleMagnitudes);
-      if (showFirstDerivative) {
-        yMin = Math.min(yMin, ...visibleDerivatives);
-        yMax = Math.max(yMax, ...visibleDerivatives);
-      }
-      if (showSecondDerivative) {
-        yMin = Math.min(yMin, ...visibleSecondDerivatives);
-        yMax = Math.max(yMax, ...visibleSecondDerivatives);
-      }
+      yMin = Math.min(yMin, ...visibleDerivatives, ...visibleSecondDerivatives);
+      yMax = Math.max(yMax, ...visibleDerivatives, ...visibleSecondDerivatives);
       const margin = (yMax - yMin) * 0.1 || 1;
       yMin -= margin;
       yMax += margin;
@@ -117,62 +107,60 @@ const useBandPlots = ({
       const cursorTrace = {
         x: [playbackTime, playbackTime],
         y: [yMin, yMax],
-        type: 'scatter',
-        mode: 'lines',
-        line: { color: 'red', width: 4, dash: 'solid' },
+        type: 'scatter' as PlotType,
+        mode: 'lines' as const,
+        line: { color: 'red', width: 4, dash: 'solid' as Dash },
         name: 'Cursor',
         showlegend: false,
       };
-      const mainTraces: Partial<PlotData>[] = [
-        {
+      // Always return all possible traces
+      const traces: { [key: string]: Partial<PlotData> } = {
+        magnitude: {
           x: times,
           y: magnitudes,
-          type: 'scatter',
+          type: 'scatter' as PlotType,
           mode: 'lines',
           line: { color: band.color, width: 2 },
           name: band.name,
         },
-      ];
-      if (showFirstDerivative) {
-        const derivativeColor = isDark
-          ? lightenColor(band.color, 0.5)
-          : 'rgba(255,0,255,0.5)';
-        mainTraces.push({
+        derivative: {
           x: times,
           y: derivatives,
-          type: 'scatter',
+          type: 'scatter' as PlotType,
           mode: 'lines',
-          line: { color: derivativeColor, width: 3 },
+          line: { color: isDark ? lightenColor(band.color, 0.5) : 'rgba(255,0,255,0.5)', width: 3 },
           name: band.name + ' Rate of Change',
           yaxis: 'y2',
-        } as Partial<PlotData>);
-      }
-      if (showSecondDerivative) {
-        mainTraces.push({
+        },
+        secondDerivative: {
           x: times,
           y: secondDerivatives,
-          type: 'scatter',
+          type: 'scatter' as PlotType,
           mode: 'lines',
           line: { color: 'cyan', width: 2 },
           name: band.name + ' 2nd Derivative',
           yaxis: 'y3',
-        } as Partial<PlotData>);
-      }
-      if (showImpulses && impulseTimes.length > 0) {
-        mainTraces.push({
+        },
+        impulses: {
           x: impulseTimes,
           y: impulseValues,
-          type: 'scatter',
+          type: 'scatter' as PlotType,
           mode: 'markers',
           marker: { color: impulseColors, size: 10, symbol: 'x' },
           name: band.name + ' Impulse',
-        } as Partial<PlotData>);
-      }
+        },
+      };
       return {
         band,
         bandIdx,
         binIdx,
-        mainTraces,
+        mainTraces: [
+          traces.magnitude,
+          traces.derivative,
+          traces.secondDerivative,
+          traces.impulses,
+        ],
+        traces,
         cursorTrace,
         sliderMin,
         sliderMax,
@@ -181,7 +169,7 @@ const useBandPlots = ({
         freq: freqs[binIdx],
       };
     });
-  }, [bandDataArr, xRange, showFirstDerivative, showSecondDerivative, showImpulses, impulseThresholds, playbackTime, isDark, hopSize, sampleRate, freqs, axisColor, gridColor, plotBg, setImpulseThresholds]);
+  }, [bandDataArr, xRange, impulseThresholds, playbackTime, isDark, hopSize, sampleRate, freqs, axisColor, gridColor, plotBg, setImpulseThresholds]);
 };
 
 export default useBandPlots; 

@@ -175,13 +175,17 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   playbackTime: externalPlaybackTime,
   // maxSlices = 64, // unused for this plot
 }) => {
+  console.debug('[AudioFrequencyVisualizer] Render', { fftSequenceLen: fftSequence.length, sampleRate, windowSize, hopSize });
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const plotBg = isDark ? theme.palette.background.paper : '#fafbfc';
   const cardBg = isDark ? theme.palette.background.default : '#f5f7fa';
   const axisColor = isDark ? theme.palette.text.primary : '#222';
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
-  const STANDARD_BANDS = isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS;
+  const STANDARD_BANDS = useMemo(() => {
+    console.debug('[AudioFrequencyVisualizer] STANDARD_BANDS recalculated', { isDark });
+    return isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS;
+  }, [isDark]);
 
   // --- Playback state (move hooks to top) ---
   const [internalPlaybackTime, setInternalPlaybackTime] = useState(0);
@@ -205,8 +209,9 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const playbackTime = externalPlaybackTime !== undefined ? externalPlaybackTime : internalPlaybackTime;
 
   // --- Use new computation hook ---
+  console.debug('[AudioFrequencyVisualizer] Calling useAudioFrequencyData');
   const {
-    bandPlotsData,
+    bandDataArr,
     impulseThresholds,
     setImpulseThresholds,
     visualizing,
@@ -219,9 +224,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     sampleRate,
     hopSize,
     bands: STANDARD_BANDS,
-    showFirstDerivative,
-    showSecondDerivative,
-    showImpulses,
     playbackTime,
     windowSec,
     followCursor,
@@ -231,6 +233,23 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     gridColor,
     plotBg,
   });
+
+  // Memoized band plots, only depends on bandDataArr and display toggles
+  const bandPlotsData: BandPlotData[] = useBandPlots({
+    bandDataArr,
+    xRange,
+    impulseThresholds,
+    playbackTime,
+    isDark,
+    hopSize,
+    sampleRate,
+    freqs,
+    axisColor,
+    gridColor,
+    plotBg,
+    setImpulseThresholds,
+  });
+  console.debug('[AudioFrequencyVisualizer] bandPlotsData length', bandPlotsData.length);
 
   const numBins = fftSequence[0]?.length || 0;
 
@@ -325,23 +344,32 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
         />
       </Box>
       {/* Band plot list (no virtualization) */}
-      {bandPlotsData.map(data => (
-        <Box
-          key={data.band.name}
-          sx={{ display: selectedBands.includes(data.band.name) ? 'block' : 'none' }}
-        >
-          <BandPlotCard
-            data={data}
-            xRange={xRange}
-            axisColor={axisColor}
-            gridColor={gridColor}
-            plotBg={plotBg}
-            showImpulses={showImpulses}
-            impulseThresholds={impulseThresholds}
-            setImpulseThresholds={setImpulseThresholds}
-          />
-        </Box>
-      ))}
+      {bandPlotsData.map((data: BandPlotData) => {
+        // Compose the traces array based on toggles
+        const traces = [
+          data.traces.magnitude,
+          ...(showFirstDerivative ? [data.traces.derivative] : []),
+          ...(showSecondDerivative ? [data.traces.secondDerivative] : []),
+          ...(showImpulses ? [data.traces.impulses] : []),
+        ];
+        return (
+          <Box
+            key={data.band.name}
+            sx={{ display: selectedBands.includes(data.band.name) ? 'block' : 'none' }}
+          >
+            <BandPlotCard
+              data={{ ...data, mainTraces: traces }}
+              xRange={xRange}
+              axisColor={axisColor}
+              gridColor={gridColor}
+              plotBg={plotBg}
+              showImpulses={showImpulses}
+              impulseThresholds={impulseThresholds}
+              setImpulseThresholds={setImpulseThresholds}
+            />
+          </Box>
+        );
+      })}
     </Box>
   );
 };

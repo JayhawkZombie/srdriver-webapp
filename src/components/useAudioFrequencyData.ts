@@ -6,9 +6,6 @@ export interface UseAudioFrequencyDataProps {
   sampleRate: number;
   hopSize: number;
   bands: { name: string; freq: number; color: string }[];
-  showFirstDerivative: boolean;
-  showSecondDerivative: boolean;
-  showImpulses: boolean;
   playbackTime: number;
   windowSec: number;
   followCursor: boolean;
@@ -20,7 +17,7 @@ export interface UseAudioFrequencyDataProps {
 }
 
 export interface UseAudioFrequencyDataResult {
-  bandPlotsData: BandPlotData[];
+  bandDataArr: any[];
   impulseThresholds: number[];
   setImpulseThresholds: (thresholds: number[]) => void;
   visualizing: boolean;
@@ -35,10 +32,7 @@ const useAudioFrequencyData = (props: UseAudioFrequencyDataProps): UseAudioFrequ
     fftSequence,
     sampleRate,
     hopSize,
-    bands,
-    showFirstDerivative,
-    showSecondDerivative,
-    showImpulses,
+    bands: bandsRaw,
     playbackTime,
     windowSec,
     followCursor,
@@ -49,6 +43,11 @@ const useAudioFrequencyData = (props: UseAudioFrequencyDataProps): UseAudioFrequ
     plotBg,
   } = props;
 
+  console.debug('[useAudioFrequencyData] Called', { fftSequenceLen: fftSequence.length, sampleRate, hopSize, bandsRaw });
+  const bands = useMemo(() => {
+    console.debug('[useAudioFrequencyData] bands memoized', bandsRaw);
+    return bandsRaw;
+  }, [bandsRaw]);
   const [bandDataArr, setBandDataArr] = useState<any[]>([]);
   const [visualizing, setVisualizing] = useState(false);
   const [visualizationStatus, setVisualizationStatus] = useState<string>('Preparing visualizations...');
@@ -98,23 +97,25 @@ const useAudioFrequencyData = (props: UseAudioFrequencyDataProps): UseAudioFrequ
     }
     setVisualizing(true);
     setVisualizationStatus('Preparing visualizations...');
-    const worker = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url));
-    const fftSeqArr = fftSequence.map(row => Array.from(row));
-    worker.onmessage = (e) => {
-      if (e.data.status) {
-        setVisualizationStatus(e.data.status);
-      }
-      setBandDataArr(e.data.bandDataArr);
-      setVisualizing(false);
-    };
-    setVisualizationStatus('Computing band data...');
-    worker.postMessage({
-      fftSequence: fftSeqArr,
-      bands,
-      sampleRate,
-      hopSize,
-    });
-    return () => worker.terminate();
+    setTimeout(() => {
+      const worker = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url));
+      const fftSeqArr = fftSequence.map(row => Array.from(row));
+      worker.onmessage = (e) => {
+        if (e.data.status) {
+          setVisualizationStatus(e.data.status);
+        }
+        setBandDataArr(e.data.bandDataArr);
+        setVisualizing(false);
+        console.debug('[useAudioFrequencyData] bandDataArr set from worker', e.data.bandDataArr);
+      };
+      setVisualizationStatus('Computing band data...');
+      worker.postMessage({
+        fftSequence: fftSeqArr,
+        bands,
+        sampleRate,
+        hopSize,
+      });
+    }, 0);
   }, [fftSequence, sampleRate, hopSize, bands]);
 
   // When bandDataArr changes, reset hasSetThresholds
@@ -160,27 +161,8 @@ const useAudioFrequencyData = (props: UseAudioFrequencyDataProps): UseAudioFrequ
     }
   }, [bandDataArr, impulseThresholds]);
 
-  // Memoized bandPlots
-  const bandPlotsData = useBandPlots({
-    bandDataArr,
-    xRange,
-    showFirstDerivative,
-    showSecondDerivative,
-    showImpulses,
-    impulseThresholds,
-    playbackTime,
-    isDark,
-    hopSize,
-    sampleRate,
-    freqs,
-    axisColor,
-    gridColor,
-    plotBg,
-    setImpulseThresholds,
-  });
-
   return {
-    bandPlotsData,
+    bandDataArr,
     impulseThresholds,
     setImpulseThresholds,
     visualizing,
