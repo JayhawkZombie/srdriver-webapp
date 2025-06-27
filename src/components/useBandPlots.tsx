@@ -15,7 +15,8 @@ export interface BandPlotData {
   band: { name: string; color: string };
   bandIdx: number;
   binIdx: number;
-  traces: Partial<PlotData>[];
+  mainTraces: Partial<PlotData>[];
+  cursorTrace: Partial<PlotData>;
   sliderMin: number;
   sliderMax: number;
   sliderStep: number;
@@ -122,7 +123,7 @@ const useBandPlots = ({
         name: 'Cursor',
         showlegend: false,
       };
-      const traces: Partial<PlotData>[] = [
+      const mainTraces: Partial<PlotData>[] = [
         {
           x: times,
           y: magnitudes,
@@ -136,7 +137,7 @@ const useBandPlots = ({
         const derivativeColor = isDark
           ? lightenColor(band.color, 0.5)
           : 'rgba(255,0,255,0.5)';
-        traces.push({
+        mainTraces.push({
           x: times,
           y: derivatives,
           type: 'scatter',
@@ -147,7 +148,7 @@ const useBandPlots = ({
         } as Partial<PlotData>);
       }
       if (showSecondDerivative) {
-        traces.push({
+        mainTraces.push({
           x: times,
           y: secondDerivatives,
           type: 'scatter',
@@ -158,7 +159,7 @@ const useBandPlots = ({
         } as Partial<PlotData>);
       }
       if (showImpulses && impulseTimes.length > 0) {
-        traces.push({
+        mainTraces.push({
           x: impulseTimes,
           y: impulseValues,
           type: 'scatter',
@@ -167,12 +168,12 @@ const useBandPlots = ({
           name: band.name + ' Impulse',
         } as Partial<PlotData>);
       }
-      traces.push(cursorTrace as Partial<PlotData>);
       return {
         band,
         bandIdx,
         binIdx,
-        traces,
+        mainTraces,
+        cursorTrace,
         sliderMin,
         sliderMax,
         sliderStep,
