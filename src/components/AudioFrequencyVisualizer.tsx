@@ -184,21 +184,84 @@ const BandUPlotCard = memo(({
   impulseThresholds: number[];
   setImpulseThresholds: (thresholds: number[]) => void;
 }) => {
-  // Prepare uPlot data: [x, y]
+  // Responsive container
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [plotSize, setPlotSize] = React.useState({ width: 600, height: 280 });
+  React.useEffect(() => {
+    if (!containerRef.current) return;
+    const handleResize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setPlotSize({
+          width: Math.max(300, Math.floor(rect.width)),
+          height: Math.max(200, Math.floor(rect.height)),
+        });
+      }
+    };
+    handleResize();
+    const ro = new window.ResizeObserver(handleResize);
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Prepare uPlot data and series for shared-x mode (main trace always shown, overlays use 0 for missing values)
   const mainTrace = data.traces[0];
-  const xArr = mainTrace.x as number[];
-  const yArr = mainTrace.y as number[];
-  const x = new Float64Array(xArr);
-  const y = new Float64Array(yArr);
-  const uData = [x, y];
-  const validData = x.length > 0 && y.length > 0 && x.length === y.length;
-  // Only render UPlot after mount
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => { setMounted(true); }, []);
+  const xArr = (mainTrace.x as number[]) || [];
+  const uData: Float64Array[] = [new Float64Array(xArr)];
+  const series: any[] = [
+    {}, // x
+    {
+      label: data.band.name,
+      stroke: data.band.color,
+      width: 2,
+    },
+  ];
+  // Main y
+  uData.push(new Float64Array((mainTrace.y as number[]) || []));
+  // Overlay traces (derivatives, impulses, cursor)
+  for (let i = 1; i < data.traces.length; ++i) {
+    const t = data.traces[i];
+    // Build y array of same length as xArr, fill with 0 except at matching x
+    const yArr = new Array(xArr.length).fill(0);
+    if (t.x && t.y && Array.isArray(t.x) && Array.isArray(t.y)) {
+      (t.x as number[]).forEach((tx, idx) => {
+        const xi = xArr.findIndex(xx => Math.abs(xx - tx) < 1e-6);
+        if (xi !== -1) yArr[xi] = (t.y as number[])[idx];
+      });
+    }
+    uData.push(new Float64Array(yArr));
+    let color: string = 'gray', width = 2, dash: number[] | undefined = undefined, points: { size: number; fill: string; stroke: string } | undefined = undefined;
+    if (t.line && t.line.color) color = t.line.color as string || 'gray';
+    if (t.line && t.line.width) width = t.line.width as number;
+    if (t.line && t.line.dash === 'solid') dash = undefined;
+    if (t.line && t.line.dash === 'dot') dash = [2, 4];
+    if (t.marker && t.marker.size) points = { size: t.marker.size as number, fill: color, stroke: color };
+    if (t.mode === 'markers') points = { size: 8, fill: color, stroke: color };
+    if (t.marker && t.marker.color) {
+      if (Array.isArray(t.marker.color)) {
+        const colorArr = t.marker.color as unknown[];
+        const firstString = colorArr.find((c) => typeof c === 'string') as string | undefined;
+        color = firstString || color;
+      } else if (typeof t.marker.color === 'string') {
+        color = t.marker.color;
+      }
+    }
+    series.push({
+      label: t.name || `Series ${i}`,
+      stroke: color,
+      width,
+      dash,
+      points,
+      spanGaps: true,
+      pxAlign: 1,
+      paths: t.mode === 'markers' ? uPlot.paths.points : uPlot.paths.linear,
+    });
+  }
+  const validData = uData.length > 1 && uData[1].length > 0;
   // uPlot options
   const options: uPlot.Options = {
-    width: 600,
-    height: 280,
+    width: plotSize.width,
+    height: plotSize.height,
     title: data.band.name + ` (${Math.round(data.freq)} Hz)`,
     scales: {
       x: { time: false, min: xRange[0], max: xRange[1] },
@@ -216,19 +279,11 @@ const BandUPlotCard = memo(({
         label: 'Magnitude',
       },
     ],
-    series: [
-      {}, // x
-      {
-        label: data.band.name,
-        stroke: data.band.color,
-        width: 2,
-      },
-    ],
+    series,
     hooks: {},
-    // TODO: Add tooltips, impulses, derivatives, cursor, etc.
   };
   return (
-    <Card key={data.band.name} sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
+    <Card sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
       <CardContent sx={{ p: 1.2, pb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1, overflow: 'visible' }}>
           {showImpulses && (
@@ -256,13 +311,13 @@ const BandUPlotCard = memo(({
           )}
           <div style={{ color: data.band.color, fontWeight: 700, fontSize: 16, margin: 0, lineHeight: 1 }}>{data.band.name} ({Math.round(data.freq)} Hz)</div>
         </Box>
-        <Box sx={{ width: '100%', p: 0.5, pt: 0, pb: 0, boxSizing: 'border-box' }}>
-          {mounted && validData ? (
+        <Box ref={containerRef} sx={{ width: '100%', height: 320, p: 0.5, pt: 0, pb: 0, boxSizing: 'border-box' }}>
+          {validData ? (
             (() => {
               try {
                 return <UPlot options={options} data={uData} />;
               } catch (err) {
-                console.error('UPlot render error:', err, { x, y, uData, options });
+                console.error('UPlot render error:', err, { uData, options });
                 return <Typography color="error">Plot error: {String(err)}</Typography>;
               }
             })()
@@ -578,7 +633,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
       setSelectedBands([bandPlotsData[0].band.name]);
     }
   }, [bandPlotsData]);
-  const visibleBandPlots = bandPlotsData.filter(data => selectedBands.includes(data.band.name));
 
   if (numBins === 0) return null;
 
@@ -701,23 +755,23 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
         </ToggleButtonGroup>
       </Box>
       {/* Band plot list (no virtualization) */}
-      {visibleBandPlots.length === 0 ? null : (
-        <>
-          {visibleBandPlots.map(data => (
-            <BandUPlotCard
-              key={data.band.name}
-              data={data}
-              xRange={xRange}
-              axisColor={axisColor}
-              gridColor={gridColor}
-              plotBg={plotBg}
-              showImpulses={showImpulses}
-              impulseThresholds={impulseThresholds}
-              setImpulseThresholds={setImpulseThresholds}
-            />
-          ))}
-        </>
-      )}
+      {bandPlotsData.map(data => (
+        <Box
+          key={data.band.name}
+          sx={{ display: selectedBands.includes(data.band.name) ? 'block' : 'none' }}
+        >
+          <BandUPlotCard
+            data={data}
+            xRange={xRange}
+            axisColor={axisColor}
+            gridColor={gridColor}
+            plotBg={plotBg}
+            showImpulses={showImpulses}
+            impulseThresholds={impulseThresholds}
+            setImpulseThresholds={setImpulseThresholds}
+          />
+        </Box>
+      ))}
     </Box>
   );
 };
