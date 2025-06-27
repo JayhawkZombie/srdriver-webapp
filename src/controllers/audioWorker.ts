@@ -61,12 +61,18 @@ self.onmessage = async (e: MessageEvent) => {
   let firstChunk: Float32Array | null = null;
   let fftSequence: Float32Array[] = [];
   const chunks = Array.from(chunkPCMData(pcmData, data.windowSize, data.hopSize));
-  for (let idx = 0; idx < chunks.length; idx++) {
+  const totalChunks = chunks.length;
+  for (let idx = 0; idx < totalChunks; idx++) {
     const chunk = chunks[idx];
     numChunks++;
     if (idx === 0) firstChunk = chunk;
     const magnitudes = computeFFTMagnitude(chunk);
     fftSequence.push(magnitudes);
+    // Progress reporting every 10 chunks or on last chunk
+    if ((idx % 10 === 0 || idx === totalChunks - 1) && totalChunks > 1) {
+      // @ts-ignore
+      self.postMessage({ type: 'progress', processed: idx + 1, total: totalChunks });
+    }
   }
   // Summary (minimal for now)
   const chunkDurationMs = 0; // Not available in worker
@@ -79,7 +85,7 @@ self.onmessage = async (e: MessageEvent) => {
     firstChunkFFT = Array.from(magnitudes.slice(0, 8));
   }
   const summary = {
-    numChunks: chunks.length,
+    numChunks: totalChunks,
     chunkDurationMs,
     totalDurationMs,
     windowSize: data.windowSize,
@@ -88,7 +94,8 @@ self.onmessage = async (e: MessageEvent) => {
     firstChunkFFTMagnitudes,
   };
   // @ts-ignore
-  self.postMessage({ summary, fftSequence } as AudioProcessResult);
+  self.postMessage({ type: 'done', summary, fftSequence } as AudioProcessResult);
 };
 
-// No exports (web worker file) 
+// No exports (web worker file)
+export {}; 

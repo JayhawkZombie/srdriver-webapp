@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import Plot from 'react-plotly.js';
-import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem, FormGroup, Card, CardContent } from '@mui/material';
+import { Box, Button, ButtonGroup, Checkbox, FormControlLabel, Slider, Typography, Select, MenuItem, FormGroup, Card, CardContent, Skeleton, CircularProgress } from '@mui/material';
 import { SelectChangeEvent } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+// @ts-ignore
+import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
+import useBandPlots, { BandPlotData } from './useBandPlots';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -61,6 +64,102 @@ function lightenColor(hex: string, amount = 0.5) {
   r = Math.min(255, r); g = Math.min(255, g); b = Math.min(255, b);
   return `rgb(${r},${g},${b})`;
 }
+
+const BandPlotCard = memo(({
+  data,
+  xRange,
+  axisColor,
+  gridColor,
+  plotBg,
+  showImpulses,
+  impulseThresholds,
+  setImpulseThresholds,
+}: {
+  data: BandPlotData;
+  xRange: [number, number];
+  axisColor: string;
+  gridColor: string;
+  plotBg: string;
+  showImpulses: boolean;
+  impulseThresholds: number[];
+  setImpulseThresholds: (thresholds: number[]) => void;
+}) => (
+  <Card key={data.band.name} sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
+    <CardContent sx={{ p: 1.2, pb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1, overflow: 'visible' }}>
+        {showImpulses && (
+          <>
+            <Typography variant="body2" sx={{ color: data.band.color, minWidth: 60, fontWeight: 500, fontSize: 13 }}>
+              {data.band.name} Threshold:
+            </Typography>
+            <Slider
+              min={data.sliderMin}
+              max={data.sliderMax}
+              step={data.sliderStep}
+              value={data.threshold}
+              onChange={(_, v) => {
+                const newThresholds = [...impulseThresholds];
+                newThresholds[data.bandIdx] = typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0);
+                setImpulseThresholds(newThresholds);
+              }}
+              valueLabelDisplay="on"
+              valueLabelFormat={v => (typeof v === 'number' ? v.toFixed(1) : v)}
+              size="small"
+              sx={{ width: 130, ml: 0, mr: 2 }}
+              marks={false}
+            />
+          </>
+        )}
+        <div style={{ color: data.band.color, fontWeight: 700, fontSize: 16, margin: 0, lineHeight: 1 }}>{data.band.name} ({Math.round(data.freq)} Hz)</div>
+      </Box>
+      <Box sx={{ width: '100%', p: 0.5, pt: 0, pb: 0, boxSizing: 'border-box' }}>
+        <Plot
+          data={data.traces}
+          layout={{
+            height: 280,
+            margin: { l: 40, r: 10, t: 10, b: 24 },
+            xaxis: {
+              title: 'Time (seconds)',
+              automargin: true,
+              range: xRange,
+              titlefont: { size: 11 },
+              tickfont: { size: 9 },
+              color: axisColor,
+              gridcolor: gridColor,
+            },
+            yaxis: {
+              title: 'Magnitude',
+              automargin: true,
+              titlefont: { size: 11 },
+              tickfont: { size: 9 },
+              color: axisColor,
+              gridcolor: gridColor,
+            },
+            yaxis2: {
+              overlaying: 'y',
+              side: 'right',
+              showgrid: false,
+              zeroline: false,
+              showticklabels: false,
+            },
+            yaxis3: {
+              overlaying: 'y',
+              side: 'right',
+              showgrid: false,
+              zeroline: false,
+              showticklabels: false,
+              position: 1.0,
+            },
+            paper_bgcolor: plotBg,
+            plot_bgcolor: plotBg,
+          }}
+          config={{ displayModeBar: false, responsive: true }}
+          style={{ width: '100%' }}
+        />
+      </Box>
+    </CardContent>
+  </Card>
+));
 
 const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   fftSequence,
@@ -231,247 +330,116 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     // eslint-disable-next-line
   }, [fftSequence.length]);
 
-  // Memoize all per-band calculations outside the map to avoid hook errors
-  const bandDataArr = useMemo(() => {
-    return STANDARD_BANDS.map((band: { name: string; freq: number; color: string }, bandIdx: number) => {
-      // Find the bin closest to the band's frequency
-      let binIdx = 0;
-      let minDiff = Infinity;
-      for (let i = 0; i < freqs.length; i++) {
-        const diff = Math.abs(freqs[i] - band.freq);
-        if (diff < minDiff) {
-          minDiff = diff;
-          binIdx = i;
-        }
+  const [bandDataArr, setBandDataArr] = useState<any[]>([]); // Precomputed per-band data
+  const [visualizing, setVisualizing] = useState(false); // Optional: show spinner while worker runs
+  const [hasSetThresholds, setHasSetThresholds] = useState(false); // Track if thresholds have been set for current data
+  // Visualization status message
+  const [visualizationStatus, setVisualizationStatus] = useState<string>('Preparing visualizations...');
+
+  // --- Profiling state ---
+  // const [renderCount, setRenderCount] = useState(0);
+  // const [lastRenderDuration, setLastRenderDuration] = useState(0);
+  // const bandPlotsRenderCount = useRef(0);
+  // const bandPlotsLastDuration = useRef(0);
+
+  // Precompute all band data in a worker when fftSequence or bands/colors change
+  useEffect(() => {
+    if (!fftSequence || fftSequence.length === 0) {
+      setBandDataArr([]);
+      return;
+    }
+    setVisualizing(true);
+    setVisualizationStatus('Preparing visualizations...');
+    const worker = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url));
+    // Convert Float32Array[] to number[][] for transfer
+    const fftSeqArr = fftSequence.map(row => Array.from(row));
+    worker.onmessage = (e) => {
+      if (e.data.status) {
+        setVisualizationStatus(e.data.status);
       }
-      const magnitudes = displaySequence.map(row => row[binIdx] ?? 0);
-      const derivatives = magnitudes.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
-      const secondDerivatives = derivatives.map((v, i, arr) => i === 0 ? 0 : v - arr[i - 1]);
-      const impulseStrengths = secondDerivatives.map((v) => Math.abs(v));
-      // Find visible window for y-axis auto-fit
-      const [xMin, xMax] = xRange;
-      const visibleIndices = times.map((t, i) => (t >= xMin && t <= xMax ? i : -1)).filter(i => i >= 0);
-      const visibleMagnitudes = visibleIndices.map(i => magnitudes[i]);
-      const visibleDerivatives = visibleIndices.map(i => derivatives[i]);
-      const visibleSecondDerivatives = visibleIndices.map(i => secondDerivatives[i]);
-      // Find min/max for y-axis (add margin)
-      let yMin = Math.min(...visibleMagnitudes);
-      let yMax = Math.max(...visibleMagnitudes);
-      if (showFirstDerivative) {
-        yMin = Math.min(yMin, ...visibleDerivatives);
-        yMax = Math.max(yMax, ...visibleDerivatives);
-      }
-      if (showSecondDerivative) {
-        yMin = Math.min(yMin, ...visibleSecondDerivatives);
-        yMax = Math.max(yMax, ...visibleSecondDerivatives);
-      }
-      // Add margin
-      const margin = (yMax - yMin) * 0.1 || 1;
-      yMin -= margin;
-      yMax += margin;
-      // --- Impulse threshold slider range/step logic ---
-      // Use abs(secondDerivatives) for impulse strengths
-      const visibleImpulseStrengths = visibleSecondDerivatives.map(v => Math.abs(v));
+      setBandDataArr(e.data.bandDataArr);
+      setVisualizing(false);
+    };
+    setVisualizationStatus('Computing band data...');
+    worker.postMessage({
+      fftSequence: fftSeqArr,
+      bands: STANDARD_BANDS,
+      sampleRate,
+      hopSize,
+    });
+    return () => worker.terminate();
+    // eslint-disable-next-line
+  }, [fftSequence, sampleRate, hopSize, isDark]);
+
+  // When bandDataArr changes, reset hasSetThresholds
+  useEffect(() => {
+    setHasSetThresholds(false);
+  }, [bandDataArr]);
+
+  // When showImpulses is toggled on, set thresholds to middle of slider range for each band, but only once per data load
+  useEffect(() => {
+    if (bandDataArr.length > 0 && !hasSetThresholds) {
+      setImpulseThresholds(bandDataArr.map(band => {
+        const visibleImpulseStrengths = band.impulseStrengths.map((v: number) => Math.abs(v));
+        const bandMin = Math.min(...visibleImpulseStrengths, 0);
+        const bandMax = Math.max(...visibleImpulseStrengths, 1);
+        let sliderMin = bandMin;
+        let sliderMax = bandMax;
+        if (sliderMax === sliderMin) sliderMax = sliderMin + 1;
+        return (sliderMin + sliderMax) / 2;
+      }));
+      setHasSetThresholds(true);
+    }
+  }, [bandDataArr, hasSetThresholds]);
+
+  // Clamp impulseThresholds to visible slider range for each band
+  useEffect(() => {
+    if (!bandDataArr.length) return;
+    const newThresholds = bandDataArr.map((data, bandIdx) => {
+      const visibleSecondDerivatives = data.secondDerivatives as number[];
+      const visibleImpulseStrengths = visibleSecondDerivatives.map((v) => Math.abs(v));
       const bandMin = Math.min(...visibleImpulseStrengths, 0);
       const bandMax = Math.max(...visibleImpulseStrengths, 1);
       let sliderMin = bandMin;
-      let sliderMax = bandMax * 0.5;
+      let sliderMax = bandMax;
       if (sliderMax === sliderMin) sliderMax = sliderMin + 1;
-      // Use a finer step for small ranges
-      let sliderStep = Math.max((sliderMax - sliderMin) / 100, 0.001);
-      // Impulse detection for plotting
-      const threshold = impulseThresholds[bandIdx] ?? 50;
-      const impulseIndices = impulseStrengths
-        .map((v, i) => (v > threshold ? i : -1))
-        .filter(i => i > 0);
-      // Impulse times, values, and strengths
-      const impulseTimes = impulseIndices.map(i => times[i]);
-      const impulseValues = impulseIndices.map(i => magnitudes[i]);
-      const impulseStrengthVals = impulseIndices.map(i => impulseStrengths[i]);
-      // Normalize strengths for color mapping
-      const minStrength = Math.min(...impulseStrengthVals, 0);
-      const maxStrength = Math.max(...impulseStrengthVals, 1);
-      const normStrengths = impulseStrengthVals.map(s => (s - minStrength) / (maxStrength - minStrength || 1));
-      // Map to color spectrum (blue to red)
-      const impulseColors = normStrengths.map(t => `hsl(${240 - 240 * t}, 100%, 50%)`);
-      return {
-        band,
-        bandIdx,
-        binIdx,
-        magnitudes,
-        derivatives,
-        secondDerivatives,
-        impulseStrengths,
-        visibleIndices,
-        visibleMagnitudes,
-        visibleDerivatives,
-        visibleSecondDerivatives,
-        yMin,
-        yMax,
-        sliderMin,
-        sliderMax,
-        sliderStep,
-        impulseIndices,
-        impulseTimes,
-        impulseValues,
-        impulseStrengthVals,
-        impulseColors,
-        normStrengths
-      };
+      let threshold = impulseThresholds[bandIdx] ?? 50;
+      if (threshold < sliderMin || threshold > sliderMax) {
+        threshold = (sliderMin + sliderMax) / 2;
+      }
+      return threshold;
     });
-  }, [displaySequence, freqs, xRange, showFirstDerivative, showSecondDerivative, impulseThresholds, times, numBins]);
-
-  // When showImpulses is toggled on, set thresholds to top of slider for each band
-  useEffect(() => {
-    if (showImpulses) {
-      // bandDataArr is recalculated on every render, so it's always up to date
-      setImpulseThresholds(bandDataArr.map(band => band.sliderMax));
+    if (JSON.stringify(newThresholds) !== JSON.stringify(impulseThresholds)) {
+      setImpulseThresholds(newThresholds);
     }
-    // Only run when showImpulses changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showImpulses]);
+    // Only run when bandDataArr or impulseThresholds changes
+  }, [bandDataArr, impulseThresholds]);
 
-  const bandPlots = useMemo(() => {
-    return bandDataArr.map((data: any) => {
-      const { band, bandIdx, binIdx, magnitudes, derivatives, secondDerivatives, yMin, yMax, sliderMin, sliderMax, sliderStep, impulseTimes, impulseValues, impulseColors } = data;
-      // Cursor as a trace (vertical line)
-      const cursorTrace = {
-        x: [playbackTime, playbackTime],
-        y: [yMin, yMax],
-        type: 'scatter',
-        mode: 'lines',
-        line: { color: 'red', width: 4, dash: 'solid' },
-        name: 'Cursor',
-        showlegend: false,
-      };
-      // Traces array
-      const traces: Partial<Plotly.PlotData>[] = [
-        {
-          x: times,
-          y: magnitudes,
-          type: 'scatter',
-          mode: 'lines',
-          line: { color: band.color, width: 2 },
-          name: band.name,
-        },
-      ];
-      if (showFirstDerivative) {
-        const derivativeColor = isDark
-          ? lightenColor(band.color, 0.5)
-          : 'rgba(255,0,255,0.5)';
-        traces.push({
-          x: times,
-          y: derivatives,
-          type: 'scatter',
-          mode: 'lines',
-          line: { color: derivativeColor, width: 3 },
-          name: band.name + ' Rate of Change',
-          yaxis: 'y2',
-        } as Partial<Plotly.PlotData>);
-      }
-      if (showSecondDerivative) {
-        traces.push({
-          x: times,
-          y: secondDerivatives,
-          type: 'scatter',
-          mode: 'lines',
-          line: { color: 'cyan', width: 2 },
-          name: band.name + ' 2nd Derivative',
-          yaxis: 'y3',
-        } as Partial<Plotly.PlotData>);
-      }
-      if (showImpulses && impulseTimes.length > 0) {
-        traces.push({
-          x: impulseTimes,
-          y: impulseValues,
-          type: 'scatter',
-          mode: 'markers',
-          marker: { color: impulseColors, size: 10, symbol: 'x' },
-          name: band.name + ' Impulse',
-        } as Partial<Plotly.PlotData>);
-      }
-      traces.push(cursorTrace as Partial<Plotly.PlotData>);
-      return (
-        <Card key={band.name} sx={{ mb: 2, bgcolor: cardBg, boxShadow: 2, p: 0.5 }}>
-          <CardContent sx={{ p: 1.2, pb: 1 }}>
-            {/* Compact header: threshold slider to the left of the label */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1, overflow: 'visible' }}>
-              {showImpulses && (
-                <>
-                  <Typography variant="body2" sx={{ color: band.color, minWidth: 60, fontWeight: 500, fontSize: 13 }}>
-                    {band.name} Threshold:
-                  </Typography>
-                  <Slider
-                    min={sliderMin}
-                    max={sliderMax}
-                    step={sliderStep}
-                    value={impulseThresholds[bandIdx]}
-                    onChange={(_, v) => {
-                      const newThresholds = [...impulseThresholds];
-                      newThresholds[bandIdx] = typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0);
-                      setImpulseThresholds(newThresholds);
-                    }}
-                    valueLabelDisplay="on"
-                    valueLabelFormat={v => v.toFixed(1)}
-                    size="small"
-                    sx={{ width: 130, ml: 0, mr: 2 }}
-                    marks={false}
-                  />
-                </>
-              )}
-              <div style={{ color: band.color, fontWeight: 700, fontSize: 16, margin: 0, lineHeight: 1 }}>{band.name} ({Math.round(freqs[binIdx])} Hz)</div>
-            </Box>
-            <Box sx={{ width: '100%', p: 0.5, pt: 0, pb: 0, boxSizing: 'border-box' }}>
-              <Plot
-                data={traces}
-                layout={{
-                  height: 280,
-                  margin: { l: 40, r: 10, t: 10, b: 24 },
-                  xaxis: {
-                    title: 'Time (seconds)',
-                    automargin: true,
-                    range: xRange,
-                    titlefont: { size: 11 },
-                    tickfont: { size: 9 },
-                    color: axisColor,
-                    gridcolor: gridColor,
-                  },
-                  yaxis: {
-                    title: 'Magnitude',
-                    automargin: true,
-                    range: [yMin, yMax],
-                    titlefont: { size: 11 },
-                    tickfont: { size: 9 },
-                    color: axisColor,
-                    gridcolor: gridColor,
-                  },
-                  yaxis2: {
-                    overlaying: 'y',
-                    side: 'right',
-                    showgrid: false,
-                    zeroline: false,
-                    showticklabels: false,
-                  },
-                  yaxis3: {
-                    overlaying: 'y',
-                    side: 'right',
-                    showgrid: false,
-                    zeroline: false,
-                    showticklabels: false,
-                    position: 1.0,
-                  },
-                  paper_bgcolor: plotBg,
-                  plot_bgcolor: plotBg,
-                }}
-                config={{ displayModeBar: false, responsive: true }}
-                style={{ width: '100%' }}
-              />
-            </Box>
-          </CardContent>
-        </Card>
-      );
-    });
-  }, [bandDataArr, showFirstDerivative, showSecondDerivative, showImpulses, impulseThresholds, playbackTime, xRange, times, freqs, numBins, maxTime, cardBg, plotBg, axisColor, gridColor]);
+  // --- Memoized bandPlots ---
+  const bandPlotsData = useBandPlots({
+    bandDataArr,
+    xRange,
+    showFirstDerivative,
+    showSecondDerivative,
+    showImpulses,
+    impulseThresholds,
+    playbackTime,
+    isDark,
+    hopSize,
+    sampleRate,
+    freqs,
+    axisColor,
+    gridColor,
+    plotBg,
+    setImpulseThresholds,
+  });
+
+  // Track overall render count and duration
+  // useEffect(() => {
+  //   const t0 = performance.now();
+  //   setRenderCount(c => c + 1);
+  //   setLastRenderDuration(performance.now() - t0);
+  // });
 
   // Controls
   const handlePlay = () => {
@@ -491,6 +459,26 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
 
   if (numBins === 0) return null;
 
+  if (visualizing) {
+    return (
+      <Box sx={{ width: '100%', maxWidth: 700, mx: 'auto', my: 2, textAlign: 'center' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+          <CircularProgress sx={{ mb: 2 }} />
+          <Typography variant="h6">
+            {visualizationStatus || 'Preparing visualizations...'}
+          </Typography>
+        </Box>
+        {[0,1,2,3,4].map(i => (
+          <Box key={i} sx={{ mb: 2 }}>
+            <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 2, mb: 1 }} />
+            <Skeleton variant="text" width="40%" />
+            <Skeleton variant="text" width="60%" />
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -506,6 +494,11 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
         overflowX: 'auto',
       }}
     >
+      {/* Profiling info */}
+      {/* <Box sx={{ mb: 1, color: 'text.secondary', fontSize: 12 }}>
+        <div>AudioFrequencyVisualizer renders: {renderCount} (last: {lastRenderDuration.toFixed(2)} ms)</div>
+        <div>bandPlots renders: {bandPlotsRenderCount.current} (last: {bandPlotsLastDuration.current.toFixed(2)} ms)</div>
+      </Box> */}
       <Typography variant="h5" sx={{ mb: 1 }}>
         Frequency Band Magnitude Over Time
       </Typography>
@@ -572,7 +565,19 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
           label="Show Impulses"
         />
       </FormGroup>
-      {bandPlots.length === 0 ? null : bandPlots}
+      {bandPlotsData.length === 0 ? null : bandPlotsData.map((data: BandPlotData) => (
+        <BandPlotCard
+          key={data.band.name}
+          data={data}
+          xRange={xRange}
+          axisColor={axisColor}
+          gridColor={gridColor}
+          plotBg={plotBg}
+          showImpulses={showImpulses}
+          impulseThresholds={impulseThresholds}
+          setImpulseThresholds={setImpulseThresholds}
+        />
+      ))}
     </Box>
   );
 };

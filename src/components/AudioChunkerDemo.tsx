@@ -10,7 +10,9 @@ import {
     List,
     ListItem,
     ListItemText,
-    CircularProgress
+    CircularProgress,
+    Skeleton,
+    LinearProgress
 } from '@mui/material';
 import {
     decodeAudioFile,
@@ -53,6 +55,7 @@ const AudioChunkerDemo: React.FC = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [playbackTime, setPlaybackTime] = useState(0);
     const audioWorkerRef = useRef<Worker | null>(null);
+    const [processingProgress, setProcessingProgress] = useState<{ processed: number, total: number } | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -71,10 +74,15 @@ const AudioChunkerDemo: React.FC = () => {
         // @ts-ignore
         audioWorkerRef.current = new Worker(new URL('../controllers/audioWorker.ts', import.meta.url));
         audioWorkerRef.current.onmessage = (e) => {
-            const { summary, fftSequence } = e.data;
-            setSummary(summary);
-            setFftSequence(fftSequence);
-            setLoading(false);
+            const { type, processed, total, summary, fftSequence } = e.data;
+            if (type === 'progress') {
+                setProcessingProgress({ processed, total });
+            } else if (type === 'done') {
+                setSummary(summary);
+                setFftSequence(fftSequence);
+                setLoading(false);
+                setProcessingProgress(null);
+            }
         };
         return () => {
             audioWorkerRef.current?.terminate();
@@ -85,6 +93,7 @@ const AudioChunkerDemo: React.FC = () => {
         if (!file) return;
         setLoading(true);
         setFftSequence([]); // Reset sequence
+        setProcessingProgress(null); // Reset progress
         try {
             // Decode in main thread, send PCM to worker
             const audioBuffer = await decodeAudioFile(file);
@@ -95,44 +104,10 @@ const AudioChunkerDemo: React.FC = () => {
                 windowSize,
                 hopSize,
             });
-            // --- Old direct processing code (commented for reference) ---
-            // const audioBuffer = await decodeAudioFile(file);
-            // audioBufferRef.current = audioBuffer;
-            // const sampleRate = audioBuffer.sampleRate;
-            // const pcmData = getMonoPCMData(audioBuffer);
-            // let numChunks = 0;
-            // let firstChunk: Float32Array | null = null;
-            // let fftSeq: (Float32Array | number[])[] = [];
-            // const chunks = Array.from(chunkPCMData(pcmData, windowSize, hopSize));
-            // for (let idx = 0; idx < chunks.length; idx++) {
-            //     const chunk = chunks[idx];
-            //     numChunks++;
-            //     if (idx === 0) firstChunk = chunk;
-            //     const magnitudes = computeFFTMagnitude(chunk);
-            //     fftSeq.push(magnitudes);
-            // }
-            // setFftSequence(fftSeq);
-            // const chunkDurationMs = (windowSize / sampleRate) * 1000;
-            // const totalDurationMs = (pcmData.length / sampleRate) * 1000;
-            // let firstChunkFFT: number[] | undefined = undefined;
-            // let firstChunkFFTMagnitudes: Float32Array | undefined = undefined;
-            // if (firstChunk) {
-            //     const magnitudes = computeFFTMagnitude(firstChunk);
-            //     firstChunkFFTMagnitudes = magnitudes;
-            //     firstChunkFFT = Array.from(magnitudes.slice(0, 8));
-            // }
-            // setSummary({
-            //     numChunks: chunks.length,
-            //     chunkDurationMs,
-            //     totalDurationMs,
-            //     windowSize,
-            //     hopSize,
-            //     firstChunkFFT,
-            //     firstChunkFFTMagnitudes,
-            // });
         } catch (err) {
             alert("Error decoding audio file.");
             setLoading(false);
+            setProcessingProgress(null);
         }
     };
 
@@ -278,9 +253,30 @@ const AudioChunkerDemo: React.FC = () => {
                 </Box>
             )}
             {loading && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 120, my: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 120, my: 2, width: '100%' }}>
                     <CircularProgress />
-                    <Typography sx={{ ml: 2 }}>Processing audio...</Typography>
+                    <Typography sx={{ ml: 2, mb: 2 }}>Processing audio...</Typography>
+                    {processingProgress && (
+                        <Box sx={{ width: '100%', maxWidth: 400, mt: 2 }}>
+                            <LinearProgress
+                                variant="determinate"
+                                value={100 * processingProgress.processed / processingProgress.total}
+                            />
+                            <Typography variant="caption" sx={{ mt: 1 }}>
+                                {`Processed ${processingProgress.processed} of ${processingProgress.total} chunks`}
+                            </Typography>
+                        </Box>
+                    )}
+                    {/* Skeletons for plot cards */}
+                    <Box sx={{ width: '100%', maxWidth: 700 }}>
+                        {[0,1,2,3,4].map(i => (
+                            <Box key={i} sx={{ mb: 2 }}>
+                                <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 2, mb: 1 }} />
+                                <Skeleton variant="text" width="40%" />
+                                <Skeleton variant="text" width="60%" />
+                            </Box>
+                        ))}
+                    </Box>
                 </Box>
             )}
             {!loading && fftSequence.length > 0 && audioBufferRef.current && (
