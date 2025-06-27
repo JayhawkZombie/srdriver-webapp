@@ -93,6 +93,8 @@ self.onmessage = async (e: MessageEvent) => {
     firstChunkFFT,
     firstChunkFFTMagnitudes,
   };
+  // Debug: log first 3 rows of fftSequence
+  console.log('audioWorker.ts: fftSequence (first 3 rows)', fftSequence.slice(0, 3));
   // @ts-ignore
   self.postMessage({ type: 'done', summary, fftSequence } as AudioProcessResult);
 };
