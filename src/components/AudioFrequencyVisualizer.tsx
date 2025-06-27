@@ -204,10 +204,11 @@ const BandUPlotCard = memo(({
     return () => ro.disconnect();
   }, []);
 
-  // Prepare uPlot data and series for shared-x mode (main trace always shown, overlays use 0 for missing values)
+  // Prepare uPlot data and series for shared-x mode (main trace always shown, overlays use NaN for missing values)
   const mainTrace = data.traces[0];
   const xArr = (mainTrace.x as number[]) || [];
-  const uData: Float64Array[] = [new Float64Array(xArr)];
+  const mainYArr = (mainTrace.y as number[]) || [];
+  const uData: Float64Array[] = [new Float64Array(xArr), new Float64Array(mainYArr)];
   const series: any[] = [
     {}, // x
     {
@@ -216,13 +217,11 @@ const BandUPlotCard = memo(({
       width: 2,
     },
   ];
-  // Main y
-  uData.push(new Float64Array((mainTrace.y as number[]) || []));
   // Overlay traces (derivatives, impulses, cursor)
   for (let i = 1; i < data.traces.length; ++i) {
     const t = data.traces[i];
-    // Build y array of same length as xArr, fill with 0 except at matching x
-    const yArr = new Array(xArr.length).fill(0);
+    // Build y array of same length as xArr, fill with NaN except at matching x
+    const yArr = new Array(xArr.length).fill(NaN);
     if (t.x && t.y && Array.isArray(t.x) && Array.isArray(t.y)) {
       (t.x as number[]).forEach((tx, idx) => {
         const xi = xArr.findIndex(xx => Math.abs(xx - tx) < 1e-6);
@@ -257,9 +256,30 @@ const BandUPlotCard = memo(({
       paths: t.mode === 'markers' ? uPlot.paths.points : uPlot.paths.linear,
     });
   }
-  const validData = uData.length > 1 && uData[1].length > 0;
-  // uPlot options
-  const options: uPlot.Options = {
+  const validData = uData.length > 1 && uData[1].length > 0 && !uData[1].every(v => isNaN(v));
+
+  // Debug logs to diagnose plot data
+  console.log('mainTrace', data.traces[0]);
+  console.log('xArr', xArr.length, xArr.slice(0, 10));
+  console.log('mainYArr', mainYArr.length, mainYArr.slice(0, 10));
+  console.log('validData', validData);
+
+  // Filter x/y to only those within xRange
+  const indicesInWindow = xArr
+    .map((x, i) => (x >= xRange[0] && x <= xRange[1] ? i : -1))
+    .filter(i => i !== -1);
+  const windowedX = indicesInWindow.map(i => xArr[i]);
+  const windowedY = indicesInWindow.map(i => mainYArr[i]);
+  const simpleUData = [new Float64Array(windowedX), new Float64Array(windowedY)];
+  const simpleSeries = [
+    {},
+    {
+      label: data.band.name,
+      stroke: data.band.color,
+      width: 2,
+    },
+  ];
+  const simpleOptions: uPlot.Options = {
     width: plotSize.width,
     height: plotSize.height,
     title: data.band.name + ` (${Math.round(data.freq)} Hz)`,
@@ -268,62 +288,17 @@ const BandUPlotCard = memo(({
       y: { auto: true },
     },
     axes: [
-      {
-        stroke: axisColor,
-        grid: { stroke: gridColor },
-        label: 'Time (seconds)',
-      },
-      {
-        stroke: axisColor,
-        grid: { stroke: gridColor },
-        label: 'Magnitude',
-      },
+      { label: 'Time (seconds)' },
+      { label: 'Magnitude' },
     ],
-    series,
-    hooks: {},
+    series: simpleSeries,
   };
+
   return (
     <Card sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
       <CardContent sx={{ p: 1.2, pb: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, gap: 1, overflow: 'visible' }}>
-          {showImpulses && (
-            <>
-              <Typography variant="body2" sx={{ color: data.band.color, minWidth: 60, fontWeight: 500, fontSize: 13 }}>
-                {data.band.name} Threshold:
-              </Typography>
-              <Slider
-                min={data.sliderMin}
-                max={data.sliderMax}
-                step={data.sliderStep}
-                value={data.threshold}
-                onChange={(_, v) => {
-                  const newThresholds = [...impulseThresholds];
-                  newThresholds[data.bandIdx] = typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0);
-                  setImpulseThresholds(newThresholds);
-                }}
-                valueLabelDisplay="on"
-                valueLabelFormat={v => (typeof v === 'number' ? v.toFixed(1) : v)}
-                size="small"
-                sx={{ width: 130, ml: 0, mr: 2 }}
-                marks={false}
-              />
-            </>
-          )}
-          <div style={{ color: data.band.color, fontWeight: 700, fontSize: 16, margin: 0, lineHeight: 1 }}>{data.band.name} ({Math.round(data.freq)} Hz)</div>
-        </Box>
         <Box ref={containerRef} sx={{ width: '100%', height: 320, p: 0.5, pt: 0, pb: 0, boxSizing: 'border-box' }}>
-          {validData ? (
-            (() => {
-              try {
-                return <UPlot options={options} data={uData} />;
-              } catch (err) {
-                console.error('UPlot render error:', err, { uData, options });
-                return <Typography color="error">Plot error: {String(err)}</Typography>;
-              }
-            })()
-          ) : (
-            <Typography color="error">No data to plot</Typography>
-          )}
+          <UPlot options={simpleOptions} data={simpleUData} />
         </Box>
       </CardContent>
     </Card>
@@ -675,26 +650,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
         Frequency Band Magnitude Over Time
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
-        <ButtonGroup variant="contained" size="small">
-          <Button onClick={handlePlay} disabled={isPlaying || playbackTime >= maxTime}>Play</Button>
-          <Button onClick={handlePause} disabled={!isPlaying}>Pause</Button>
-          <Button onClick={handleReset}>Reset</Button>
-        </ButtonGroup>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
-          <Typography variant="body2">Speed:</Typography>
-          <Select
-            value={playbackSpeed}
-            onChange={handleSpeedChange}
-            size="small"
-            sx={{ minWidth: 60 }}
-          >
-            <MenuItem value={0.5}>0.5x</MenuItem>
-            <MenuItem value={1}>1x</MenuItem>
-            <MenuItem value={2}>2x</MenuItem>
-            <MenuItem value={4}>4x</MenuItem>
-            <MenuItem value={8}>8x</MenuItem>
-          </Select>
-        </Box>
         <Typography variant="body2" sx={{ ml: 2 }}>
           Time: {playbackTime.toFixed(2)}s / {maxTime.toFixed(2)}s
         </Typography>
