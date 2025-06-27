@@ -9,7 +9,8 @@ import {
     Divider,
     List,
     ListItem,
-    ListItemText
+    ListItemText,
+    CircularProgress
 } from '@mui/material';
 import {
     decodeAudioFile,
@@ -20,6 +21,9 @@ import { computeFFTMagnitude } from "../controllers/fftUtils";
 import Plot from 'react-plotly.js';
 import AudioFrequencyVisualizer from './AudioFrequencyVisualizer';
 import WaveSurfer from "wavesurfer.js";
+// Import worker (Vite/CRA style)
+// @ts-ignore
+import audioWorkerUrl from '../controllers/audioWorker.ts?worker';
 
 interface ChunkSummary {
     numChunks: number;
@@ -48,6 +52,7 @@ const AudioChunkerDemo: React.FC = () => {
     const wavesurferRef = useRef<WaveSurfer | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [playbackTime, setPlaybackTime] = useState(0);
+    const audioWorkerRef = useRef<Worker | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -61,48 +66,72 @@ const AudioChunkerDemo: React.FC = () => {
         fileInputRef.current?.click();
     };
 
+    // Set up the worker and cleanup
+    useEffect(() => {
+        // @ts-ignore
+        audioWorkerRef.current = new Worker(new URL('../controllers/audioWorker.ts', import.meta.url));
+        audioWorkerRef.current.onmessage = (e) => {
+            const { summary, fftSequence } = e.data;
+            setSummary(summary);
+            setFftSequence(fftSequence);
+            setLoading(false);
+        };
+        return () => {
+            audioWorkerRef.current?.terminate();
+        };
+    }, []);
+
     const handleProcess = async () => {
         if (!file) return;
         setLoading(true);
         setFftSequence([]); // Reset sequence
         try {
+            // Decode in main thread, send PCM to worker
             const audioBuffer = await decodeAudioFile(file);
             audioBufferRef.current = audioBuffer;
-            const sampleRate = audioBuffer.sampleRate;
             const pcmData = getMonoPCMData(audioBuffer);
-            let numChunks = 0;
-            let firstChunk: Float32Array | null = null;
-            let fftSeq: (Float32Array | number[])[] = [];
-            const chunks = Array.from(chunkPCMData(pcmData, windowSize, hopSize));
-            for (let idx = 0; idx < chunks.length; idx++) {
-                const chunk = chunks[idx];
-                numChunks++;
-                if (idx === 0) firstChunk = chunk;
-                const magnitudes = computeFFTMagnitude(chunk);
-                fftSeq.push(magnitudes);
-            }
-            setFftSequence(fftSeq);
-            const chunkDurationMs = (windowSize / sampleRate) * 1000;
-            const totalDurationMs = (pcmData.length / sampleRate) * 1000;
-            let firstChunkFFT: number[] | undefined = undefined;
-            let firstChunkFFTMagnitudes: Float32Array | undefined = undefined;
-            if (firstChunk) {
-                const magnitudes = computeFFTMagnitude(firstChunk);
-                firstChunkFFTMagnitudes = magnitudes;
-                firstChunkFFT = Array.from(magnitudes.slice(0, 8));
-            }
-            setSummary({
-                numChunks: chunks.length,
-                chunkDurationMs,
-                totalDurationMs,
+            audioWorkerRef.current?.postMessage({
+                pcmBuffer: pcmData.buffer,
                 windowSize,
                 hopSize,
-                firstChunkFFT,
-                firstChunkFFTMagnitudes,
             });
+            // --- Old direct processing code (commented for reference) ---
+            // const audioBuffer = await decodeAudioFile(file);
+            // audioBufferRef.current = audioBuffer;
+            // const sampleRate = audioBuffer.sampleRate;
+            // const pcmData = getMonoPCMData(audioBuffer);
+            // let numChunks = 0;
+            // let firstChunk: Float32Array | null = null;
+            // let fftSeq: (Float32Array | number[])[] = [];
+            // const chunks = Array.from(chunkPCMData(pcmData, windowSize, hopSize));
+            // for (let idx = 0; idx < chunks.length; idx++) {
+            //     const chunk = chunks[idx];
+            //     numChunks++;
+            //     if (idx === 0) firstChunk = chunk;
+            //     const magnitudes = computeFFTMagnitude(chunk);
+            //     fftSeq.push(magnitudes);
+            // }
+            // setFftSequence(fftSeq);
+            // const chunkDurationMs = (windowSize / sampleRate) * 1000;
+            // const totalDurationMs = (pcmData.length / sampleRate) * 1000;
+            // let firstChunkFFT: number[] | undefined = undefined;
+            // let firstChunkFFTMagnitudes: Float32Array | undefined = undefined;
+            // if (firstChunk) {
+            //     const magnitudes = computeFFTMagnitude(firstChunk);
+            //     firstChunkFFTMagnitudes = magnitudes;
+            //     firstChunkFFT = Array.from(magnitudes.slice(0, 8));
+            // }
+            // setSummary({
+            //     numChunks: chunks.length,
+            //     chunkDurationMs,
+            //     totalDurationMs,
+            //     windowSize,
+            //     hopSize,
+            //     firstChunkFFT,
+            //     firstChunkFFTMagnitudes,
+            // });
         } catch (err) {
             alert("Error decoding audio file.");
-        } finally {
             setLoading(false);
         }
     };
@@ -248,7 +277,13 @@ const AudioChunkerDemo: React.FC = () => {
                     </List>
                 </Box>
             )}
-            {fftSequence.length > 0 && audioBufferRef.current && (
+            {loading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 120, my: 2 }}>
+                    <CircularProgress />
+                    <Typography sx={{ ml: 2 }}>Processing audio...</Typography>
+                </Box>
+            )}
+            {!loading && fftSequence.length > 0 && audioBufferRef.current && (
                 <AudioFrequencyVisualizer
                     fftSequence={fftSequence}
                     sampleRate={audioBufferRef.current.sampleRate}
