@@ -198,7 +198,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   playbackTime: externalPlaybackTime,
   // maxSlices = 64, // unused for this plot
 }) => {
-  console.debug('[AudioFrequencyVisualizer] Render', { fftSequenceLen: fftSequence.length, sampleRate, windowSize, hopSize });
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const plotBg = isDark ? theme.palette.background.paper : '#fafbfc';
@@ -206,7 +205,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const axisColor = isDark ? theme.palette.text.primary : '#222';
   const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
   const STANDARD_BANDS = useMemo(() => {
-    console.debug('[AudioFrequencyVisualizer] STANDARD_BANDS recalculated', { isDark });
     return isDark ? DARK_BAND_COLORS : LIGHT_BAND_COLORS;
   }, [isDark]);
 
@@ -232,7 +230,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const playbackTime = externalPlaybackTime !== undefined ? externalPlaybackTime : internalPlaybackTime;
 
   // --- Use new computation hook ---
-  console.debug('[AudioFrequencyVisualizer] Calling useAudioFrequencyData');
   const {
     bandDataArr,
     impulseThresholds,
@@ -257,10 +254,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     plotBg,
   });
 
-  // Debug output
-  console.log('fftSequence', fftSequence);
-  console.log('bandDataArr', bandDataArr);
-
   // Memoized band plots, only depends on bandDataArr and display toggles
   const bandPlotsData: BandPlotData[] = useBandPlots({
     bandDataArr,
@@ -276,8 +269,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
     plotBg,
     setImpulseThresholds,
   });
-  console.log('bandPlotsData', bandPlotsData);
-  console.debug('[AudioFrequencyVisualizer] bandPlotsData length', bandPlotsData.length);
 
   const numBins = fftSequence[0]?.length || 0;
 

@@ -143,7 +143,7 @@ const useBandPlots = ({
     // Only the impulse trace is dynamic
     const impulsesTrace = {
       x: impulseTimes,
-      y: impulseValues,
+      y: impulseIndices.map(i => 20 * Math.log10(magnitudes[i] + 1e-6)),
       type: 'scatter' as PlotType,
       mode: 'markers' as const,
       marker: { color: impulseColors, size: 10, symbol: 'x' },
