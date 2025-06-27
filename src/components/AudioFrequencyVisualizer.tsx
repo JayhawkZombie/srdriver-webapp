@@ -98,7 +98,17 @@ const BandPlotCard = memo(({
     ...(showFirstDerivative ? [data.traces.derivative] : []),
     ...(showSecondDerivative ? [data.traces.secondDerivative] : []),
     ...(showImpulses ? [data.traces.impulses] : []),
+    data.cursorTrace,
   ], [data, showFirstDerivative, showSecondDerivative, showImpulses]);
+
+  // Auto-scale y-axis based on visible magnitude data
+  const yVals = data.traces.magnitude.y as number[];
+  let yMin = Math.min(...yVals);
+  let yMax = Math.max(...yVals);
+  let margin = (yMax - yMin) * 0.1 || 1;
+  yMin -= margin;
+  yMax += margin;
+
   return (
     <Card key={data.band.name} sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
       <CardContent sx={{ p: 1.2, pb: 1 }}>
@@ -145,7 +155,7 @@ const BandPlotCard = memo(({
               },
               yaxis: {
                 title: 'Magnitude (dB)',
-                range: [-100, 0],
+                range: [yMin, yMax],
                 automargin: true,
                 titlefont: { size: 11 },
                 tickfont: { size: 9 },

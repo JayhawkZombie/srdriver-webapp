@@ -164,10 +164,10 @@ const useBandPlots = ({
       traces,
       cursorTrace: {
         x: [playbackTime, playbackTime],
-        y: [Math.min(...visibleImpulseStrengths), Math.max(...visibleImpulseStrengths)],
+        y: [-10000, 10000],
         type: 'scatter' as PlotType,
         mode: 'lines' as const,
-        line: { color: 'red', width: 4, dash: 'solid' as Dash },
+        line: { color: '#FFFFFF', width: 2, dash: 'solid' as Dash },
         name: 'Cursor',
         showlegend: false,
       },
