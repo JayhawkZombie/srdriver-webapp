@@ -6,7 +6,7 @@ import {
   FormControlLabel,
   Switch
 } from '@mui/material';
-import DeviceManager from './components/DeviceManager';
+import Dashboard from './components/Dashboard';
 import { DeviceControllerProvider } from './controllers/DeviceControllerContext';
 import { PulseProvider } from './controllers/PulseContext';
 import { ToastProvider } from './controllers/ToastContext';
@@ -37,7 +37,7 @@ function App() {
           <PulseProvider>
             <ToastProvider>
               <GlobalToast />
-              <DeviceManager mode={mode} onToggleMode={handleToggle} />
+              <Dashboard mode={mode} onToggleMode={handleToggle} />
             </ToastProvider>
           </PulseProvider>
         </DeviceControllerProvider>
