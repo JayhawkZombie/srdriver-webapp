@@ -1,6 +1,8 @@
 import React from 'react';
 import { AppBar, Toolbar, Typography, FormControlLabel, Switch, Chip, Tabs, Tab } from '@mui/material';
 import DevAppStateViewer from './DevAppStateViewer';
+import AnimatedStatusChip from './AnimatedStatusChip';
+import BluetoothIcon from '@mui/icons-material/Bluetooth';
 
 interface DashboardHeaderProps {
   mode: 'light' | 'dark';
@@ -28,10 +30,17 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         sx={{ mr: 2 }}
       />
       {selectedDevice && (
-        <Chip
+        <AnimatedStatusChip
           label={selectedDevice.isConnected ? 'Connected' : 'Disconnected'}
           color={selectedDevice.isConnected ? 'success' : 'default'}
           size="small"
+          isActive={selectedDevice.isConnected}
+          icon={
+            <BluetoothIcon
+              fontSize="small"
+              sx={{ color: selectedDevice.isConnected ? 'white' : 'action.disabled' }}
+            />
+          }
         />
       )}
       <DevAppStateViewer />

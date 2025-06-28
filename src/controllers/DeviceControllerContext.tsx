@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { WebSRDriverController } from './WebSRDriverController';
 import { Device } from '../types/Device';
-import { Box, Button, Typography, Stack, Chip } from '@mui/material';
+import { Box, Button, Typography, Stack } from '@mui/material';
 import { useAppStore } from '../store/appStore';
+import AnimatedStatusChip from '../components/AnimatedStatusChip';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import BluetoothIcon from '@mui/icons-material/Bluetooth';
 
 export type DeviceControllerContextType = {
   devices: Device[];
@@ -11,12 +14,128 @@ export type DeviceControllerContextType = {
   connectDevice: (deviceId: string) => Promise<void>;
   disconnectDevice: (deviceId: string) => Promise<void>;
   updateDevice: (deviceId: string, update: Partial<Device>) => void;
+  onHeartbeatChange: (deviceId: string, cb: (isAlive: boolean) => void) => () => void;
+  onHeartbeat: (deviceId: string, cb: () => void) => () => void;
 };
 
 const DeviceControllerContext = createContext<DeviceControllerContextType | undefined>(undefined);
 
 const HEARTBEAT_UUID = 'f6f7b0f1-c4ab-4c75-9ca7-b43972152f16';
 const HEARTBEAT_TIMEOUT = 5000;
+
+// WeakMap to track heartbeat event handlers for each characteristic
+const heartbeatHandlerMap: WeakMap<BluetoothRemoteGATTCharacteristic, (event: any) => void> = new WeakMap();
+// Ref to track which device IDs have active listeners
+const activeHeartbeatListeners = new Set<string>();
+
+// Heartbeat context for decoupled heartbeat/pulse state
+type HeartbeatStatus = { last: number | null; isAlive: boolean; pulse: boolean };
+type HeartbeatMap = { [deviceId: string]: HeartbeatStatus };
+const HeartbeatContext = createContext<{
+  heartbeat: HeartbeatMap;
+  setHeartbeat: React.Dispatch<React.SetStateAction<HeartbeatMap>>;
+} | undefined>(undefined);
+
+export const HeartbeatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [heartbeat, setHeartbeat] = useState<HeartbeatMap>({});
+  return (
+    <HeartbeatContext.Provider value={{ heartbeat, setHeartbeat }}>
+      {children}
+    </HeartbeatContext.Provider>
+  );
+};
+
+export function useHeartbeatStatus(deviceId: string | undefined) {
+  const ctx = useContext(HeartbeatContext);
+  if (!ctx) throw new Error('useHeartbeatStatus must be used within HeartbeatProvider');
+  return deviceId ? ctx.heartbeat[deviceId] : undefined;
+}
+
+// HeartbeatManager: subscribes to device context and manages heartbeat BLE subscriptions/state
+const HeartbeatManager: React.FC = () => {
+  const { devices } = useDeviceControllerContext();
+  const { setHeartbeat } = useContext(HeartbeatContext)!;
+  React.useEffect(() => {
+    const connectedDevices = devices.filter(d => d.isConnected && d.controller && typeof d.controller.getService === 'function');
+    connectedDevices.forEach(device => {
+      if (activeHeartbeatListeners.has(device.id)) return;
+      let char: BluetoothRemoteGATTCharacteristic | null = null;
+      let handler: ((event: any) => void) | null = null;
+      let cancelled = false;
+      (async () => {
+        try {
+          const service = device.controller.getService();
+          if (!service) return;
+          char = await service.getCharacteristic(HEARTBEAT_UUID);
+          await char.startNotifications();
+          const prevHandler = heartbeatHandlerMap.get(char);
+          if (prevHandler) {
+            char.removeEventListener('characteristicvaluechanged', prevHandler);
+            console.log('Removed previous heartbeat event listener for device', device.id);
+          }
+          handler = (event: any) => {
+            if (cancelled) return;
+            const now = Date.now();
+            setHeartbeat(prev => ({
+              ...prev,
+              [device.id]: {
+                last: now,
+                isAlive: true,
+                pulse: true,
+              },
+            }));
+            // Fire all onHeartbeat callbacks for this device
+            if (heartbeatEventCallbacks.current[device.id]) {
+              heartbeatEventCallbacks.current[device.id].forEach(cb => cb());
+            }
+            setTimeout(() => {
+              setHeartbeat(prev => prev[device.id] ? {
+                ...prev,
+                [device.id]: { ...prev[device.id], pulse: false }
+              } : prev);
+            }, 300);
+          };
+          char.addEventListener('characteristicvaluechanged', handler);
+          heartbeatHandlerMap.set(char, handler);
+          activeHeartbeatListeners.add(device.id);
+          console.log('Added heartbeat event listener for device', device.id);
+        } catch (e) {
+          console.error('Error subscribing to heartbeat notifications:', e);
+        }
+      })();
+    });
+    Array.from(activeHeartbeatListeners).forEach(deviceId => {
+      const stillConnected = connectedDevices.some(d => d.id === deviceId);
+      if (!stillConnected) {
+        const device = devices.find(d => d.id === deviceId);
+        if (device && device.controller && typeof device.controller.getService === 'function') {
+          (async () => {
+            try {
+              const service = device.controller.getService();
+              if (!service) return;
+              const char = await service.getCharacteristic(HEARTBEAT_UUID);
+              const handler = heartbeatHandlerMap.get(char);
+              if (handler) {
+                char.removeEventListener('characteristicvaluechanged', handler);
+                heartbeatHandlerMap.delete(char);
+                console.log('Cleaned up heartbeat event listener for device', device.id);
+              }
+            } catch (e) {
+              // ignore
+            }
+          })();
+        }
+        activeHeartbeatListeners.delete(deviceId);
+      }
+    });
+  }, [devices, setHeartbeat]);
+  return null;
+};
+
+// Heartbeat change callbacks (global for HeartbeatManager and context)
+const heartbeatCallbacks: React.MutableRefObject<{ [deviceId: string]: ((isAlive: boolean) => void)[] }> = { current: {} };
+// Heartbeat event callbacks (fires on every heartbeat)
+const heartbeatEventCallbacks: React.MutableRefObject<{ [deviceId: string]: (() => void)[] }> = { current: {} };
 
 export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -107,62 +226,35 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
     ));
   }, []);
 
-  // Heartbeat monitor effect
-  useEffect(() => {
-    devices.forEach(device => {
-      if (device.isConnected && device.controller && typeof device.controller.getService === 'function') {
-        const service = device.controller.getService();
-        if (service) {
-          (async () => {
-            try {
-              const char = await service.getCharacteristic(HEARTBEAT_UUID);
-              await char.startNotifications();
-              char.addEventListener('characteristicvaluechanged', (event: any) => {
-                const value = event.target.value.getUint32(0, true);
-                setDevices(prev => prev.map(d =>
-                  d.id === device.id
-                    ? {
-                        ...d,
-                        heartbeat: {
-                          last: Date.now(),
-                          isAlive: true,
-                          pulse: true,
-                        },
-                      }
-                    : d
-                ));
-                setTimeout(() => {
-                  setDevices(prev => prev.map(d =>
-                    d.id === device.id && d.heartbeat
-                      ? { ...d, heartbeat: { ...d.heartbeat, pulse: false } }
-                      : d
-                  ));
-                }, 300);
-              });
-            } catch (e) {
-              // ignore if not available
-            }
-          })();
-        }
-      }
-    });
-    // Heartbeat timeout checker
-    const interval = setInterval(() => {
-      setDevices(prev => prev.map(d => {
-        if (d.heartbeat && d.heartbeat.last) {
-          const isAlive = Date.now() - d.heartbeat.last < HEARTBEAT_TIMEOUT;
-          return { ...d, heartbeat: { ...d.heartbeat, isAlive } };
-        }
-        return d;
-      }));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [devices]);
+  const onHeartbeatChange = useCallback((deviceId: string, cb: (isAlive: boolean) => void) => {
+    if (!heartbeatCallbacks.current[deviceId]) {
+      heartbeatCallbacks.current[deviceId] = [];
+    }
+    heartbeatCallbacks.current[deviceId].push(cb);
+    // Return unsubscribe function
+    return () => {
+      heartbeatCallbacks.current[deviceId] = heartbeatCallbacks.current[deviceId].filter((f: (isAlive: boolean) => void) => f !== cb);
+    };
+  }, []);
+
+  const onHeartbeat = useCallback((deviceId: string, cb: () => void) => {
+    if (!heartbeatEventCallbacks.current[deviceId]) {
+      heartbeatEventCallbacks.current[deviceId] = [];
+    }
+    heartbeatEventCallbacks.current[deviceId].push(cb);
+    // Return unsubscribe function
+    return () => {
+      heartbeatEventCallbacks.current[deviceId] = heartbeatEventCallbacks.current[deviceId].filter((f: () => void) => f !== cb);
+    };
+  }, []);
 
   return (
-    <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice }}>
-      {children}
-    </DeviceControllerContext.Provider>
+    <HeartbeatProvider>
+      <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice, onHeartbeatChange, onHeartbeat }}>
+        <HeartbeatManager />
+        {children}
+      </DeviceControllerContext.Provider>
+    </HeartbeatProvider>
   );
 };
 
@@ -176,6 +268,12 @@ export function useDeviceControllerContext() {
 export const DeviceConnectionPanel: React.FC = () => {
   const { devices, connectDevice, disconnectDevice, addDevice } = useDeviceControllerContext();
 
+  // Use a stable callback to avoid runaway subscriptions
+  const heartbeatLogger = React.useCallback(() => {
+    console.log('Heartbeat');
+  }, []);
+  useHeartbeat(devices[0]?.id, heartbeatLogger);
+
   return (
     <Box>
       <Typography variant="subtitle1" gutterBottom>Device Connection</Typography>
@@ -186,10 +284,14 @@ export const DeviceConnectionPanel: React.FC = () => {
           devices.map(device => (
             <Box key={device.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography variant="body1">{device.name}</Typography>
-              <Chip
+              <AnimatedStatusChip
+                key={device.heartbeat?.pulse ? 'pulse-on' : 'pulse-off'}
                 label={device.isConnected ? 'Connected' : device.isConnecting ? 'Connecting...' : 'Disconnected'}
                 color={device.isConnected ? 'success' : device.isConnecting ? 'warning' : 'default'}
                 size="small"
+                isActive={!!device.heartbeat?.isAlive}
+                pulse={!!device.heartbeat?.pulse}
+                icon={<FavoriteIcon fontSize="small" color={device.heartbeat?.isAlive ? 'error' : 'disabled'} />}
               />
               {device.isConnected ? (
                 <Button size="small" variant="outlined" color="secondary" onClick={() => disconnectDevice(device.id)} disabled={device.isConnecting}>
@@ -221,4 +323,47 @@ export function useSingleDevice() {
 export function useDeviceById(deviceId: string) {
   const { devices } = useDeviceControllerContext();
   return React.useMemo(() => devices.find(d => d.id === deviceId), [devices, deviceId]);
+}
+
+/**
+ * useHeartbeat - React hook to run a callback on every heartbeat for a device.
+ * Usage: 
+ *   const myCallback = React.useCallback(() => { ... }, []);
+ *   useHeartbeat(deviceId, myCallback);
+ *
+ * Always use React.useCallback for the callback to avoid runaway subscriptions.
+ */
+export function useHeartbeat(deviceId: string | undefined, callback: () => void) {
+  const { onHeartbeat } = useDeviceControllerContext();
+  React.useEffect(() => {
+    if (!deviceId) return;
+    const unsubscribe = onHeartbeat(deviceId, callback);
+    return unsubscribe;
+  }, [deviceId, callback, onHeartbeat]);
+}
+
+/**
+ * useConnect - React hook to get a stable connect callback for a device.
+ * Usage:
+ *   const connect = useConnect(deviceId);
+ *   <Button onClick={connect}>Connect</Button>
+ */
+export function useConnect(deviceId: string | undefined) {
+  const { connectDevice } = useDeviceControllerContext();
+  return React.useCallback(() => {
+    if (deviceId) connectDevice(deviceId);
+  }, [deviceId, connectDevice]);
+}
+
+/**
+ * useDisconnect - React hook to get a stable disconnect callback for a device.
+ * Usage:
+ *   const disconnect = useDisconnect(deviceId);
+ *   <Button onClick={disconnect}>Disconnect</Button>
+ */
+export function useDisconnect(deviceId: string | undefined) {
+  const { disconnectDevice } = useDeviceControllerContext();
+  return React.useCallback(() => {
+    if (deviceId) disconnectDevice(deviceId);
+  }, [deviceId, disconnectDevice]);
 } 
