@@ -33,14 +33,14 @@ function App() {
     <>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <ToastProvider>
-          <GlobalToast />
+        <DeviceControllerProvider>
           <PulseProvider>
-            <DeviceControllerProvider>
+            <ToastProvider>
+              <GlobalToast />
               <DeviceManager mode={mode} onToggleMode={handleToggle} />
-            </DeviceControllerProvider>
+            </ToastProvider>
           </PulseProvider>
-        </ToastProvider>
+        </DeviceControllerProvider>
       </ThemeProvider>
     </>
   );

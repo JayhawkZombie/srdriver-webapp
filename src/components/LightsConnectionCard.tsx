@@ -7,6 +7,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
+import DeviceControls from './DeviceControls';
 
 interface Device {
   id: string;
@@ -22,7 +23,8 @@ interface LightsConnectionCardProps {
 }
 
 const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({ activeDeviceId, setActiveDeviceId }) => {
-  const { devices, addDevice, connectDevice, disconnectDevice } = useDeviceControllerContext();
+  const { devices, addDevice, connectDevice, disconnectDevice, updateDevice } = useDeviceControllerContext();
+  const activeDevice = devices.find(d => d.id === activeDeviceId);
 
   // Helper for status icon
   const getStatusIcon = (device: Device) => {
@@ -54,40 +56,50 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({ activeDevic
           No devices added.
         </Typography>
       ) : (
-        <Box sx={{ width: '100%' }}>
-          <Typography variant="body2" sx={{ mb: 0.5 }}>Devices:</Typography>
-          <Stack spacing={0.5}>
-            {devices.map(device => (
-              <Box key={device.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                <Button
-                  variant={activeDeviceId === device.id && device.isConnected ? 'contained' : 'outlined'}
-                  color={activeDeviceId === device.id && device.isConnected ? 'primary' : 'inherit'}
-                  onClick={() => device.isConnected && setActiveDeviceId(device.id)}
-                  sx={{ flex: 1, justifyContent: 'flex-start', textTransform: 'none', minWidth: 0, px: 1, py: 0.5, fontSize: 14 }}
-                  size="small"
-                  fullWidth
-                  disabled={!device.isConnected}
-                >
-                  {device.name}
-                </Button>
-                {getStatusIcon(device)}
-                {device.isConnected ? (
-                  <Tooltip title="Disconnect">
-                    <IconButton size="small" color="secondary" onClick={() => disconnectDevice(device.id)} disabled={device.isConnecting}>
-                      <LinkOffIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                ) : (
-                  <Tooltip title={device.isConnecting ? 'Connecting...' : 'Connect'}>
-                    <IconButton size="small" color="primary" onClick={() => connectDevice(device.id)} disabled={device.isConnecting}>
-                      <PowerSettingsNewIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
+        <>
+          <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" sx={{ mb: 0.5 }}>Devices:</Typography>
+              <Stack spacing={0.5}>
+                {devices.map(device => (
+                  <Box key={device.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                    <Button
+                      variant={activeDeviceId === device.id && device.isConnected ? 'contained' : 'outlined'}
+                      color={activeDeviceId === device.id && device.isConnected ? 'primary' : 'inherit'}
+                      onClick={() => device.isConnected && setActiveDeviceId(device.id)}
+                      sx={{ flex: 1, justifyContent: 'flex-start', textTransform: 'none', minWidth: 0, px: 1, py: 0.5, fontSize: 14 }}
+                      size="small"
+                      fullWidth
+                      disabled={!device.isConnected}
+                    >
+                      {device.name}
+                    </Button>
+                    {getStatusIcon(device)}
+                    {device.isConnected ? (
+                      <Tooltip title="Disconnect">
+                        <IconButton size="small" color="secondary" onClick={() => disconnectDevice(device.id)} disabled={device.isConnecting}>
+                          <LinkOffIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip title={device.isConnecting ? 'Connecting...' : 'Connect'}>
+                        <IconButton size="small" color="primary" onClick={() => connectDevice(device.id)} disabled={device.isConnecting}>
+                          <PowerSettingsNewIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+            {/* Compact Controls for active device */}
+            {activeDevice && activeDevice.isConnected && (
+              <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', mt: 2 }}>
+                <DeviceControls device={activeDevice} onUpdate={update => updateDevice(activeDevice.id, update)} compact />
               </Box>
-            ))}
-          </Stack>
-        </Box>
+            )}
+          </Box>
+        </>
       )}
     </Paper>
   );

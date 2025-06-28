@@ -20,6 +20,7 @@ import {
 import { Device } from '../types/Device';
 import PulseControlsPanel from './PulseControlsPanel';
 import { DeviceConnectionPanel } from '../controllers/DeviceControllerContext';
+import DeviceControls from './DeviceControls';
 
 // Utility functions for color conversion
 const rgbToHex = (r: number, g: number, b: number): string => {
@@ -153,43 +154,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconne
           <PulseControlsPanel />
         </Box>
         {device.isConnected && device.controller && (
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle1">Brightness</Typography>
-            <Slider min={0} max={255} value={device.brightness} valueLabelDisplay="auto" onChange={handleBrightnessChange} />
-            <Typography variant="subtitle1">Speed</Typography>
-            <Slider min={0} max={255} value={device.speed} valueLabelDisplay="auto" onChange={handleSpeedChange} />
-            <Typography variant="subtitle1">Pattern</Typography>
-            <FormControl fullWidth sx={{ mt: 1 }}>
-              <InputLabel id="pattern-select-label">Pattern</InputLabel>
-              <Select labelId="pattern-select-label" onChange={handlePatternChange} value={device.patternIndex}>
-                {patternNames.map((name, idx) => (
-                  <MenuItem key={idx} value={idx}>{name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Typography variant="subtitle1" sx={{ mt: 2 }}>Pulse Brightness</Typography>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <TextField
-                label="Target Brightness"
-                type="number"
-                size="small"
-                value={pulseTargetBrightness}
-                onChange={e => setPulseTargetBrightness(Number(e.target.value))}
-                inputProps={{ min: 0, max: 255 }}
-              />
-              <TextField
-                label="Duration (ms)"
-                type="number"
-                size="small"
-                value={pulseDuration}
-                onChange={e => setPulseDuration(Number(e.target.value))}
-                inputProps={{ min: 10, max: 10000 }}
-              />
-              <Button variant="contained" onClick={handlePulseBrightness} disabled={isPulsing}>
-                {isPulsing ? 'Pulsing...' : 'Pulse'}
-              </Button>
-            </Stack>
-          </Box>
+          <DeviceControls device={device} onUpdate={onUpdate} />
         )}
       </CardContent>
     </Card>
