@@ -1,6 +1,8 @@
 import React from 'react';
 import { Paper, Box, Typography, Button, Tabs, Tab, IconButton, Drawer } from '@mui/material';
 import { Add as AddIcon, Bluetooth as BluetoothIcon, Close as CloseIcon, Menu as MenuIcon } from '@mui/icons-material';
+import EditableNickname from './EditableNickname';
+import { useAppStore } from '../store/appStore';
 
 interface DeviceSidebarProps {
   mainTab: number;
@@ -26,6 +28,9 @@ const DeviceSidebar: React.FC<DeviceSidebarProps> = ({
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setSelectedDeviceIndex(newValue);
   };
+
+  const devicesMetadata = useAppStore(state => state.devicesMetadata);
+  const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
 
   if (mainTab === 0) {
     return (
@@ -75,9 +80,13 @@ const DeviceSidebar: React.FC<DeviceSidebarProps> = ({
                       fontSize: 16
                     }}
                   />
-                  <Typography variant="body2" sx={{ flexGrow: 1, textAlign: 'left', fontSize: 14 }}>
-                    {device.name}
-                  </Typography>
+                  <EditableNickname
+                    macOrId={device.macOrId}
+                    value={devicesMetadata[device.macOrId]?.nickname}
+                    fallbackName={device.name}
+                    onChange={nickname => setDeviceNickname(device.macOrId, nickname)}
+                    size="small"
+                  />
                   <span
                     onClick={e => {
                       e.stopPropagation();
@@ -172,9 +181,13 @@ const DeviceSidebar: React.FC<DeviceSidebarProps> = ({
                       fontSize: 16
                     }}
                   />
-                  <Typography variant="body2" sx={{ flexGrow: 1, textAlign: 'left', fontSize: 14 }}>
-                    {device.name}
-                  </Typography>
+                  <EditableNickname
+                    macOrId={device.macOrId}
+                    value={devicesMetadata[device.macOrId]?.nickname}
+                    fallbackName={device.name}
+                    onChange={nickname => setDeviceNickname(device.macOrId, nickname)}
+                    size="small"
+                  />
                   <span
                     onClick={e => {
                       e.stopPropagation();

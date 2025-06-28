@@ -95,6 +95,7 @@ export function emitPulse({
   tools,
   device,
   showToast,
+  durationMs,
 }: {
   strength: number;
   min: number;
@@ -104,6 +105,7 @@ export function emitPulse({
   tools: ReturnType<typeof usePulseTools>['values']['current'];
   device?: Device;
   showToast: (msg: string) => void;
+  durationMs?: number;
 }) {
   // Helper to normalize impulse strength to brightness (31-255)
   const normalizeStrengthToBrightness = (
@@ -135,7 +137,7 @@ export function emitPulse({
 
   // Send to Arduino (if connected)
   if (device && device.controller) {
-    device.controller.pulseBrightness(brightness, 100);
+    device.controller.pulseBrightness(brightness, durationMs ?? 100);
   }
 
   // Show a toast

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { WebSRDriverController } from './WebSRDriverController';
 import { Device } from '../types/Device';
 import { Box, Button, Typography, Stack, Chip } from '@mui/material';
+import { useAppStore } from '../store/appStore';
 
 export type DeviceControllerContextType = {
   devices: Device[];
@@ -16,10 +17,13 @@ const DeviceControllerContext = createContext<DeviceControllerContextType | unde
 
 export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [devices, setDevices] = useState<Device[]>([]);
+  const devicesMetadata = useAppStore(state => state.devicesMetadata);
+  const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
 
   const addDevice = useCallback(() => {
+    const uniqueId = `device-${Date.now()}`;
     const newDevice: Device = {
-      id: `device-${Date.now()}`,
+      id: uniqueId,
       name: `SRDriver ${devices.length + 1}`,
       controller: new WebSRDriverController(),
       isConnected: false,
@@ -36,6 +40,7 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
       rightSeriesCoefficients: [0.0, 0.0, 0.0],
       savedLeftSeriesCoefficients: [0.0, 0.0, 0.0],
       savedRightSeriesCoefficients: [0.0, 0.0, 0.0],
+      macOrId: uniqueId,
     };
     setDevices(prev => [...prev, newDevice]);
   }, [devices.length]);
@@ -58,6 +63,16 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
       const device = devices.find(d => d.id === deviceId);
       if (!device) throw new Error('Device not found');
       await device.controller.connect();
+      const realId = device.controller.getDeviceId();
+      if (realId && device.macOrId !== realId) {
+        const oldNickname = devicesMetadata[device.macOrId]?.nickname;
+        if (oldNickname) {
+          setDeviceNickname(realId, oldNickname);
+        }
+        setDevices(prev => prev.map(d =>
+          d.id === deviceId ? { ...d, macOrId: realId } : d
+        ));
+      }
       setDevices(prev => prev.map(d =>
         d.id === deviceId ? { ...d, isConnected: true, isConnecting: false, error: null } : d
       ));
@@ -66,7 +81,7 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
         d.id === deviceId ? { ...d, isConnected: false, isConnecting: false, error: e.message || 'Failed to connect' } : d
       ));
     }
-  }, [devices]);
+  }, [devices, devicesMetadata, setDeviceNickname]);
 
   const disconnectDevice = useCallback(async (deviceId: string) => {
     const device = devices.find(d => d.id === deviceId);

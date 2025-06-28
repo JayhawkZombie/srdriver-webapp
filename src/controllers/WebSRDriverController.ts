@@ -423,4 +423,8 @@ export class WebSRDriverController implements ISRDriverController {
     const command = `pulse_brightness:${targetBrightness},${durationMs}`;
     await this.sendCommand(command);
   }
+
+  public getDeviceId(): string | undefined {
+    return this.device?.id;
+  }
 } 

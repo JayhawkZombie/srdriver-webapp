@@ -8,6 +8,8 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import DeviceControls from './DeviceControls';
+import EditableNickname from './EditableNickname';
+import { useAppStore } from '../store/appStore';
 
 interface Device {
   id: string;
@@ -25,6 +27,8 @@ interface LightsConnectionCardProps {
 const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({ activeDeviceId, setActiveDeviceId }) => {
   const { devices, addDevice, connectDevice, disconnectDevice, updateDevice } = useDeviceControllerContext();
   const activeDevice = devices.find(d => d.id === activeDeviceId);
+  const devicesMetadata = useAppStore(state => state.devicesMetadata);
+  const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
 
   // Helper for status icon
   const getStatusIcon = (device: Device) => {
@@ -72,7 +76,13 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({ activeDevic
                       fullWidth
                       disabled={!device.isConnected}
                     >
-                      {device.name}
+                      <EditableNickname
+                        macOrId={device.macOrId}
+                        value={devicesMetadata[device.macOrId]?.nickname}
+                        fallbackName={device.name}
+                        onChange={nickname => setDeviceNickname(device.macOrId, nickname)}
+                        size="small"
+                      />
                     </Button>
                     {getStatusIcon(device)}
                     {device.isConnected ? (

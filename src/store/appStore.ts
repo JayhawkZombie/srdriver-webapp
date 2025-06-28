@@ -8,16 +8,14 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
     // Only hydrate if store is at initial state
     idbGet(key).then((stored: any) => {
       const state = get();
-      // Only hydrate if audioData is still initial (not already set in memory)
-      const audioData = (state as any).audioData;
-      if (
-        stored &&
-        (!audioData ||
-          !audioData.analysis ||
-          !audioData.analysis.fftSequence ||
-          audioData.analysis.fftSequence.length === 0)
-      ) {
-        set(stored);
+      // Only hydrate if store is at initial state
+      if (stored) {
+        if (stored.audioData) {
+          set((state: any) => ({ ...state, audioData: stored.audioData }));
+        }
+        if (stored.devicesMetadata) {
+          set((state: any) => ({ ...state, devicesMetadata: stored.devicesMetadata }));
+        }
       }
     });
     // Wrap set to persist to IndexedDB
@@ -31,7 +29,8 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
           analysis: (state as any).audioData?.analysis && (state as any).audioData.analysis.summary
             ? { summary: (state as any).audioData.analysis.summary }
             : null
-        }
+        },
+        devicesMetadata: (state as any).devicesMetadata ?? {},
       };
       idbSet(key, stateToPersist);
     };
@@ -59,6 +58,8 @@ export interface AudioDataState {
 export interface AppState {
   audioData: AudioDataState;
   setAudioData: (data: Partial<AudioDataState>) => void;
+  devicesMetadata: { [macOrId: string]: { nickname: string } };
+  setDeviceNickname: (macOrId: string, nickname: string) => void;
   // Add more slices here as needed
 }
 
@@ -67,10 +68,19 @@ const initialAudioData: AudioDataState = {
   analysis: null,
 };
 
+const initialDevicesMetadata: { [macOrId: string]: { nickname: string } } = {};
+
 export const useAppStore = create<AppState>(
   persistWithIndexedDB<AppState>('app-state', (set, get) => ({
     audioData: initialAudioData,
     setAudioData: (data) => set(state => ({ audioData: { ...state.audioData, ...data } })),
+    devicesMetadata: initialDevicesMetadata,
+    setDeviceNickname: (macOrId, nickname) => set(state => ({
+      devicesMetadata: {
+        ...state.devicesMetadata,
+        [macOrId]: { nickname }
+      }
+    })),
     // Add more actions/slices here
   }))
 ); 

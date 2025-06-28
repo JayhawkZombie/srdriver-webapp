@@ -18,4 +18,5 @@ export interface Device {
   rightSeriesCoefficients: [number, number, number];
   savedLeftSeriesCoefficients: [number, number, number];
   savedRightSeriesCoefficients: [number, number, number];
+  macOrId: string;
 } 

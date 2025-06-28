@@ -14,6 +14,9 @@ import { Device } from '../types/Device';
 import PulseControlsPanel from './PulseControlsPanel';
 import { DeviceConnectionPanel } from '../controllers/DeviceControllerContext';
 import DeviceControls from './DeviceControls';
+import EditableNickname from './EditableNickname';
+import { useAppStore } from '../store/appStore';
+
 interface DevicePanelProps {
   device: Device;
   onConnect: () => Promise<void>;
@@ -23,6 +26,8 @@ interface DevicePanelProps {
 
 const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconnect, onUpdate }) => {
   const [error, setError] = useState<string | null>(null);
+  const devicesMetadata = useAppStore(state => state.devicesMetadata);
+  const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
 
   const handleConnect = async () => {
     setError(null);
@@ -46,7 +51,15 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconne
   return (
     <Card sx={{ mb: 2, p: 2 }}>
       <CardContent>
-        <Typography variant="h6">{device.name}</Typography>
+        <Box sx={{ mb: 1 }}>
+          <EditableNickname
+            macOrId={device.macOrId}
+            value={devicesMetadata[device.macOrId]?.nickname}
+            fallbackName={device.name}
+            onChange={nickname => setDeviceNickname(device.macOrId, nickname)}
+            size="medium"
+          />
+        </Box>
         {error && <Alert severity="error">{error}</Alert>}
         <Box sx={{ mt: 2 }}>
           {device.isConnected ? (

@@ -12,20 +12,13 @@ const DevAppStateViewer: React.FC = () => {
   const appState = useAppStore();
   const [copied, setCopied] = useState(false);
 
-  // Only show a small, relevant portion of the state
-  const smallState = {
-    audioData: {
-      metadata: appState.audioData.metadata,
-      analysis: appState.audioData.analysis
-        ? { summary: appState.audioData.analysis.summary }
-        : null
-    }
-  };
+  // Show the entire app state for debugging
+  const fullState = appState;
 
   if (!isDev) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(JSON.stringify(smallState, null, 2));
+    navigator.clipboard.writeText(JSON.stringify(fullState, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
@@ -61,7 +54,7 @@ const DevAppStateViewer: React.FC = () => {
           </Box>
         </Box>
         <Box sx={{ maxHeight: '80vh', overflow: 'auto', fontFamily: 'monospace', fontSize: 13, bgcolor: 'background.paper', p: 1, borderRadius: 1 }}>
-          <pre style={{ margin: 0 }}>{JSON.stringify(smallState, null, 2)}</pre>
+          <pre style={{ margin: 0 }}>{JSON.stringify(fullState, null, 2)}</pre>
         </Box>
       </Drawer>
     </>

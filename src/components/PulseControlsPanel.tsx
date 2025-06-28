@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Typography, Slider, Stack } from '@mui/material';
+import { Box, Typography, Slider, Stack, Tooltip, IconButton } from '@mui/material';
 import { usePulseControls } from '../controllers/PulseControlsContext';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 export interface PulseControlsPanelProps {
   compact?: boolean;
@@ -14,7 +15,12 @@ const PulseControlsPanel: React.FC<PulseControlsPanelProps> = ({ compact = false
       <Box>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
           <Box sx={{ minWidth: 90 }}>
-            <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Sensitivity</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Sensitivity</Typography>
+              <Tooltip title="How easily the system detects and responds to impulses.">
+                <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
+              </Tooltip>
+            </Box>
             <Slider
               min={0}
               max={1}
@@ -27,7 +33,12 @@ const PulseControlsPanel: React.FC<PulseControlsPanelProps> = ({ compact = false
             />
           </Box>
           <Box sx={{ minWidth: 90 }}>
-            <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Width</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Duration</Typography>
+              <Tooltip title="How long each pulse lasts (in milliseconds).">
+                <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
+              </Tooltip>
+            </Box>
             <Slider
               min={10}
               max={500}
@@ -40,7 +51,12 @@ const PulseControlsPanel: React.FC<PulseControlsPanelProps> = ({ compact = false
             />
           </Box>
           <Box sx={{ minWidth: 90 }}>
-            <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Interval</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Interval</Typography>
+              <Tooltip title="Minimum time between any two pulses (rate limit).">
+                <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
+              </Tooltip>
+            </Box>
             <Slider
               min={10}
               max={1000}
@@ -62,7 +78,12 @@ const PulseControlsPanel: React.FC<PulseControlsPanelProps> = ({ compact = false
       <Typography variant="subtitle1" gutterBottom>Pulse Controls</Typography>
       <Stack spacing={3}>
         <Box>
-          <Typography gutterBottom>Sensitivity: {sensitivity.toFixed(2)}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography gutterBottom>Sensitivity: {sensitivity.toFixed(2)}</Typography>
+            <Tooltip title="How easily the system detects and responds to impulses.">
+              <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          </Box>
           <Slider
             min={0}
             max={1}
@@ -73,7 +94,12 @@ const PulseControlsPanel: React.FC<PulseControlsPanelProps> = ({ compact = false
           />
         </Box>
         <Box>
-          <Typography gutterBottom>Pulse Width (ms): {width}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography gutterBottom>Duration (ms): {width}</Typography>
+            <Tooltip title="How long each pulse lasts (in milliseconds).">
+              <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          </Box>
           <Slider
             min={10}
             max={500}
@@ -84,7 +110,12 @@ const PulseControlsPanel: React.FC<PulseControlsPanelProps> = ({ compact = false
           />
         </Box>
         <Box>
-          <Typography gutterBottom>Min Interval (ms): {interval}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography gutterBottom>Interval (ms): {interval}</Typography>
+            <Tooltip title="Minimum time between any two pulses (rate limit).">
+              <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          </Box>
           <Slider
             min={10}
             max={1000}
