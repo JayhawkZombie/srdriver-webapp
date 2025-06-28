@@ -36,6 +36,7 @@ import { usePulseContext } from '../controllers/PulseContext';
 import { useToastContext } from '../controllers/ToastContext';
 import LightsConnectionCard from './LightsConnectionCard';
 import { useAppStore } from '../store/appStore';
+import PulseToolsCard from './PulseToolsCard';
 
 interface ChunkSummary {
     numChunks: number;
@@ -376,12 +377,13 @@ const AudioChunkerDemo: React.FC = () => {
                     )}
                 </Box>
                 {/* Right: Visualizer → Lights Connection Placeholder */}
-                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%', ml: 2 }}>
+                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <LightsConnectionCard
                         connectedDevices={connectedDevices}
                         activeDeviceId={activeDeviceId}
                         setActiveDeviceId={setActiveDeviceId}
                     />
+                    <PulseToolsCard />
                 </Box>
             </Box>
             {loading && (
