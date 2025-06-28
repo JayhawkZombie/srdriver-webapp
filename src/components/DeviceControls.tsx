@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Box, Typography, Slider, FormControl, InputLabel, Select, MenuItem, Stack, TextField, Button, Alert } from '@mui/material';
 import { useSingleDevice } from '../controllers/DeviceControllerContext';
 
@@ -19,6 +19,15 @@ interface DeviceControlsProps {
   compact?: boolean;
 }
 
+// Simple debounce implementation
+function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
+  let timeout: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn(...args), delay);
+  };
+}
+
 const DeviceControls: React.FC<DeviceControlsProps> = ({ onUpdate, compact = false }) => {
   const device = useSingleDevice();
   const [pulseDuration, setPulseDuration] = useState(1000);
@@ -26,15 +35,23 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ onUpdate, compact = fal
   const [isPulsing, setIsPulsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleBrightnessChange = async (_: Event, value: number | number[]) => {
+  const brightnessWriteRef = useRef(
+    debounce(async (controller, brightness) => {
+      try {
+        await controller.setBrightness(brightness);
+      } catch (e) {
+        // Optionally handle error
+      }
+    }, 100)
+  ).current;
+
+  const handleBrightnessChange = (_: Event, value: number | number[]) => {
     if (!device.controller) return;
     const brightness = value as number;
-    try {
-      await device.controller.setBrightness(brightness);
-      onUpdate({ brightness });
-    } catch (e: any) {
-      setError(e.message || 'Failed to set brightness');
-    }
+    // Update UI immediately
+    onUpdate({ brightness });
+    // Debounced BLE write
+    brightnessWriteRef(device.controller, brightness);
   };
 
   const handleSpeedChange = async (_: Event, value: number | number[]) => {
