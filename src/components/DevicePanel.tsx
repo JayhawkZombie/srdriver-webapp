@@ -10,21 +10,21 @@ import {
 import {
   Bluetooth as BluetoothIcon
 } from '@mui/icons-material';
-import { Device } from '../types/Device';
 import PulseControlsPanel from './PulseControlsPanel';
 import { DeviceConnectionPanel } from '../controllers/DeviceControllerContext';
 import DeviceControls from './DeviceControls';
 import EditableNickname from './EditableNickname';
 import { useAppStore } from '../store/appStore';
+import { useSingleDevice } from '../controllers/DeviceControllerContext';
 
 interface DevicePanelProps {
-  device: Device;
   onConnect: () => Promise<void>;
   onDisconnect: () => Promise<void>;
-  onUpdate: (update: Partial<Device>) => void;
+  onUpdate: (id: string, update: any) => void;
 }
 
-const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconnect, onUpdate }) => {
+const DevicePanel: React.FC<DevicePanelProps> = ({ onConnect, onDisconnect, onUpdate }) => {
+  const device = useSingleDevice();
   const [error, setError] = useState<string | null>(null);
   const devicesMetadata = useAppStore(state => state.devicesMetadata);
   const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
@@ -81,7 +81,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconne
           <PulseControlsPanel />
         </Box>
         {device.isConnected && device.controller && (
-          <DeviceControls device={device} onUpdate={onUpdate} />
+          <DeviceControls onUpdate={update => onUpdate(device.id, update)} />
         )}
       </CardContent>
     </Card>

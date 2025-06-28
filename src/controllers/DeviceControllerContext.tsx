@@ -151,4 +151,13 @@ export const DeviceConnectionPanel: React.FC = () => {
       </Stack>
     </Box>
   );
-}; 
+};
+
+// --- Single Device Context ---
+const SingleDeviceContext = createContext<Device | undefined>(undefined);
+export const SingleDeviceProvider = SingleDeviceContext.Provider;
+export function useSingleDevice() {
+  const ctx = useContext(SingleDeviceContext);
+  if (!ctx) throw new Error('useSingleDevice must be used within SingleDeviceProvider');
+  return ctx;
+} 

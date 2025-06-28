@@ -10,6 +10,7 @@ import { useDeviceControllerContext } from '../controllers/DeviceControllerConte
 import DeviceControls from './DeviceControls';
 import EditableNickname from './EditableNickname';
 import { useAppStore } from '../store/appStore';
+import { SingleDeviceProvider } from '../controllers/DeviceControllerContext';
 
 interface Device {
   id: string;
@@ -104,9 +105,11 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({ activeDevic
             </Box>
             {/* Compact Controls for active device */}
             {activeDevice && activeDevice.isConnected && (
-              <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', mt: 2 }}>
-                <DeviceControls device={activeDevice} onUpdate={update => updateDevice(activeDevice.id, update)} compact />
-              </Box>
+              <SingleDeviceProvider value={activeDevice}>
+                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', mt: 2 }}>
+                  <DeviceControls onUpdate={update => updateDevice(activeDevice.id, update)} compact />
+                </Box>
+              </SingleDeviceProvider>
             )}
           </Box>
         </>

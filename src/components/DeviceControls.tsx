@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Typography, Slider, FormControl, InputLabel, Select, MenuItem, Stack, TextField, Button, Alert } from '@mui/material';
-import { Device } from '../types/Device';
+import { useSingleDevice } from '../controllers/DeviceControllerContext';
 
 const patternNames = [
   'Pattern 0',
@@ -15,12 +15,12 @@ const patternNames = [
 ];
 
 interface DeviceControlsProps {
-  device: Device;
-  onUpdate: (update: Partial<Device>) => void;
+  onUpdate: (update: any) => void;
   compact?: boolean;
 }
 
-const DeviceControls: React.FC<DeviceControlsProps> = ({ device, onUpdate, compact = false }) => {
+const DeviceControls: React.FC<DeviceControlsProps> = ({ onUpdate, compact = false }) => {
+  const device = useSingleDevice();
   const [pulseDuration, setPulseDuration] = useState(1000);
   const [pulseTargetBrightness, setPulseTargetBrightness] = useState(255);
   const [isPulsing, setIsPulsing] = useState(false);

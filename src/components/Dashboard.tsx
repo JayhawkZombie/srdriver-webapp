@@ -11,6 +11,7 @@ import { PulseControlsProvider } from '../controllers/PulseControlsContext';
 import { PulseToolsProvider } from '../controllers/PulseToolsContext';
 import DeviceSidebar from './DeviceSidebar';
 import DashboardHeader from './DashboardHeader';
+import { SingleDeviceProvider } from '../controllers/DeviceControllerContext';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -76,12 +77,13 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
                 </Box>
               ) : (
                 selectedDevice && (
-                  <DevicePanel
-                    device={selectedDevice}
-                    onConnect={() => connectDevice(selectedDevice.id)}
-                    onDisconnect={() => disconnectDevice(selectedDevice.id)}
-                    onUpdate={update => updateDevice(selectedDevice.id, update)}
-                  />
+                  <SingleDeviceProvider value={selectedDevice}>
+                    <DevicePanel
+                      onConnect={() => connectDevice(selectedDevice.id)}
+                      onDisconnect={() => disconnectDevice(selectedDevice.id)}
+                      onUpdate={updateDevice}
+                    />
+                  </SingleDeviceProvider>
                 )
               )
             ) : (
