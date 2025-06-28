@@ -86,4 +86,65 @@ function useImpulseHandler(
   );
 }
 
+export function emitPulse({
+  strength,
+  min,
+  max,
+  bandName,
+  time,
+  tools,
+  device,
+  showToast,
+}: {
+  strength: number;
+  min: number;
+  max: number;
+  bandName?: string;
+  time?: number;
+  tools: ReturnType<typeof usePulseTools>['values']['current'];
+  device?: Device;
+  showToast: (msg: string) => void;
+}) {
+  // Helper to normalize impulse strength to brightness (31-255)
+  const normalizeStrengthToBrightness = (
+    strength: number,
+    min: number,
+    max: number,
+    maxBrightness: number
+  ): number => {
+    const BRIGHTNESS_MIN = 31;
+    const BRIGHTNESS_MAX = maxBrightness;
+    if (max === min) return Math.round((BRIGHTNESS_MIN + BRIGHTNESS_MAX) / 2);
+    return Math.round(
+      BRIGHTNESS_MIN +
+        ((BRIGHTNESS_MAX - BRIGHTNESS_MIN) * (strength - min)) /
+          (max - min)
+    );
+  };
+
+  const { debounceMs, maxBrightness, easing, effect } = tools;
+
+  // Easing logic: smooth the brightness
+  let brightness = normalizeStrengthToBrightness(
+    strength,
+    min,
+    max,
+    maxBrightness
+  );
+  brightness = Math.round(brightness * (1 - easing) + min * easing);
+
+  // Send to Arduino (if connected)
+  if (device && device.controller) {
+    device.controller.pulseBrightness(brightness, 100);
+  }
+
+  // Show a toast
+  showToast(
+    `Pulse: ${bandName ?? ''} @ ${time?.toFixed?.(2) ?? ''}s (strength: ${
+      strength?.toFixed?.(1) ?? ''
+    }) | Brightness: ${brightness} | Effect: ${effect}`
+  );
+  // TODO: Trigger effect, etc.
+}
+
 export default useImpulseHandler; 

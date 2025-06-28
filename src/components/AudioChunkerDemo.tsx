@@ -39,7 +39,8 @@ import { useAppStore } from '../store/appStore';
 import PulseToolsCard from './PulseToolsCard';
 import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
 import { Device } from '../types/Device';
-import useImpulseHandler from './useImpulseHandler';
+import { emitPulse } from './useImpulseHandler';
+import { useDebouncedCallback } from './useDebouncedCallback';
 
 interface ChunkSummary {
     numChunks: number;
@@ -81,10 +82,29 @@ const AudioChunkerDemo: React.FC = () => {
     const { showToast } = useToastContext();
     const { audioData, setAudioData } = useAppStore();
     const audioBufferRef = useRef<AudioBuffer | null>(null);
+    const { values } = usePulseTools();
+    const activeDevice = devices.find(d => d.id === activeDeviceId);
 
     // Debounce state for pulses
     const pulseInProgressRef = React.useRef(false);
     const lastPulseTimeRef = React.useRef(0);
+
+    // Debounced impulse handler using new paradigm
+    const debouncedPulse = useDebouncedCallback(
+        (strength: number, min: number, max: number, bandName?: string, time?: number) => {
+            emitPulse({
+                strength,
+                min,
+                max,
+                bandName,
+                time,
+                tools: values.current,
+                device: activeDevice,
+                showToast,
+            });
+        },
+        values.current.debounceMs
+    );
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -204,8 +224,6 @@ const AudioChunkerDemo: React.FC = () => {
             setActiveDeviceId(null);
         }
     }, [connectedDevices, activeDeviceId]);
-
-    const handleImpulse = useImpulseHandler(showToast, connectedDevices, activeDeviceId);
 
     return (
         <PulseToolsProvider>
@@ -349,7 +367,7 @@ const AudioChunkerDemo: React.FC = () => {
                                 showSecondDerivative={showSecondDerivative}
                                 showImpulses={showImpulses}
                                 selectedBand={selectedBand}
-                                onImpulse={handleImpulse}
+                                onImpulse={debouncedPulse}
                             />
                         )}
                     </Box>

@@ -5,14 +5,7 @@ import {
   CardContent,
   Typography,
   Button,
-  Slider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
-  Stack,
-  TextField
 } from '@mui/material';
 import {
   Bluetooth as BluetoothIcon
@@ -21,37 +14,6 @@ import { Device } from '../types/Device';
 import PulseControlsPanel from './PulseControlsPanel';
 import { DeviceConnectionPanel } from '../controllers/DeviceControllerContext';
 import DeviceControls from './DeviceControls';
-
-// Utility functions for color conversion
-const rgbToHex = (r: number, g: number, b: number): string => {
-  return '#' + [r, g, b].map(x => {
-    const hex = x.toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  }).join('');
-};
-
-const hexToRgb = (hex: string): { r: number, g: number, b: number } => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : { r: 0, g: 0, b: 0 };
-};
-
-// Pattern names for the 9 available patterns
-const patternNames = [
-  'Pattern 0',
-  'Pattern 1', 
-  'Pattern 2',
-  'Pattern 3',
-  'Pattern 4',
-  'Pattern 5',
-  'Pattern 6',
-  'Pattern 7',
-  'Pattern 8'
-];
-
 interface DevicePanelProps {
   device: Device;
   onConnect: () => Promise<void>;
@@ -60,9 +22,6 @@ interface DevicePanelProps {
 }
 
 const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconnect, onUpdate }) => {
-  const [pulseDuration, setPulseDuration] = useState(1000);
-  const [pulseTargetBrightness, setPulseTargetBrightness] = useState(255);
-  const [isPulsing, setIsPulsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleConnect = async () => {
@@ -80,51 +39,6 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconne
       await onDisconnect();
     } catch (e: any) {
       setError(e.message || 'Failed to disconnect');
-    }
-  };
-
-  const handleBrightnessChange = async (_: Event, value: number | number[]) => {
-    if (!device.controller) return;
-    const brightness = value as number;
-    try {
-      await device.controller.setBrightness(brightness);
-      onUpdate({ brightness });
-    } catch (e: any) {
-      setError(e.message || 'Failed to set brightness');
-    }
-  };
-
-  const handleSpeedChange = async (_: Event, value: number | number[]) => {
-    if (!device.controller) return;
-    const speed = value as number;
-    try {
-      await device.controller.setSpeed(speed);
-      onUpdate({ speed });
-    } catch (e: any) {
-      setError(e.message || 'Failed to set speed');
-    }
-  };
-
-  const handlePatternChange = async (event: any) => {
-    if (!device.controller) return;
-    const patternIndex = event.target.value;
-    try {
-      await device.controller.setPattern(patternIndex);
-      onUpdate({ patternIndex });
-    } catch (e: any) {
-      setError(e.message || 'Failed to set pattern');
-    }
-  };
-
-  const handlePulseBrightness = async () => {
-    if (!device.controller) return;
-    setIsPulsing(true);
-    try {
-      await device.controller.pulseBrightness(pulseTargetBrightness, pulseDuration);
-    } catch (e: any) {
-      setError(e.message || 'Failed to pulse brightness');
-    } finally {
-      setIsPulsing(false);
     }
   };
 
