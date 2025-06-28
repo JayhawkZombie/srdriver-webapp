@@ -17,6 +17,56 @@ const effectOptions = [
   // Add more as needed
 ];
 
+// Reusable labeled slider with optional tooltip
+// (Copy the LabeledSlider definition from DeviceControls.tsx or import it if you move it to a shared location)
+type LabeledSliderProps = {
+  label: string;
+  tooltip?: string;
+  min: number;
+  max: number;
+  step?: number;
+  value: number;
+  onChange: (event: React.SyntheticEvent | Event, value: number | number[]) => void;
+  size?: 'small' | 'medium';
+  sx?: object;
+};
+function LabeledSlider({
+  label,
+  tooltip,
+  min,
+  max,
+  step = 1,
+  value,
+  onChange,
+  size = 'medium',
+  sx = {},
+}: LabeledSliderProps) {
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Typography variant="subtitle2" sx={{ fontSize: size === 'small' ? 12 : 16, mb: 0.5 }}>{label}</Typography>
+        {tooltip && (
+          <Tooltip title={tooltip}>
+            <IconButton size={size} sx={{ p: 0 }}>
+              <InfoOutlinedIcon fontSize={size === 'small' ? 'small' : 'medium'} />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+      <Slider
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={onChange}
+        valueLabelDisplay="auto"
+        size={size}
+        sx={sx}
+      />
+    </Box>
+  );
+}
+
 const PulseToolsCard: React.FC = () => {
   const {
     values,
@@ -67,60 +117,39 @@ const PulseToolsCard: React.FC = () => {
         <Box sx={{ fontWeight: 600, fontSize: 18, mb: 1 }}>Pulse Tools</Box>
         <PulseControlsPanel compact />
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1 }}>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Debounce</Typography>
-              <Tooltip title="Noise filter: ignores rapid, repeated triggers within this window.">
-                <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
-              </Tooltip>
-            </Box>
-            <Slider
-              min={10}
-              max={1000}
-              step={1}
-              value={values.current.debounceMs}
-              onChange={handleDebounceChange}
-              valueLabelDisplay="auto"
-              size="small"
-              sx={{ height: 24 }}
-            />
-          </Box>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Max</Typography>
-              <Tooltip title="Maximum brightness allowed for a pulse.">
-                <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
-              </Tooltip>
-            </Box>
-            <Slider
-              min={31}
-              max={255}
-              step={1}
-              value={values.current.maxBrightness}
-              onChange={handleMaxBrightnessChange}
-              valueLabelDisplay="auto"
-              size="small"
-              sx={{ height: 24 }}
-            />
-          </Box>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Easing</Typography>
-              <Tooltip title="Smooths out sudden changes in pulse brightness.">
-                <IconButton size="small" sx={{ p: 0 }}><InfoOutlinedIcon fontSize="small" /></IconButton>
-              </Tooltip>
-            </Box>
-            <Slider
-              min={0}
-              max={1}
-              step={0.01}
-              value={values.current.easing}
-              onChange={handleEasingChange}
-              valueLabelDisplay="auto"
-              size="small"
-              sx={{ height: 24 }}
-            />
-          </Box>
+          <LabeledSlider
+            label="Debounce"
+            tooltip="Noise filter: ignores rapid, repeated triggers within this window."
+            min={10}
+            max={1000}
+            step={1}
+            value={values.current.debounceMs}
+            onChange={handleDebounceChange}
+            size="small"
+            sx={{ height: 24 }}
+          />
+          <LabeledSlider
+            label="Max"
+            tooltip="Maximum brightness allowed for a pulse."
+            min={31}
+            max={255}
+            step={1}
+            value={values.current.maxBrightness}
+            onChange={handleMaxBrightnessChange}
+            size="small"
+            sx={{ height: 24 }}
+          />
+          <LabeledSlider
+            label="Easing"
+            tooltip="Smooths out sudden changes in pulse brightness."
+            min={0}
+            max={1}
+            step={0.01}
+            value={values.current.easing}
+            onChange={handleEasingChange}
+            size="small"
+            sx={{ height: 24 }}
+          />
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Effect</Typography>

@@ -385,7 +385,7 @@ const AudioChunkerDemo: React.FC = () => {
                             )}
                         </Box>
                         {/* Right: Visualizer → Lights Connection Placeholder */}
-                        <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <LightsConnectionCard
                                 connectedDevices={connectedDevices}
                                 activeDeviceId={activeDeviceId}

@@ -44,6 +44,7 @@ export interface ISRDriverController {
   getRightSeriesCoefficients(): Promise<[number, number, number]>;
   sendCommand(command: string): Promise<void>;
   pulseBrightness(targetBrightness: number, durationMs: number): Promise<void>;
+  firePattern(patternIndex: number): Promise<void>;
   onBrightnessChange?(value: number): void;
   onPatternChange?(index: number): void;
   onHighColorChange?(color: RGBColor): void;

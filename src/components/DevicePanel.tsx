@@ -81,7 +81,7 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ onConnect, onDisconnect, onUp
           <PulseControlsPanel />
         </Box>
         {device.isConnected && device.controller && (
-          <DeviceControls onUpdate={update => onUpdate(device.id, update)} />
+          <DeviceControls deviceId={device.id} onUpdate={update => onUpdate(device.id, update)} />
         )}
       </CardContent>
     </Card>

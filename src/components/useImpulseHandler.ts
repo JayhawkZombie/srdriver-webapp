@@ -137,7 +137,7 @@ export function emitPulse({
 
   // Send to Arduino (if connected)
   if (device && device.controller) {
-    device.controller.pulseBrightness(brightness, durationMs ?? 100);
+    device.controller.pulseBrightness(brightness, durationMs ?? 500);
   }
 
   // Show a toast

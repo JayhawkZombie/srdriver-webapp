@@ -160,4 +160,10 @@ export function useSingleDevice() {
   const ctx = useContext(SingleDeviceContext);
   if (!ctx) throw new Error('useSingleDevice must be used within SingleDeviceProvider');
   return ctx;
+}
+
+// Selector hook: get a device by id, memoized
+export function useDeviceById(deviceId: string) {
+  const { devices } = useDeviceControllerContext();
+  return React.useMemo(() => devices.find(d => d.id === deviceId), [devices, deviceId]);
 } 

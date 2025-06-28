@@ -251,37 +251,31 @@ export class WebSRDriverController implements ISRDriverController {
     return this.device?.gatt?.connected ?? false;
   }
 
-  async setSpeed(value: number): Promise<void> {
-    if (!this.speedCharacteristic) {
-      throw new Error('No speed characteristic');
+  // Shared helper for writing a number to a characteristic
+  private async writeNumberCharacteristic(
+    characteristic: BluetoothRemoteGATTCharacteristic | null,
+    value: number,
+    label: string
+  ): Promise<void> {
+    if (!characteristic) {
+      throw new Error(`No ${label} characteristic`);
     }
-    
     const encoder = new TextEncoder();
     const valueString = Math.round(value).toString();
-    await this.speedCharacteristic.writeValue(encoder.encode(valueString));
-    console.log(`Set speed to: ${valueString}`);
+    await characteristic.writeValue(encoder.encode(valueString));
+    console.log(`Set ${label} to: ${valueString}`);
   }
 
   async setBrightness(value: number): Promise<void> {
-    if (!this.brightnessCharacteristic) {
-      throw new Error('No brightness characteristic');
-    }
-    
-    const encoder = new TextEncoder();
-    const valueString = Math.round(value).toString();
-    await this.brightnessCharacteristic.writeValue(encoder.encode(valueString));
-    console.log(`Set brightness to: ${valueString}`);
+    await this.writeNumberCharacteristic(this.brightnessCharacteristic, value, 'brightness');
+  }
+
+  async setSpeed(value: number): Promise<void> {
+    await this.writeNumberCharacteristic(this.speedCharacteristic, value, 'speed');
   }
 
   async setPattern(index: number): Promise<void> {
-    if (!this.patternCharacteristic) {
-      throw new Error('No pattern characteristic');
-    }
-    
-    const encoder = new TextEncoder();
-    const indexString = Math.round(index).toString();
-    await this.patternCharacteristic.writeValue(encoder.encode(indexString));
-    console.log(`Set pattern to: ${indexString}`);
+    await this.writeNumberCharacteristic(this.patternCharacteristic, index, 'pattern');
   }
 
   async setHighColor(color: RGBColor): Promise<void> {
@@ -421,6 +415,11 @@ export class WebSRDriverController implements ISRDriverController {
 
   async pulseBrightness(targetBrightness: number, durationMs: number): Promise<void> {
     const command = `pulse_brightness:${targetBrightness},${durationMs}`;
+    await this.sendCommand(command);
+  }
+
+  async firePattern(patternIndex: number): Promise<void> {
+    const command = `fire_pattern:${patternIndex}`;
     await this.sendCommand(command);
   }
 

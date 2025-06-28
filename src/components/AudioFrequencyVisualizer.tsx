@@ -111,7 +111,7 @@ const BandPlotCard = memo(({
           time <= playbackTime
         ) {
           console.log('[IMPULSE-REALTIME] emitPulse', { bandName: data.band.name, time, strength: yArr[idx] });
-          emitPulse({ bandName: data.band.name, time, strength: yArr[idx] });
+          emitPulse({ bandName: data.band.name, time: 500, strength: yArr[idx] });
           if (onImpulse) onImpulse(yArr[idx], minStrength, maxStrength, data.band.name, time);
           emittedPulsesRef.current.add(key);
         }
