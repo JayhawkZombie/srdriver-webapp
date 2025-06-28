@@ -45,7 +45,7 @@ interface AudioFrequencyVisualizerProps {
   showSecondDerivative: boolean;
   showImpulses: boolean;
   selectedBand: string;
-  onImpulse?: (strength: number, min: number, max: number) => void;
+  onImpulse?: (strength: number, min: number, max: number, bandName?: string, time?: number) => void;
 }
 
 const LIGHT_BAND_COLORS = [
@@ -88,7 +88,7 @@ const BandPlotCard = memo(({
   showFirstDerivative: boolean;
   showSecondDerivative: boolean;
   playbackTime: number;
-  onImpulse?: (strength: number, min: number, max: number) => void;
+  onImpulse?: (strength: number, min: number, max: number, bandName?: string, time?: number) => void;
 }) => {
   const { emitPulse } = usePulseContext();
   const emittedPulsesRef = React.useRef<Set<string>>(new Set());
@@ -112,7 +112,7 @@ const BandPlotCard = memo(({
         ) {
           console.log('[IMPULSE-REALTIME] emitPulse', { bandName: data.band.name, time, strength: yArr[idx] });
           emitPulse({ bandName: data.band.name, time, strength: yArr[idx] });
-          if (onImpulse) onImpulse(yArr[idx], minStrength, maxStrength);
+          if (onImpulse) onImpulse(yArr[idx], minStrength, maxStrength, data.band.name, time);
           emittedPulsesRef.current.add(key);
         }
       });

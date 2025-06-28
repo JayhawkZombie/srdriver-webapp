@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { Paper, Box, Slider, Typography, FormControl, InputLabel, Select, MenuItem, Tooltip } from '@mui/material';
 import PulseControlsPanel from './PulseControlsPanel';
+import { usePulseTools } from '../controllers/PulseToolsContext';
 
 const effectOptions = [
   { label: 'None', value: '' },
@@ -11,25 +12,27 @@ const effectOptions = [
 ];
 
 const PulseToolsCard: React.FC = () => {
-  // Local state for pulse control tools
-  const [debounceMs, setDebounceMs] = useState(200);
-  const [maxBrightness, setMaxBrightness] = useState(90);
-  const [easing, setEasing] = useState(0.3);
-  const [effect, setEffect] = useState('');
+  const {
+    values,
+    setDebounceMs,
+    setMaxBrightness,
+    setEasing,
+    setEffect,
+  } = usePulseTools();
 
   // Handlers with useCallback to avoid unnecessary re-renders
   const handleDebounceChange = useCallback((_: any, value: number | number[]) => {
-    setDebounceMs(value as number);
-  }, []);
+    if (values.current.debounceMs !== value) setDebounceMs(value as number);
+  }, [setDebounceMs, values]);
   const handleMaxBrightnessChange = useCallback((_: any, value: number | number[]) => {
-    setMaxBrightness(value as number);
-  }, []);
+    if (values.current.maxBrightness !== value) setMaxBrightness(value as number);
+  }, [setMaxBrightness, values]);
   const handleEasingChange = useCallback((_: any, value: number | number[]) => {
-    setEasing(value as number);
-  }, []);
+    if (values.current.easing !== value) setEasing(value as number);
+  }, [setEasing, values]);
   const handleEffectChange = useCallback((e: any) => {
-    setEffect(e.target.value);
-  }, []);
+    if (values.current.effect !== e.target.value) setEffect(e.target.value);
+  }, [setEffect, values]);
 
   return (
     <Paper elevation={1} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
@@ -45,7 +48,7 @@ const PulseToolsCard: React.FC = () => {
               min={10}
               max={1000}
               step={1}
-              value={debounceMs}
+              value={values.current.debounceMs}
               onChange={handleDebounceChange}
               valueLabelDisplay="auto"
               size="small"
@@ -60,7 +63,7 @@ const PulseToolsCard: React.FC = () => {
               min={31}
               max={255}
               step={1}
-              value={maxBrightness}
+              value={values.current.maxBrightness}
               onChange={handleMaxBrightnessChange}
               valueLabelDisplay="auto"
               size="small"
@@ -75,7 +78,7 @@ const PulseToolsCard: React.FC = () => {
               min={0}
               max={1}
               step={0.01}
-              value={easing}
+              value={values.current.easing}
               onChange={handleEasingChange}
               valueLabelDisplay="auto"
               size="small"
@@ -90,7 +93,7 @@ const PulseToolsCard: React.FC = () => {
               <InputLabel id="effect-select-label" sx={{ fontSize: 12 }}>Effect</InputLabel>
               <Select
                 labelId="effect-select-label"
-                value={effect}
+                value={values.current.effect}
                 label="Effect"
                 onChange={handleEffectChange}
                 sx={{ fontSize: 12 }}

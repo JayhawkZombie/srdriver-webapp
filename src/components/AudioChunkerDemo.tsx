@@ -37,6 +37,9 @@ import { useToastContext } from '../controllers/ToastContext';
 import LightsConnectionCard from './LightsConnectionCard';
 import { useAppStore } from '../store/appStore';
 import PulseToolsCard from './PulseToolsCard';
+import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
+import { Device } from '../types/Device';
+import useImpulseHandler from './useImpulseHandler';
 
 interface ChunkSummary {
     numChunks: number;
@@ -202,218 +205,193 @@ const AudioChunkerDemo: React.FC = () => {
         }
     }, [connectedDevices, activeDeviceId]);
 
-    useEffect(() => {
-        if (latestPulse && latestPulseTimestamp) {
-            showToast(`Pulse: ${latestPulse.bandName} @ ${latestPulse.time.toFixed(2)}s (strength: ${latestPulse.strength.toFixed(1)})`);
-        }
-    }, [latestPulseTimestamp]);
-
-    // Helper to normalize impulse strength to brightness (31-90)
-    const normalizeStrengthToBrightness = (strength: number, min: number, max: number) => {
-        const BRIGHTNESS_MIN = 31;
-        const BRIGHTNESS_MAX = 90;
-        if (max === min) return Math.round((BRIGHTNESS_MIN + BRIGHTNESS_MAX) / 2);
-        return Math.round(BRIGHTNESS_MIN + (BRIGHTNESS_MAX - BRIGHTNESS_MIN) * (strength - min) / (max - min));
-    };
-
-    const handleImpulse = useCallback((strength: number, min: number, max: number) => {
-        const now = Date.now();
-        if (pulseInProgressRef.current || now - lastPulseTimeRef.current < 200) return;
-        pulseInProgressRef.current = true;
-        lastPulseTimeRef.current = now;
-        const activeDevice = connectedDevices.find(d => d.id === activeDeviceId);
-        if (activeDevice && activeDevice.controller) {
-            const brightness = Math.max(31, Math.min(90, normalizeStrengthToBrightness(strength, min, max)));
-            activeDevice.controller.pulseBrightness(brightness, 100).finally(() => {
-                setTimeout(() => { pulseInProgressRef.current = false; }, 200);
-            });
-        } else {
-            setTimeout(() => { pulseInProgressRef.current = false; }, 200);
-        }
-    }, [connectedDevices, activeDeviceId]);
+    const handleImpulse = useImpulseHandler(showToast, connectedDevices, activeDeviceId);
 
     return (
-        <Paper
-            elevation={2}
-            sx={{
-                width: '100%',
-                margin: '2rem 0',
-                p: 2,
-                borderRadius: 2,
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-                minWidth: 320,
-            }}
-        >
-            <Typography variant="h6" sx={{ mb: 1 }}>
-                Audio Chunker Demo
-            </Typography>
-            <Box sx={{ mb: 1, p: 1 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="audio/*"
-                        onChange={handleFileChange}
-                        style={{ display: 'none' }}
-                    />
-                    <Button
-                        variant="contained"
-                        size="small"
-                        onClick={handleFileButtonClick}
-                    >
-                        Choose File
-                    </Button>
-                    <Typography variant="body2" sx={{ ml: 1, minWidth: 120, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {file ? file.name : 'No file chosen'}
-                    </Typography>
-                </Stack>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%' }}>
-                {/* Left: controls and plot */}
-                <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
-                    {audioUrl && (
-                        <Box sx={{ mt: 2 }}>
-                            <div ref={waveformRef} />
+        <PulseToolsProvider>
+            <Paper
+                elevation={2}
+                sx={{
+                    width: '100%',
+                    margin: '2rem 0',
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    minWidth: 320,
+                }}
+            >
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                    Audio Chunker Demo
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%' }}>
+                    {/* Left: controls and plot */}
+                    <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
+                        {/* File input and file selection button */}
+                        <Box sx={{ mb: 1, p: 1 }}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="audio/*"
+                                    onChange={handleFileChange}
+                                    style={{ display: 'none' }}
+                                />
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={handleFileButtonClick}
+                                >
+                                    Choose File
+                                </Button>
+                                <Typography variant="body2" sx={{ ml: 1, minWidth: 120, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {file ? file.name : 'No file chosen'}
+                                </Typography>
+                            </Stack>
+                        </Box>
+                        {audioUrl && (
+                            <Box sx={{ mt: 2 }}>
+                                <div ref={waveformRef} />
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    sx={{ mt: 1 }}
+                                    onClick={handlePlayPause}
+                                    disabled={!audioUrl}
+                                >
+                                    {isPlaying ? 'Pause' : 'Play'}
+                                </Button>
+                            </Box>
+                        )}
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
+                            <TextField
+                                label="FFT Window Size (samples)"
+                                type="number"
+                                size="small"
+                                value={windowSize}
+                                onChange={e => setWindowSize(Number(e.target.value))}
+                                inputProps={{ min: 128, step: 128, style: { width: 80 } }}
+                            />
+                            <TextField
+                                label="Hop Size (samples)"
+                                type="number"
+                                size="small"
+                                value={hopSize}
+                                onChange={e => setHopSize(Number(e.target.value))}
+                                inputProps={{ min: 1, step: 1, style: { width: 80 } }}
+                            />
                             <Button
                                 variant="contained"
                                 size="small"
-                                sx={{ mt: 1 }}
-                                onClick={handlePlayPause}
-                                disabled={!audioUrl}
+                                onClick={handleProcess}
+                                disabled={!file || loading}
                             >
-                                {isPlaying ? 'Pause' : 'Play'}
+                                {loading ? 'Processing...' : 'Process Audio'}
                             </Button>
-                        </Box>
-                    )}
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
-                        <TextField
-                            label="FFT Window Size (samples)"
-                            type="number"
-                            size="small"
-                            value={windowSize}
-                            onChange={e => setWindowSize(Number(e.target.value))}
-                            inputProps={{ min: 128, step: 128, style: { width: 80 } }}
-                        />
-                        <TextField
-                            label="Hop Size (samples)"
-                            type="number"
-                            size="small"
-                            value={hopSize}
-                            onChange={e => setHopSize(Number(e.target.value))}
-                            inputProps={{ min: 1, step: 1, style: { width: 80 } }}
-                        />
-                        <Button
-                            variant="contained"
-                            size="small"
-                            onClick={handleProcess}
-                            disabled={!file || loading}
-                        >
-                            {loading ? 'Processing...' : 'Process Audio'}
-                        </Button>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', ml: 2 }}>
-                            <Typography variant="caption" sx={{ mb: 0.5, ml: 0.5 }}>Time Window (seconds)</Typography>
-                            <GlobalControls
-                                windowSec={windowSec}
-                                maxTime={audioData.analysis?.summary ? audioData.analysis.summary.totalDurationMs / 1000 : 60}
-                                onWindowSecChange={setWindowSec}
-                                followCursor={followCursor}
-                                onFollowCursorChange={setFollowCursor}
-                                snapToWindow={snapToWindow}
-                                onSnapToWindowChange={setSnapToWindow}
-                            />
-                        </Box>
-                    </Stack>
-                    {audioData.analysis?.summary && (
-                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
-                            <Typography variant="body2" color="text.secondary">
-                                <strong>Chunks:</strong> {audioData.analysis.summary.numChunks}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                <strong>Chunk:</strong> {audioData.analysis.summary.chunkDurationMs?.toFixed(2)} ms
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                <strong>Total:</strong> {audioData.analysis.summary.totalDurationMs?.toFixed(2)} ms
-                            </Typography>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', ml: 2 }}>
+                                <Typography variant="caption" sx={{ mb: 0.5, ml: 0.5 }}>Time Window (seconds)</Typography>
+                                <GlobalControls
+                                    windowSec={windowSec}
+                                    maxTime={audioData.analysis?.summary ? audioData.analysis.summary.totalDurationMs / 1000 : 60}
+                                    onWindowSecChange={setWindowSec}
+                                    followCursor={followCursor}
+                                    onFollowCursorChange={setFollowCursor}
+                                    snapToWindow={snapToWindow}
+                                    onSnapToWindowChange={setSnapToWindow}
+                                />
+                            </Box>
                         </Stack>
-                    )}
-                    <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
-                        <DerivativeImpulseToggles
-                            showFirstDerivative={showFirstDerivative}
-                            onShowFirstDerivative={setShowFirstDerivative}
-                            showSecondDerivative={showSecondDerivative}
-                            onShowSecondDerivative={setShowSecondDerivative}
-                            showImpulses={showImpulses}
-                            onShowImpulses={setShowImpulses}
-                        />
-                        {audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && (
-                            <BandSelector
-                                bands={audioData.analysis.fftSequence[0] && audioData.analysis.audioBuffer ? [
-                                    { name: 'Bass' }, { name: 'Low Mid' }, { name: 'Mid' }, { name: 'Treble' }, { name: 'High Treble' }
-                                ] : []}
+                        {audioData.analysis?.summary && (
+                            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
+                                <Typography variant="body2" color="text.secondary">
+                                    <strong>Chunks:</strong> {audioData.analysis.summary.numChunks}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    <strong>Chunk:</strong> {audioData.analysis.summary.chunkDurationMs?.toFixed(2)} ms
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    <strong>Total:</strong> {audioData.analysis.summary.totalDurationMs?.toFixed(2)} ms
+                                </Typography>
+                            </Stack>
+                        )}
+                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
+                            <DerivativeImpulseToggles
+                                showFirstDerivative={showFirstDerivative}
+                                onShowFirstDerivative={setShowFirstDerivative}
+                                showSecondDerivative={showSecondDerivative}
+                                onShowSecondDerivative={setShowSecondDerivative}
+                                showImpulses={showImpulses}
+                                onShowImpulses={setShowImpulses}
+                            />
+                            {audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && (
+                                <BandSelector
+                                    bands={audioData.analysis.fftSequence[0] && audioData.analysis.audioBuffer ? [
+                                        { name: 'Bass' }, { name: 'Low Mid' }, { name: 'Mid' }, { name: 'Treble' }, { name: 'High Treble' }
+                                    ] : []}
+                                    selectedBand={selectedBand}
+                                    onSelect={setSelectedBand}
+                                />
+                            )}
+                        </Stack>
+                        {!loading && audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && audioData.analysis.audioBuffer && (
+                            <AudioFrequencyVisualizer
+                                fftSequence={audioData.analysis.fftSequence}
+                                sampleRate={audioData.analysis.audioBuffer.sampleRate}
+                                windowSize={windowSize}
+                                hopSize={hopSize}
+                                audioBuffer={audioData.analysis.audioBuffer}
+                                playbackTime={playbackTime}
+                                windowSec={windowSec}
+                                followCursor={followCursor}
+                                snapToWindow={snapToWindow}
+                                showFirstDerivative={showFirstDerivative}
+                                showSecondDerivative={showSecondDerivative}
+                                showImpulses={showImpulses}
                                 selectedBand={selectedBand}
-                                onSelect={setSelectedBand}
+                                onImpulse={handleImpulse}
                             />
                         )}
-                    </Stack>
-                    {!loading && audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && audioData.analysis.audioBuffer && (
-                        <AudioFrequencyVisualizer
-                            fftSequence={audioData.analysis.fftSequence}
-                            sampleRate={audioData.analysis.audioBuffer.sampleRate}
-                            windowSize={windowSize}
-                            hopSize={hopSize}
-                            audioBuffer={audioData.analysis.audioBuffer}
-                            playbackTime={playbackTime}
-                            windowSec={windowSec}
-                            followCursor={followCursor}
-                            snapToWindow={snapToWindow}
-                            showFirstDerivative={showFirstDerivative}
-                            showSecondDerivative={showSecondDerivative}
-                            showImpulses={showImpulses}
-                            selectedBand={selectedBand}
-                            onImpulse={handleImpulse}
+                    </Box>
+                    {/* Right: Visualizer → Lights Connection Placeholder */}
+                    <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <LightsConnectionCard
+                            connectedDevices={connectedDevices}
+                            activeDeviceId={activeDeviceId}
+                            setActiveDeviceId={setActiveDeviceId}
                         />
-                    )}
-                </Box>
-                {/* Right: Visualizer → Lights Connection Placeholder */}
-                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <LightsConnectionCard
-                        connectedDevices={connectedDevices}
-                        activeDeviceId={activeDeviceId}
-                        setActiveDeviceId={setActiveDeviceId}
-                    />
-                    <PulseToolsCard />
-                </Box>
-            </Box>
-            {loading && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 120, my: 2, width: '100%' }}>
-                    <CircularProgress />
-                    <Typography sx={{ ml: 2, mb: 2 }}>Processing audio...</Typography>
-                    {processingProgress && (
-                        <Box sx={{ width: '100%', maxWidth: 400, mt: 2 }}>
-                            <LinearProgress
-                                variant="determinate"
-                                value={100 * processingProgress.processed / processingProgress.total}
-                            />
-                            <Typography variant="caption" sx={{ mt: 1 }}>
-                                {`Processed ${processingProgress.processed} of ${processingProgress.total} chunks`}
-                            </Typography>
-                        </Box>
-                    )}
-                    {/* Skeletons for plot cards */}
-                    <Box sx={{ width: '100%', maxWidth: 700 }}>
-                        {[0,1,2,3,4].map(i => (
-                            <Box key={i} sx={{ mb: 2 }}>
-                                <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 2, mb: 1 }} />
-                                <Skeleton variant="text" width="40%" />
-                                <Skeleton variant="text" width="60%" />
-                            </Box>
-                        ))}
+                        <PulseToolsCard />
                     </Box>
                 </Box>
-            )}
-        </Paper>
+                {loading && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 120, my: 2, width: '100%' }}>
+                        <CircularProgress />
+                        <Typography sx={{ ml: 2, mb: 2 }}>Processing audio...</Typography>
+                        {processingProgress && (
+                            <Box sx={{ width: '100%', maxWidth: 400, mt: 2 }}>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={100 * processingProgress.processed / processingProgress.total}
+                                />
+                                <Typography variant="caption" sx={{ mt: 1 }}>
+                                    {`Processed ${processingProgress.processed} of ${processingProgress.total} chunks`}
+                                </Typography>
+                            </Box>
+                        )}
+                        {/* Skeletons for plot cards */}
+                        <Box sx={{ width: '100%', maxWidth: 700 }}>
+                            {[0,1,2,3,4].map(i => (
+                                <Box key={i} sx={{ mb: 2 }}>
+                                    <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 2, mb: 1 }} />
+                                    <Skeleton variant="text" width="40%" />
+                                    <Skeleton variant="text" width="60%" />
+                                </Box>
+                            ))}
+                        </Box>
+                    </Box>
+                )}
+            </Paper>
+        </PulseToolsProvider>
     );
 };
 

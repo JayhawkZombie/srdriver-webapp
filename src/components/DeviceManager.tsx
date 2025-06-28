@@ -26,6 +26,7 @@ import { useDeviceControllerContext } from '../controllers/DeviceControllerConte
 import { PulseControlsProvider } from '../controllers/PulseControlsContext';
 import Drawer from '@mui/material/Drawer';
 import DevAppStateViewer from './DevAppStateViewer';
+import { PulseToolsProvider } from '../controllers/PulseToolsContext';
 
 interface DeviceManagerProps {
   mode: 'light' | 'dark';
@@ -294,7 +295,9 @@ const DeviceManager: React.FC<DeviceManagerProps> = ({ mode, onToggleMode }) => 
                 )
               )
             ) : (
-              <AudioChunkerDemo />
+              <PulseToolsProvider>
+                <AudioChunkerDemo />
+              </PulseToolsProvider>
             )}
           </PulseControlsProvider>
         </Container>
