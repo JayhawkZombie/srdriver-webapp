@@ -11,6 +11,7 @@ import useAudioFrequencyData from './useAudioFrequencyData';
 import BandSelector from './BandSelector';
 import GlobalControls from './GlobalControls';
 import DerivativeImpulseToggles from './DerivativeImpulseToggles';
+import { usePulseContext } from '../controllers/PulseContext';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -42,6 +43,13 @@ interface AudioFrequencyVisualizerProps {
    * (Optional) Playback time in seconds, to externally control the cursor (e.g. from wavesurfer)
    */
   playbackTime?: number;
+  windowSec: number;
+  followCursor: boolean;
+  snapToWindow: boolean;
+  showFirstDerivative: boolean;
+  showSecondDerivative: boolean;
+  showImpulses: boolean;
+  selectedBand: string;
 }
 
 const LIGHT_BAND_COLORS = [
@@ -81,6 +89,7 @@ const BandPlotCard = memo(({
   setImpulseThresholds,
   showFirstDerivative,
   showSecondDerivative,
+  playbackTime,
 }: {
   data: BandPlotData;
   xRange: [number, number];
@@ -92,14 +101,33 @@ const BandPlotCard = memo(({
   setImpulseThresholds: (thresholds: number[]) => void;
   showFirstDerivative: boolean;
   showSecondDerivative: boolean;
+  playbackTime: number;
 }) => {
-  const traces = React.useMemo(() => [
-    data.traces.magnitude,
-    ...(showFirstDerivative ? [data.traces.derivative] : []),
-    ...(showSecondDerivative ? [data.traces.secondDerivative] : []),
-    ...(showImpulses ? [data.traces.impulses] : []),
-    data.cursorTrace,
-  ], [data, showFirstDerivative, showSecondDerivative, showImpulses]);
+  const { emitPulse } = usePulseContext();
+  const emittedPulsesRef = React.useRef<Set<string>>(new Set());
+  const lastCursorRef = React.useRef<number>(-Infinity);
+
+  React.useEffect(() => {
+    if (!showImpulses || !data.traces.impulses || !Array.isArray(data.traces.impulses.x)) return;
+    const xArr = data.traces.impulses.x as number[];
+    const yArr = data.traces.impulses.y as number[];
+    // Only trigger when moving forward
+    if (playbackTime > lastCursorRef.current) {
+      xArr.forEach((time, idx) => {
+        const key = `${data.band.name}|${time}`;
+        if (
+          !emittedPulsesRef.current.has(key) &&
+          time > lastCursorRef.current &&
+          time <= playbackTime
+        ) {
+          console.log('[IMPULSE-REALTIME] emitPulse', { bandName: data.band.name, time, strength: yArr[idx] });
+          emitPulse({ bandName: data.band.name, time, strength: yArr[idx] });
+          emittedPulsesRef.current.add(key);
+        }
+      });
+    }
+    lastCursorRef.current = playbackTime;
+  }, [playbackTime, showImpulses, data.traces.impulses, data.band.name, emitPulse]);
 
   // Auto-scale y-axis based on visible magnitude data
   const yVals = data.traces.magnitude.y as number[];
@@ -108,6 +136,14 @@ const BandPlotCard = memo(({
   let margin = (yMax - yMin) * 0.1 || 1;
   yMin -= margin;
   yMax += margin;
+
+  const traces = React.useMemo(() => [
+    data.traces.magnitude,
+    ...(showFirstDerivative ? [data.traces.derivative] : []),
+    ...(showSecondDerivative ? [data.traces.secondDerivative] : []),
+    ...(showImpulses ? [data.traces.impulses] : []),
+    data.cursorTrace,
+  ], [data, showFirstDerivative, showSecondDerivative, showImpulses]);
 
   return (
     <Card key={data.band.name} sx={{ mb: 2, bgcolor: data.band.color + '10', boxShadow: 2, p: 0.5 }}>
@@ -179,6 +215,13 @@ const BandPlotCard = memo(({
               },
               paper_bgcolor: plotBg,
               plot_bgcolor: plotBg,
+              legend: {
+                orientation: 'h',
+                y: -0.25,
+                yanchor: 'top',
+                x: 0.5,
+                xanchor: 'center',
+              },
             }}
             config={{ displayModeBar: false, responsive: true }}
             style={{ width: '100%' }}
@@ -196,7 +239,13 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   hopSize,
   audioBuffer,
   playbackTime: externalPlaybackTime,
-  // maxSlices = 64, // unused for this plot
+  windowSec,
+  followCursor,
+  snapToWindow,
+  showFirstDerivative,
+  showSecondDerivative,
+  showImpulses,
+  selectedBand,
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -212,20 +261,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   const [internalPlaybackTime, setInternalPlaybackTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, etc.
-  const [followCursor, setFollowCursor] = useState(false);
-  const [windowSec, setWindowSec] = useState(4); // default window size in seconds
-  const [snapToWindow, setSnapToWindow] = useState(true); // New: snap to window toggle
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  // Audio playback refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
-  const playbackStartTimeRef = useRef<number>(0); // When audio started (context time)
   const pausedAtRef = useRef<number>(0); // Where we paused
-
-  // --- New state for toggles and impulse threshold ---
-  const [showFirstDerivative, setShowFirstDerivative] = useState(false);
-  const [showSecondDerivative, setShowSecondDerivative] = useState(false);
-  const [showImpulses, setShowImpulses] = useState(true);
 
   const playbackTime = externalPlaybackTime !== undefined ? externalPlaybackTime : internalPlaybackTime;
 
@@ -272,14 +308,6 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
 
   const numBins = fftSequence[0]?.length || 0;
 
-  // --- Band selection state ---
-  const [selectedBands, setSelectedBands] = useState<string[]>([]);
-  useEffect(() => {
-    if (bandPlotsData.length > 0 && selectedBands.length === 0) {
-      setSelectedBands([bandPlotsData[0].band.name]);
-    }
-  }, [bandPlotsData]);
-
   // Show a message if there is no data to display
   if (bandPlotsData.length === 0 || bandPlotsData.every(b => !b.traces.magnitude.x || b.traces.magnitude.x.length === 0)) {
     return <Typography sx={{mt:2, textAlign:'center'}}>No data to display. Try loading and processing audio.</Typography>;
@@ -291,12 +319,10 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   };
   const handlePause = () => {
     setIsPlaying(false);
-    pausedAtRef.current = playbackTime;
   };
   const handleReset = () => {
     if (externalPlaybackTime === undefined) setInternalPlaybackTime(0);
     setIsPlaying(false);
-    pausedAtRef.current = 0;
   };
   const handleSpeedChange = (e: SelectChangeEvent<number>) => setPlaybackSpeed(Number(e.target.value));
 
@@ -340,36 +366,9 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
       <Typography variant="h5" sx={{ mb: 1 }}>
         Frequency Band Magnitude Over Time
       </Typography>
-      {/* Global controls */}
-      <GlobalControls
-        windowSec={windowSec}
-        maxTime={maxTime}
-        onWindowSecChange={setWindowSec}
-        followCursor={followCursor}
-        onFollowCursorChange={setFollowCursor}
-        snapToWindow={snapToWindow}
-        onSnapToWindowChange={setSnapToWindow}
-      />
-      {/* Derivative/Impulse toggles */}
-      <DerivativeImpulseToggles
-        showFirstDerivative={showFirstDerivative}
-        onShowFirstDerivative={setShowFirstDerivative}
-        showSecondDerivative={showSecondDerivative}
-        onShowSecondDerivative={setShowSecondDerivative}
-        showImpulses={showImpulses}
-        onShowImpulses={setShowImpulses}
-      />
-      {/* New: Band selection toggle */}
-      <Box sx={{ mb: 2 }}>
-        <BandSelector
-          bands={bandPlotsData.map(data => ({ name: data.band.name }))}
-          selectedBand={selectedBands[0] || ''}
-          onSelect={bandName => setSelectedBands([bandName])}
-        />
-      </Box>
       {/* Band plot list (no virtualization) */}
       {bandPlotsData
-        .filter(data => selectedBands.includes(data.band.name))
+        .filter(data => data.band.name === selectedBand)
         .map(data => (
           <Box key={data.band.name}>
             <BandPlotCard
@@ -383,6 +382,7 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
               setImpulseThresholds={setImpulseThresholds}
               showFirstDerivative={showFirstDerivative}
               showSecondDerivative={showSecondDerivative}
+              playbackTime={playbackTime}
             />
           </Box>
         ))}

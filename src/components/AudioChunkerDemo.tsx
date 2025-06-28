@@ -12,7 +12,9 @@ import {
     ListItemText,
     CircularProgress,
     Skeleton,
-    LinearProgress
+    LinearProgress,
+    Snackbar,
+    Alert
 } from '@mui/material';
 import {
     decodeAudioFile,
@@ -26,6 +28,12 @@ import WaveSurfer from "wavesurfer.js";
 // Import worker (Vite/CRA style)
 // @ts-ignore
 import audioWorkerUrl from '../controllers/audioWorker.ts?worker';
+import GlobalControls from './GlobalControls';
+import DerivativeImpulseToggles from './DerivativeImpulseToggles';
+import BandSelector from './BandSelector';
+import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
+import { usePulseContext } from '../controllers/PulseContext';
+import { useToastContext } from '../controllers/ToastContext';
 
 interface ChunkSummary {
     numChunks: number;
@@ -56,6 +64,18 @@ const AudioChunkerDemo: React.FC = () => {
     const [playbackTime, setPlaybackTime] = useState(0);
     const audioWorkerRef = useRef<Worker | null>(null);
     const [processingProgress, setProcessingProgress] = useState<{ processed: number, total: number } | null>(null);
+    const [windowSec, setWindowSec] = useState(4);
+    const [followCursor, setFollowCursor] = useState(false);
+    const [snapToWindow, setSnapToWindow] = useState(true);
+    const [showFirstDerivative, setShowFirstDerivative] = useState(false);
+    const [showSecondDerivative, setShowSecondDerivative] = useState(false);
+    const [showImpulses, setShowImpulses] = useState(true);
+    const [selectedBand, setSelectedBand] = useState('');
+    const { devices } = useDeviceControllerContext();
+    const connectedDevices = devices.filter(d => d.isConnected);
+    const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
+    const { latestPulse, latestPulseTimestamp } = usePulseContext();
+    const { showToast } = useToastContext();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -78,6 +98,9 @@ const AudioChunkerDemo: React.FC = () => {
             if (type === 'progress') {
                 setProcessingProgress({ processed, total });
             } else if (type === 'done') {
+                if (audioBufferRef.current && summary) {
+                    summary.totalDurationMs = audioBufferRef.current.duration * 1000;
+                }
                 setSummary(summary);
                 setFftSequence(fftSequence);
                 setLoading(false);
@@ -145,6 +168,30 @@ const AudioChunkerDemo: React.FC = () => {
         }
     };
 
+    useEffect(() => {
+        if (
+            fftSequence.length > 0 &&
+            audioBufferRef.current &&
+            !selectedBand
+        ) {
+            setSelectedBand('Bass');
+        }
+    }, [fftSequence, selectedBand]);
+
+    useEffect(() => {
+        if (connectedDevices.length > 0 && !activeDeviceId) {
+            setActiveDeviceId(connectedDevices[0].id);
+        } else if (connectedDevices.length === 0 && activeDeviceId) {
+            setActiveDeviceId(null);
+        }
+    }, [connectedDevices, activeDeviceId]);
+
+    useEffect(() => {
+        if (latestPulse && latestPulseTimestamp) {
+            showToast(`Pulse: ${latestPulse.bandName} @ ${latestPulse.time.toFixed(2)}s (strength: ${latestPulse.strength.toFixed(1)})`);
+        }
+    }, [latestPulseTimestamp]);
+
     return (
         <Paper
             elevation={2}
@@ -183,8 +230,8 @@ const AudioChunkerDemo: React.FC = () => {
                     </Typography>
                 </Stack>
             </Box>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-start" sx={{ width: '100%' }}>
-                {/* Left: waveform and controls */}
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%' }}>
+                {/* Left: controls and plot */}
                 <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
                     {audioUrl && (
                         <Box sx={{ mt: 2 }}>
@@ -202,7 +249,7 @@ const AudioChunkerDemo: React.FC = () => {
                     )}
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
                         <TextField
-                            label="Window Size"
+                            label="FFT Window Size (samples)"
                             type="number"
                             size="small"
                             value={windowSize}
@@ -210,7 +257,7 @@ const AudioChunkerDemo: React.FC = () => {
                             inputProps={{ min: 128, step: 128, style: { width: 80 } }}
                         />
                         <TextField
-                            label="Hop Size"
+                            label="Hop Size (samples)"
                             type="number"
                             size="small"
                             value={hopSize}
@@ -225,8 +272,19 @@ const AudioChunkerDemo: React.FC = () => {
                         >
                             {loading ? 'Processing...' : 'Process Audio'}
                         </Button>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', ml: 2 }}>
+                            <Typography variant="caption" sx={{ mb: 0.5, ml: 0.5 }}>Time Window (seconds)</Typography>
+                            <GlobalControls
+                                windowSec={windowSec}
+                                maxTime={summary ? summary.totalDurationMs / 1000 : 60}
+                                onWindowSecChange={setWindowSec}
+                                followCursor={followCursor}
+                                onFollowCursorChange={setFollowCursor}
+                                snapToWindow={snapToWindow}
+                                onSnapToWindowChange={setSnapToWindow}
+                            />
+                        </Box>
                     </Stack>
-                    {/* Move chunking summary here as a compact inline summary or icon+tooltip */}
                     {summary && (
                         <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
                             <Typography variant="body2" color="text.secondary">
@@ -240,6 +298,25 @@ const AudioChunkerDemo: React.FC = () => {
                             </Typography>
                         </Stack>
                     )}
+                    <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
+                        <DerivativeImpulseToggles
+                            showFirstDerivative={showFirstDerivative}
+                            onShowFirstDerivative={setShowFirstDerivative}
+                            showSecondDerivative={showSecondDerivative}
+                            onShowSecondDerivative={setShowSecondDerivative}
+                            showImpulses={showImpulses}
+                            onShowImpulses={setShowImpulses}
+                        />
+                        {fftSequence.length > 0 && (
+                            <BandSelector
+                                bands={fftSequence[0] && audioBufferRef.current ? [
+                                    { name: 'Bass' }, { name: 'Low Mid' }, { name: 'Mid' }, { name: 'Treble' }, { name: 'High Treble' }
+                                ] : []}
+                                selectedBand={selectedBand}
+                                onSelect={setSelectedBand}
+                            />
+                        )}
+                    </Stack>
                     {!loading && fftSequence.length > 0 && audioBufferRef.current && (
                         <AudioFrequencyVisualizer
                             fftSequence={fftSequence}
@@ -248,16 +325,46 @@ const AudioChunkerDemo: React.FC = () => {
                             hopSize={hopSize}
                             audioBuffer={audioBufferRef.current}
                             playbackTime={playbackTime}
+                            windowSec={windowSec}
+                            followCursor={followCursor}
+                            snapToWindow={snapToWindow}
+                            showFirstDerivative={showFirstDerivative}
+                            showSecondDerivative={showSecondDerivative}
+                            showImpulses={showImpulses}
+                            selectedBand={selectedBand}
                         />
                     )}
                 </Box>
                 {/* Right: Visualizer → Lights Connection Placeholder */}
-                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%' }}>
-                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%', ml: 2 }}>
+                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
                         <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
                             Visualizer → Lights Connection
                         </Typography>
-                        <Button variant="outlined" color="primary" disabled>
+                        {connectedDevices.length === 0 ? (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
+                                No devices connected.
+                            </Typography>
+                        ) : (
+                            <Box sx={{ width: '100%' }}>
+                                <Typography variant="body2" sx={{ mb: 1 }}>Select Active Device:</Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    {connectedDevices.map(device => (
+                                        <Button
+                                            key={device.id}
+                                            variant={activeDeviceId === device.id ? 'contained' : 'outlined'}
+                                            color={activeDeviceId === device.id ? 'primary' : 'inherit'}
+                                            onClick={() => setActiveDeviceId(device.id)}
+                                            sx={{ justifyContent: 'flex-start', textTransform: 'none', mb: 0.5 }}
+                                            fullWidth
+                                        >
+                                            {device.name} {activeDeviceId === device.id && <span style={{ marginLeft: 8, fontWeight: 600 }}>(Active)</span>}
+                                        </Button>
+                                    ))}
+                                </Box>
+                            </Box>
+                        )}
+                        <Button variant="outlined" color="primary" disabled sx={{ mt: 2 }}>
                             Connect (Coming Soon)
                         </Button>
                         <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
@@ -265,7 +372,7 @@ const AudioChunkerDemo: React.FC = () => {
                         </Typography>
                     </Paper>
                 </Box>
-            </Stack>
+            </Box>
             {loading && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 120, my: 2, width: '100%' }}>
                     <CircularProgress />

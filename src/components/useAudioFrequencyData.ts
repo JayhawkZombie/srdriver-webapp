@@ -43,7 +43,6 @@ const useAudioFrequencyData = (props: UseAudioFrequencyDataProps): UseAudioFrequ
     plotBg,
   } = props;
 
-  console.debug('[useAudioFrequencyData] Called', { fftSequenceLen: fftSequence.length, sampleRate, hopSize, bandsRaw });
   const bands = useMemo(() => {
     console.debug('[useAudioFrequencyData] bands memoized', bandsRaw);
     return bandsRaw;

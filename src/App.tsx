@@ -8,6 +8,9 @@ import {
 } from '@mui/material';
 import DeviceManager from './components/DeviceManager';
 import { DeviceControllerProvider } from './controllers/DeviceControllerContext';
+import { PulseProvider } from './controllers/PulseContext';
+import { ToastProvider } from './controllers/ToastContext';
+import GlobalToast from './components/GlobalToast';
 
 function App() {
   const getInitialMode = () => {
@@ -28,9 +31,14 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <DeviceControllerProvider>
-        <DeviceManager mode={mode} onToggleMode={handleToggle} />
-      </DeviceControllerProvider>
+      <ToastProvider>
+        <GlobalToast />
+        <PulseProvider>
+          <DeviceControllerProvider>
+            <DeviceManager mode={mode} onToggleMode={handleToggle} />
+          </DeviceControllerProvider>
+        </PulseProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }
