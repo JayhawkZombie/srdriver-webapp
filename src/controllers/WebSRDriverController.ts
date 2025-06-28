@@ -426,4 +426,8 @@ export class WebSRDriverController implements ISRDriverController {
   public getDeviceId(): string | undefined {
     return this.device?.id;
   }
+
+  public getService(): BluetoothRemoteGATTService | null {
+    return this.service;
+  }
 } 

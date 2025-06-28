@@ -8,6 +8,7 @@ import { emitPulse } from './useImpulseHandler';
 import { usePulseControls } from '../controllers/PulseControlsContext';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useActiveDevice } from './AudioChunkerDemo';
+import { useImpulseResponse } from '../context/ImpulseResponseContext';
 
 const effectOptions = [
   { label: 'None', value: '' },
@@ -80,6 +81,7 @@ const PulseToolsCard: React.FC = () => {
   const { activeDeviceId } = useActiveDevice();
   const activeDevice = devices.find(d => d.id === activeDeviceId);
   const { width } = usePulseControls();
+  const { lastPulse } = useImpulseResponse();
 
   // Handlers with useCallback to avoid unnecessary re-renders
   const handleDebounceChange = useCallback((_: any, value: number | number[]) => {

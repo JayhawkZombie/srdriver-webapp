@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { WebSRDriverController } from './WebSRDriverController';
 import { Device } from '../types/Device';
 import { Box, Button, Typography, Stack, Chip } from '@mui/material';
@@ -14,6 +14,9 @@ export type DeviceControllerContextType = {
 };
 
 const DeviceControllerContext = createContext<DeviceControllerContextType | undefined>(undefined);
+
+const HEARTBEAT_UUID = 'f6f7b0f1-c4ab-4c75-9ca7-b43972152f16';
+const HEARTBEAT_TIMEOUT = 5000;
 
 export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -103,6 +106,58 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
       d.id === deviceId ? { ...d, ...update } : d
     ));
   }, []);
+
+  // Heartbeat monitor effect
+  useEffect(() => {
+    devices.forEach(device => {
+      if (device.isConnected && device.controller && typeof device.controller.getService === 'function') {
+        const service = device.controller.getService();
+        if (service) {
+          (async () => {
+            try {
+              const char = await service.getCharacteristic(HEARTBEAT_UUID);
+              await char.startNotifications();
+              char.addEventListener('characteristicvaluechanged', (event: any) => {
+                const value = event.target.value.getUint32(0, true);
+                setDevices(prev => prev.map(d =>
+                  d.id === device.id
+                    ? {
+                        ...d,
+                        heartbeat: {
+                          last: Date.now(),
+                          isAlive: true,
+                          pulse: true,
+                        },
+                      }
+                    : d
+                ));
+                setTimeout(() => {
+                  setDevices(prev => prev.map(d =>
+                    d.id === device.id && d.heartbeat
+                      ? { ...d, heartbeat: { ...d.heartbeat, pulse: false } }
+                      : d
+                  ));
+                }, 300);
+              });
+            } catch (e) {
+              // ignore if not available
+            }
+          })();
+        }
+      }
+    });
+    // Heartbeat timeout checker
+    const interval = setInterval(() => {
+      setDevices(prev => prev.map(d => {
+        if (d.heartbeat && d.heartbeat.last) {
+          const isAlive = Date.now() - d.heartbeat.last < HEARTBEAT_TIMEOUT;
+          return { ...d, heartbeat: { ...d.heartbeat, isAlive } };
+        }
+        return d;
+      }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [devices]);
 
   return (
     <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice }}>

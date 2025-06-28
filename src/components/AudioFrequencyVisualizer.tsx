@@ -7,6 +7,7 @@ import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker
 import useBandPlots, { BandPlotData } from './useBandPlots';
 import useAudioFrequencyData from './useAudioFrequencyData';
 import { usePulseContext } from '../controllers/PulseContext';
+import { useImpulseResponse } from '../context/ImpulseResponseContext';
 
 interface AudioFrequencyVisualizerProps {
   /**
@@ -93,6 +94,7 @@ const BandPlotCard = memo(({
   const { emitPulse } = usePulseContext();
   const emittedPulsesRef = React.useRef<Set<string>>(new Set());
   const lastCursorRef = React.useRef<number>(-Infinity);
+  const { firePulse } = useImpulseResponse();
 
   React.useEffect(() => {
     if (!showImpulses || !data.traces.impulses || !Array.isArray(data.traces.impulses.x)) return;
@@ -113,12 +115,14 @@ const BandPlotCard = memo(({
           console.log('[IMPULSE-REALTIME] emitPulse', { bandName: data.band.name, time, strength: yArr[idx] });
           emitPulse({ bandName: data.band.name, time: 500, strength: yArr[idx] });
           if (onImpulse) onImpulse(yArr[idx], minStrength, maxStrength, data.band.name, time);
+          const pulseData = { bandName: data.band.name, time: 500, strength: yArr[idx] };
+          firePulse(pulseData);
           emittedPulsesRef.current.add(key);
         }
       });
     }
     lastCursorRef.current = playbackTime;
-  }, [playbackTime, showImpulses, data.traces.impulses, data.band.name, emitPulse, onImpulse]);
+  }, [playbackTime, showImpulses, data.traces.impulses, data.band.name, emitPulse, onImpulse, firePulse]);
 
   // Auto-scale y-axis based on visible magnitude data
   const yVals = data.traces.magnitude.y as number[];
