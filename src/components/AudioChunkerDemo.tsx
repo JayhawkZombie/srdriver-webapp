@@ -129,6 +129,9 @@ const AudioChunkerDemo: React.FC = () => {
     const impulseSmoothing = useAppStore(state => state.impulseSmoothing);
     const impulseDetectionMode = useAppStore(state => state.impulseDetectionMode);
     const derivativeMode = useAppStore((state) => state.derivativeMode || 'centered');
+    const spectralFluxWindow = useAppStore((state) => state.spectralFluxWindow);
+    const spectralFluxK = useAppStore((state) => state.spectralFluxK);
+    const spectralFluxMinSeparation = useAppStore((state) => state.spectralFluxMinSeparation);
 
     // Debounce state for pulses
     const pulseInProgressRef = React.useRef(false);
@@ -197,6 +200,9 @@ const AudioChunkerDemo: React.FC = () => {
                     impulseDetectionMode,
                     derivativeLogDomain,
                     derivativeMode,
+                    spectralFluxWindow,
+                    spectralFluxK,
+                    spectralFluxMinSeparation,
                 });
             }
         }, 500);

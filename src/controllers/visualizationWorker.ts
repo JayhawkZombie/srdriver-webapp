@@ -14,9 +14,12 @@ interface VisualizationRequest {
   hopSize: number;
   impulseWindowSize?: number;
   impulseSmoothing?: number;
-  impulseDetectionMode?: 'second-derivative' | 'first-derivative' | 'z-score';
+  impulseDetectionMode?: 'second-derivative' | 'first-derivative' | 'z-score' | 'spectral-flux';
   derivativeLogDomain?: boolean; // compute derivatives in log domain
   derivativeMode?: 'forward' | 'centered' | 'moving-average'; // NEW: derivative calculation mode
+  spectralFluxWindow?: number;
+  spectralFluxK?: number;
+  spectralFluxMinSeparation?: number;
 }
 
 interface BandData {
@@ -45,12 +48,45 @@ self.onmessage = (e: MessageEvent) => {
   const { fftSequence, bands, sampleRate, hopSize } = data;
   const impulseWindowSize = Math.max(1, data.impulseWindowSize || 1);
   const impulseSmoothing = Math.max(1, data.impulseSmoothing || 1);
-  const impulseDetectionMode = data.impulseDetectionMode || 'second-derivative';
+  const impulseDetectionMode = data.impulseDetectionMode || 'spectral-flux';
   const derivativeLogDomain = data.derivativeLogDomain !== false; // default true
   const derivativeMode = data.derivativeMode || 'centered'; // default to centered
+  const spectralFluxWindow = data.spectralFluxWindow || 21;
+  const spectralFluxK = data.spectralFluxK || 2;
+  const spectralFluxMinSeparation = data.spectralFluxMinSeparation || 3;
   const numBins = fftSequence[0]?.length || 0;
   // Compute frequency for each bin
   const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
+  const minImpulseSeparation = 3; // Minimum frames between impulses
+  const adaptiveK = 2; // Threshold = median + k * MAD
+  // Helper: moving median
+  function movingMedian(arr: number[], window: number): number[] {
+    const result = [];
+    for (let i = 0; i < arr.length; i++) {
+      const start = Math.max(0, i - Math.floor(window / 2));
+      const end = Math.min(arr.length, i + Math.ceil(window / 2));
+      const slice = arr.slice(start, end);
+      const sorted = [...slice].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      result.push(sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]);
+    }
+    return result;
+  }
+  // Helper: median absolute deviation
+  function movingMAD(arr: number[], window: number, medians: number[]): number[] {
+    const result = [];
+    for (let i = 0; i < arr.length; i++) {
+      const start = Math.max(0, i - Math.floor(window / 2));
+      const end = Math.min(arr.length, i + Math.ceil(window / 2));
+      const slice = arr.slice(start, end);
+      const median = medians[i];
+      const deviations = slice.map(x => Math.abs(x - median));
+      const sorted = deviations.sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      result.push(sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]);
+    }
+    return result;
+  }
   const bandDataArr: BandData[] = bands.map((band, bandIdx) => {
     // Find the bin closest to the band's frequency
     let binIdx = 0;
@@ -109,7 +145,24 @@ self.onmessage = (e: MessageEvent) => {
     let derivatives: number[] = nthDerivative(procMagnitudes, 1, impulseWindowSize, derivativeMode);
     let secondDerivatives: number[] = nthDerivative(procMagnitudes, 2, impulseWindowSize, derivativeMode);
     let impulseStrengths: number[] = [];
-    if (impulseDetectionMode === 'second-derivative') {
+    if (impulseDetectionMode === 'spectral-flux') {
+      // Spectral flux: positive difference between frames (in log-magnitude domain)
+      impulseStrengths = procMagnitudes.map((v, i, a) => i === 0 ? 0 : Math.max(0, v - a[i - 1]));
+      // Adaptive thresholding: moving median + k * MAD
+      const med = movingMedian(impulseStrengths, spectralFluxWindow);
+      const mad = movingMAD(impulseStrengths, spectralFluxWindow, med);
+      // Mark impulses where flux > threshold and enforce min separation
+      let lastImpulse = -minImpulseSeparation;
+      let impulses = new Array(impulseStrengths.length).fill(0);
+      for (let i = 0; i < impulseStrengths.length; i++) {
+        const threshold = med[i] + adaptiveK * mad[i];
+        if (impulseStrengths[i] > threshold && (i - lastImpulse) >= spectralFluxMinSeparation) {
+          impulses[i] = impulseStrengths[i];
+          lastImpulse = i;
+        }
+      }
+      impulseStrengths = impulses;
+    } else if (impulseDetectionMode === 'second-derivative') {
       impulseStrengths = secondDerivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
     } else if (impulseDetectionMode === 'first-derivative') {
       impulseStrengths = derivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);

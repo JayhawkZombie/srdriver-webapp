@@ -92,10 +92,16 @@ export interface AppState {
   setImpulseWindowSize: (n: number) => void;
   impulseSmoothing: number; // Smoothing window for magnitude/derivative
   setImpulseSmoothing: (n: number) => void;
-  impulseDetectionMode: 'second-derivative' | 'first-derivative' | 'z-score';
-  setImpulseDetectionMode: (mode: 'second-derivative' | 'first-derivative' | 'z-score') => void;
+  impulseDetectionMode: 'second-derivative' | 'first-derivative' | 'z-score' | 'spectral-flux';
+  setImpulseDetectionMode: (mode: 'second-derivative' | 'first-derivative' | 'z-score' | 'spectral-flux') => void;
   derivativeMode: 'forward' | 'centered' | 'moving-average';
   setDerivativeMode: (mode: 'forward' | 'centered' | 'moving-average') => void;
+  spectralFluxWindow: number;
+  setSpectralFluxWindow: (n: number) => void;
+  spectralFluxK: number;
+  setSpectralFluxK: (n: number) => void;
+  spectralFluxMinSeparation: number;
+  setSpectralFluxMinSeparation: (n: number) => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -155,9 +161,15 @@ export const useAppStore = create<AppState>(
     setImpulseWindowSize: (n) => set({ impulseWindowSize: n }),
     impulseSmoothing: 1,
     setImpulseSmoothing: (n) => set({ impulseSmoothing: n }),
-    impulseDetectionMode: 'second-derivative',
+    impulseDetectionMode: 'spectral-flux',
     setImpulseDetectionMode: (mode) => set({ impulseDetectionMode: mode }),
     derivativeMode: 'centered',
     setDerivativeMode: (mode) => set({ derivativeMode: mode }),
+    spectralFluxWindow: 21,
+    setSpectralFluxWindow: (n) => set({ spectralFluxWindow: n }),
+    spectralFluxK: 2,
+    setSpectralFluxK: (n) => set({ spectralFluxK: n }),
+    spectralFluxMinSeparation: 3,
+    setSpectralFluxMinSeparation: (n) => set({ spectralFluxMinSeparation: n }),
   }))
 ); 

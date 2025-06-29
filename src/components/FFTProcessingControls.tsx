@@ -12,6 +12,9 @@ import {
 } from "@mui/material";
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Tooltip from '@mui/material/Tooltip';
+import CropLandscapeIcon from '@mui/icons-material/CropLandscape';
+import FunctionsIcon from '@mui/icons-material/Functions';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 interface FFTProcessingControlsProps {
     windowSize: number;
@@ -39,9 +42,105 @@ const FFTProcessingControls: React.FC<FFTProcessingControlsProps> = ({ windowSiz
     const derivativeMode = useAppStore((state) => state.derivativeMode || 'centered');
     const setDerivativeMode = useAppStore((state) => state.setDerivativeMode);
     const disabled = !fileLoaded;
+    const spectralFluxWindow = useAppStore((state) => state.spectralFluxWindow);
+    const setSpectralFluxWindow = useAppStore((state) => state.setSpectralFluxWindow);
+    const spectralFluxK = useAppStore((state) => state.spectralFluxK);
+    const setSpectralFluxK = useAppStore((state) => state.setSpectralFluxK);
+    const spectralFluxMinSeparation = useAppStore((state) => state.spectralFluxMinSeparation);
+    const setSpectralFluxMinSeparation = useAppStore((state) => state.setSpectralFluxMinSeparation);
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1, p: 0, m: 0, opacity: disabled ? 0.5 : 1 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }} disabled={disabled}>
+                <Select
+                    value={derivativeMode}
+                    onChange={(e) => setDerivativeMode(e.target.value as any)}
+                    displayEmpty
+                    disabled={disabled}
+                >
+                    <MenuItem value="centered">Centered</MenuItem>
+                    <MenuItem value="forward">Forward</MenuItem>
+                    <MenuItem value="moving-average">Moving Avg</MenuItem>
+                </Select>
+            </FormControl>
+            <Tooltip title={
+                <>
+                    <b>Derivative Mode:</b><br/>
+                    <b>Centered</b>: (default) Slope between points before/after, best for local rate of change.<br/>
+                    <b>Forward</b>: Difference from previous window (step-like for large window).<br/>
+                    <b>Moving Avg</b>: Average of differences over window (smooth, slightly lagged).
+                </>
+            } placement="top" arrow>
+                <InfoOutlinedIcon fontSize="small" sx={{ ml: 0.5, color: 'text.secondary', cursor: 'pointer' }} />
+            </Tooltip>
+            <FormControl size="small" sx={{ minWidth: 120 }} disabled={disabled}>
+                <Select
+                    value={impulseDetectionMode}
+                    onChange={(e) => setImpulseDetectionMode(e.target.value as any)}
+                    displayEmpty
+                    disabled={disabled}
+                >
+                    <MenuItem value="second-derivative">2nd Deriv</MenuItem>
+                    <MenuItem value="first-derivative">1st Deriv</MenuItem>
+                    <MenuItem value="z-score">Z-Score</MenuItem>
+                    <MenuItem value="spectral-flux">Spectral Flux</MenuItem>
+                </Select>
+            </FormControl>
+            {impulseDetectionMode === 'spectral-flux' && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5, ml: 1 }}>
+                    <Tooltip title="Window size for adaptive threshold (median/MAD). Larger = more context, less sensitive."><span>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CropLandscapeIcon fontSize="small" sx={{ verticalAlign: 'middle', color: 'text.secondary' }} />
+                            <Typography variant="caption" sx={{ minWidth: 24 }}>Win</Typography>
+                            <Slider
+                                min={5}
+                                max={101}
+                                step={2}
+                                value={spectralFluxWindow}
+                                onChange={(_, v) => setSpectralFluxWindow(typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 21))}
+                                valueLabelDisplay="auto"
+                                size="small"
+                                sx={{ width: 60, ml: 1 }}
+                                disabled={disabled}
+                            />
+                        </Box>
+                    </span></Tooltip>
+                    <Tooltip title="Threshold multiplier (k) for adaptive threshold: median + k × MAD. Higher = fewer impulses."><span>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <FunctionsIcon fontSize="small" sx={{ verticalAlign: 'middle', color: 'text.secondary' }} />
+                            <Typography variant="caption" sx={{ minWidth: 24 }}>k</Typography>
+                            <Slider
+                                min={0.5}
+                                max={5}
+                                step={0.1}
+                                value={spectralFluxK}
+                                onChange={(_, v) => setSpectralFluxK(typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 2))}
+                                valueLabelDisplay="auto"
+                                size="small"
+                                sx={{ width: 60, ml: 1 }}
+                                disabled={disabled}
+                            />
+                        </Box>
+                    </span></Tooltip>
+                    <Tooltip title="Minimum frames between impulses. Higher = more separation, fewer impulses."><span>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <AccessTimeIcon fontSize="small" sx={{ verticalAlign: 'middle', color: 'text.secondary' }} />
+                            <Typography variant="caption" sx={{ minWidth: 24 }}>Sep</Typography>
+                            <Slider
+                                min={1}
+                                max={20}
+                                step={1}
+                                value={spectralFluxMinSeparation}
+                                onChange={(_, v) => setSpectralFluxMinSeparation(typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 3))}
+                                valueLabelDisplay="auto"
+                                size="small"
+                                sx={{ width: 60, ml: 1 }}
+                                disabled={disabled}
+                            />
+                        </Box>
+                    </span></Tooltip>
+                </Box>
+            )}
             <TextField
                 label="FFT Window"
                 type="number"
@@ -102,44 +201,6 @@ const FFTProcessingControls: React.FC<FFTProcessingControlsProps> = ({ windowSiz
                 sx={{ width: 60 }}
                 disabled={disabled}
             />
-            <FormControl size="small" sx={{ minWidth: 120 }} disabled={disabled}>
-                <Select
-                    value={impulseDetectionMode}
-                    onChange={(e) =>
-                        setImpulseDetectionMode(e.target.value as any)
-                    }
-                    displayEmpty
-                    disabled={disabled}
-                >
-                    <MenuItem value="second-derivative">2nd Deriv</MenuItem>
-                    <MenuItem value="first-derivative">1st Deriv</MenuItem>
-                    <MenuItem value="z-score">Z-Score</MenuItem>
-                </Select>
-            </FormControl>
-            <Box sx={{ display: 'flex', alignItems: 'center', ml: 1 }}>
-                <FormControl size="small" sx={{ minWidth: 120 }} disabled={disabled}>
-                    <Select
-                        value={derivativeMode}
-                        onChange={(e) => setDerivativeMode(e.target.value as any)}
-                        displayEmpty
-                        disabled={disabled}
-                    >
-                        <MenuItem value="centered">Centered</MenuItem>
-                        <MenuItem value="forward">Forward</MenuItem>
-                        <MenuItem value="moving-average">Moving Avg</MenuItem>
-                    </Select>
-                </FormControl>
-                <Tooltip title={
-                    <>
-                        <b>Derivative Mode:</b><br/>
-                        <b>Centered</b>: (default) Slope between points before/after, best for local rate of change.<br/>
-                        <b>Forward</b>: Difference from previous window (step-like for large window).<br/>
-                        <b>Moving Avg</b>: Average of differences over window (smooth, slightly lagged).
-                    </>
-                } placement="top" arrow>
-                    <InfoOutlinedIcon fontSize="small" sx={{ ml: 0.5, color: 'text.secondary', cursor: 'pointer' }} />
-                </Tooltip>
-            </Box>
         </Box>
     );
 };
