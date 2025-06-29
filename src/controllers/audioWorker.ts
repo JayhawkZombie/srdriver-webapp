@@ -48,7 +48,8 @@ function computeFFTMagnitude(chunk: Float32Array): Float32Array {
   for (let i = 0; i < magnitudes.length; i++) {
     const re = out[2 * i];
     const im = out[2 * i + 1];
-    magnitudes[i] = Math.sqrt(re * re + im * im);
+    // Normalize by window size (standard practice for audio analysis)
+    magnitudes[i] = Math.sqrt(re * re + im * im) / chunk.length;
   }
   return magnitudes;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, createContext, useContext } from "react";
 import {
     Box,
     Paper,
@@ -14,7 +14,12 @@ import {
     Skeleton,
     LinearProgress,
     Snackbar,
-    Alert
+    Alert,
+    Slider,
+    AppBar,
+    Toolbar,
+    Tabs,
+    Tab
 } from '@mui/material';
 import {
     decodeAudioFile,
@@ -34,6 +39,22 @@ import BandSelector from './BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { usePulseContext } from '../controllers/PulseContext';
 import { useToastContext } from '../controllers/ToastContext';
+import LightsConnectionCard from './LightsConnectionCard';
+import { useAppStore } from '../store/appStore';
+import PulseToolsCard from './PulseToolsCard';
+import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
+import { Device } from '../types/Device';
+import { emitPulse } from './useImpulseHandler';
+import { useDebouncedCallback } from './useDebouncedCallback';
+import ImpulseResponseCard from './ImpulseResponseCard';
+import AudioChunkerDemoPlotArea from './AudioChunkerDemoPlotArea';
+import { ImpulseResponseProvider } from '../context/ImpulseResponseContext';
+// Import the visualization worker
+// @ts-ignore
+import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
+import { del } from 'idb-keyval';
+import FFTProcessingControls from './FFTProcessingControls';
+import { alpha } from '@mui/material/styles';
 
 interface ChunkSummary {
     numChunks: number;
@@ -48,14 +69,31 @@ interface ChunkSummary {
 const DEFAULT_WINDOW_SIZE = 1024;
 const DEFAULT_HOP_SIZE = 512;
 
+// Context for active device selection
+interface ActiveDeviceContextType {
+    activeDeviceId: string | null;
+    setActiveDeviceId: (id: string | null) => void;
+}
+export const ActiveDeviceContext = createContext<ActiveDeviceContextType | undefined>(undefined);
+export function useActiveDevice() {
+    const ctx = useContext(ActiveDeviceContext);
+    if (!ctx) throw new Error('useActiveDevice must be used within ActiveDeviceContext.Provider');
+    return ctx;
+}
+
+const BAND_DEFINITIONS = [
+    { name: 'Bass', freq: 60, color: 'blue' },
+    { name: 'Low Mid', freq: 250, color: 'green' },
+    { name: 'Mid', freq: 1000, color: 'orange' },
+    { name: 'Treble', freq: 4000, color: 'red' },
+    { name: 'High Treble', freq: 8000, color: 'purple' },
+];
+
 const AudioChunkerDemo: React.FC = () => {
     const [file, setFile] = useState<File | null>(null);
     const [windowSize, setWindowSize] = useState<number>(DEFAULT_WINDOW_SIZE);
     const [hopSize, setHopSize] = useState<number>(DEFAULT_HOP_SIZE);
-    const [summary, setSummary] = useState<ChunkSummary | null>(null);
     const [loading, setLoading] = useState(false);
-    const audioBufferRef = useRef<AudioBuffer | null>(null);
-    const [fftSequence, setFftSequence] = useState<(Float32Array | number[])[]>([]);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | undefined>(undefined);
     const waveformRef = useRef<HTMLDivElement | null>(null);
@@ -64,23 +102,122 @@ const AudioChunkerDemo: React.FC = () => {
     const [playbackTime, setPlaybackTime] = useState(0);
     const audioWorkerRef = useRef<Worker | null>(null);
     const [processingProgress, setProcessingProgress] = useState<{ processed: number, total: number } | null>(null);
-    const [windowSec, setWindowSec] = useState(4);
+    const windowSec = useAppStore(state => state.windowSec);
+    const setWindowSec = useAppStore(state => state.setWindowSec);
+    const showFirstDerivative = useAppStore(state => state.showFirstDerivative);
+    const setShowFirstDerivative = useAppStore(state => state.setShowFirstDerivative);
+    const showSecondDerivative = useAppStore(state => state.showSecondDerivative);
+    const setShowSecondDerivative = useAppStore(state => state.setShowSecondDerivative);
+    const showImpulses = useAppStore(state => state.showImpulses);
+    const setShowImpulses = useAppStore(state => state.setShowImpulses);
+    const selectedBand = useAppStore(state => state.selectedBand);
+    const setSelectedBand = useAppStore(state => state.setSelectedBand);
     const [followCursor, setFollowCursor] = useState(false);
     const [snapToWindow, setSnapToWindow] = useState(true);
-    const [showFirstDerivative, setShowFirstDerivative] = useState(false);
-    const [showSecondDerivative, setShowSecondDerivative] = useState(false);
-    const [showImpulses, setShowImpulses] = useState(true);
-    const [selectedBand, setSelectedBand] = useState('');
     const { devices } = useDeviceControllerContext();
     const connectedDevices = devices.filter(d => d.isConnected);
     const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
     const { latestPulse, latestPulseTimestamp } = usePulseContext();
     const { showToast } = useToastContext();
+    const { audioData, setAudioData } = useAppStore();
+    const audioBufferRef = useRef<AudioBuffer | null>(null);
+    const { values } = usePulseTools();
+    const activeDevice = devices.find(d => d.id === activeDeviceId);
+    const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
+    const setNormalizedImpulseThreshold = useAppStore(state => state.setNormalizedImpulseThreshold);
+    const impulseWindowSize = useAppStore(state => state.impulseWindowSize);
+    const impulseSmoothing = useAppStore(state => state.impulseSmoothing);
+    const impulseDetectionMode = useAppStore(state => state.impulseDetectionMode);
+    const derivativeMode = useAppStore((state) => state.derivativeMode || 'centered');
+    const spectralFluxWindow = useAppStore((state) => state.spectralFluxWindow);
+    const spectralFluxK = useAppStore((state) => state.spectralFluxK);
+    const spectralFluxMinSeparation = useAppStore((state) => state.spectralFluxMinSeparation);
+
+    // Debounce state for pulses
+    const pulseInProgressRef = React.useRef(false);
+    const lastPulseTimeRef = React.useRef(0);
+
+    // Debounced impulse handler using new paradigm
+    const debouncedPulse = useDebouncedCallback(
+        (strength: number, min: number, max: number, bandName?: string, time?: number) => {
+            emitPulse({
+                strength,
+                min,
+                max,
+                bandName,
+                time,
+                tools: values.current,
+                device: activeDevice,
+                showToast,
+            });
+        },
+        values.current.debounceMs
+    );
+
+    // Visualization worker ref
+    const visualizationWorkerRef = useRef<Worker | null>(null);
+
+    // State for showing clear confirmation
+    const [clearMsg, setClearMsg] = useState<string | null>(null);
+
+    // Determine if audio is loaded
+    const audioLoaded = !!(audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0);
+
+    const derivativeLogDomain = true; // Always use log domain for now
+
+    // Debounced re-processing effect for FFT/impulse controls
+    React.useEffect(() => {
+        if (!audioLoaded || !file) return;
+        // Debounce re-processing
+        const debounced = setTimeout(() => {
+            setLoading(true);
+            setProcessingProgress(null);
+            // Only re-run visualization worker (not full audio worker)
+            if (visualizationWorkerRef.current && audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0) {
+                visualizationWorkerRef.current.onmessage = (ve: MessageEvent) => {
+                    const { bandDataArr } = ve.data;
+                    const currentAnalysis = audioData.analysis;
+                    setAudioData({
+                        analysis: {
+                            ...currentAnalysis,
+                            bandDataArr,
+                            impulseStrengths: bandDataArr.map((b: any) => b.impulseStrengths),
+                            fftSequence: currentAnalysis?.fftSequence ?? [],
+                            summary: currentAnalysis?.summary ?? {},
+                            audioBuffer: currentAnalysis?.audioBuffer ?? null,
+                        }
+                    });
+                    setLoading(false);
+                    setProcessingProgress(null);
+                };
+                visualizationWorkerRef.current.postMessage({
+                    fftSequence: audioData.analysis.fftSequence.map((arr: any) => Array.from(arr)),
+                    bands: BAND_DEFINITIONS,
+                    sampleRate: audioData.analysis.audioBuffer?.sampleRate || 44100,
+                    hopSize: audioData.analysis.summary?.hopSize || 512,
+                    impulseWindowSize,
+                    impulseSmoothing,
+                    impulseDetectionMode,
+                    derivativeLogDomain,
+                    derivativeMode,
+                    spectralFluxWindow,
+                    spectralFluxK,
+                    spectralFluxMinSeparation,
+                });
+            }
+        }, 500);
+        return () => clearTimeout(debounced);
+    }, [impulseWindowSize, impulseSmoothing, impulseDetectionMode, audioLoaded, file]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
+            // Clear persisted app state in IndexedDB when a new file is uploaded
+            del('app-state').then(() => {
+                setClearMsg('Cleared app-state from IndexedDB');
+                setTimeout(() => setClearMsg(null), 2000);
+            });
             setFile(e.target.files[0]);
-            setSummary(null);
+            setAudioData({ analysis: null, metadata: null });
             setAudioUrl(URL.createObjectURL(e.target.files[0]));
         }
     };
@@ -93,34 +230,74 @@ const AudioChunkerDemo: React.FC = () => {
     useEffect(() => {
         // @ts-ignore
         audioWorkerRef.current = new Worker(new URL('../controllers/audioWorker.ts', import.meta.url));
+        // @ts-ignore
+        visualizationWorkerRef.current = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url));
         audioWorkerRef.current.onmessage = (e) => {
             const { type, processed, total, summary, fftSequence } = e.data;
             if (type === 'progress') {
                 setProcessingProgress({ processed, total });
             } else if (type === 'done') {
-                if (audioBufferRef.current && summary) {
-                    summary.totalDurationMs = audioBufferRef.current.duration * 1000;
+                const audioBuffer = audioBufferRef.current;
+                if (audioBuffer && summary) {
+                    summary.totalDurationMs = audioBuffer.duration * 1000;
                 }
-                setSummary(summary);
-                setFftSequence(fftSequence);
-                setLoading(false);
-                setProcessingProgress(null);
+                // After audio worker is done, call visualization worker
+                if (visualizationWorkerRef.current && fftSequence && fftSequence.length > 0) {
+                    visualizationWorkerRef.current.onmessage = (ve: MessageEvent) => {
+                        const { bandDataArr } = ve.data;
+                        setAudioData({
+                            analysis: {
+                                fftSequence: fftSequence ?? [],
+                                summary: summary ?? null,
+                                audioBuffer: audioBuffer ?? null,
+                                bandDataArr,
+                                impulseStrengths: bandDataArr.map((b: any) => b.impulseStrengths),
+                            }
+                        });
+                        setLoading(false);
+                        setProcessingProgress(null);
+                    };
+                    visualizationWorkerRef.current.postMessage({
+                        fftSequence: fftSequence.map((arr: any) => Array.from(arr)),
+                        bands: BAND_DEFINITIONS,
+                        sampleRate: audioBuffer?.sampleRate || 44100,
+                        hopSize: summary?.hopSize || 512,
+                        impulseWindowSize,
+                        impulseSmoothing,
+                        impulseDetectionMode,
+                    });
+                } else {
+                    // Fallback: just save fftSequence etc.
+                    setAudioData({ analysis: {
+                        fftSequence: fftSequence ?? [],
+                        summary: summary ?? null,
+                        audioBuffer: audioBuffer ?? null
+                    }});
+                    setLoading(false);
+                    setProcessingProgress(null);
+                }
             }
         };
         return () => {
             audioWorkerRef.current?.terminate();
+            visualizationWorkerRef.current?.terminate();
         };
     }, []);
 
     const handleProcess = async () => {
         if (!file) return;
         setLoading(true);
-        setFftSequence([]); // Reset sequence
+        setAudioData({ analysis: null }); // Reset analysis
         setProcessingProgress(null); // Reset progress
         try {
             // Decode in main thread, send PCM to worker
             const audioBuffer = await decodeAudioFile(file);
-            audioBufferRef.current = audioBuffer;
+            audioBufferRef.current = audioBuffer; // Save to ref
+            setAudioData({ analysis: {
+                fftSequence: [],
+                summary: null,
+                audioBuffer
+            }});
             const pcmData = getMonoPCMData(audioBuffer);
             audioWorkerRef.current?.postMessage({
                 pcmBuffer: pcmData.buffer,
@@ -170,13 +347,14 @@ const AudioChunkerDemo: React.FC = () => {
 
     useEffect(() => {
         if (
-            fftSequence.length > 0 &&
-            audioBufferRef.current &&
+            audioData.analysis?.fftSequence &&
+            audioData.analysis.fftSequence.length > 0 &&
+            audioData.analysis.audioBuffer &&
             !selectedBand
         ) {
             setSelectedBand('Bass');
         }
-    }, [fftSequence, selectedBand]);
+    }, [audioData.analysis, selectedBand, setSelectedBand]);
 
     useEffect(() => {
         if (connectedDevices.length > 0 && !activeDeviceId) {
@@ -186,221 +364,177 @@ const AudioChunkerDemo: React.FC = () => {
         }
     }, [connectedDevices, activeDeviceId]);
 
-    useEffect(() => {
-        if (latestPulse && latestPulseTimestamp) {
-            showToast(`Pulse: ${latestPulse.bandName} @ ${latestPulse.time.toFixed(2)}s (strength: ${latestPulse.strength.toFixed(1)})`);
-        }
-    }, [latestPulseTimestamp]);
+    // Handler for manual clear
+    const handleClearAppState = () => {
+        del('app-state').then(() => {
+            setClearMsg('Cleared app-state from IndexedDB');
+            setTimeout(() => setClearMsg(null), 2000);
+        });
+    };
 
     return (
-        <Paper
-            elevation={2}
-            sx={{
-                width: '100%',
-                margin: '2rem 0',
-                p: 2,
-                borderRadius: 2,
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-                minWidth: 320,
-            }}
-        >
-            <Typography variant="h6" sx={{ mb: 1 }}>
-                Audio Chunker Demo
-            </Typography>
-            <Box sx={{ mb: 1, p: 1 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="audio/*"
-                        onChange={handleFileChange}
-                        style={{ display: 'none' }}
-                    />
-                    <Button
-                        variant="contained"
-                        size="small"
-                        onClick={handleFileButtonClick}
-                    >
-                        Choose File
-                    </Button>
-                    <Typography variant="body2" sx={{ ml: 1, minWidth: 120, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {file ? file.name : 'No file chosen'}
+        <ActiveDeviceContext.Provider value={{ activeDeviceId, setActiveDeviceId }}>
+            <PulseToolsProvider>
+                {/* Main content area below sticky bars */}
+                <Paper
+                    elevation={2}
+                    sx={{
+                        width: '100%',
+                        margin: '2rem 0',
+                        p: 2,
+                        borderRadius: 2,
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        minWidth: 320,
+                        mt: 4,
+                    }}
+                >
+                    <Typography variant="h6" sx={{ mb: 1 }}>
+                        Audio Chunker Demo
                     </Typography>
-                </Stack>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%' }}>
-                {/* Left: controls and plot */}
-                <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
-                    {audioUrl && (
-                        <Box sx={{ mt: 2 }}>
-                            <div ref={waveformRef} />
-                            <Button
-                                variant="contained"
-                                size="small"
-                                sx={{ mt: 1 }}
-                                onClick={handlePlayPause}
-                                disabled={!audioUrl}
-                            >
-                                {isPlaying ? 'Pause' : 'Play'}
-                            </Button>
-                        </Box>
-                    )}
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
-                        <TextField
-                            label="FFT Window Size (samples)"
-                            type="number"
-                            size="small"
-                            value={windowSize}
-                            onChange={e => setWindowSize(Number(e.target.value))}
-                            inputProps={{ min: 128, step: 128, style: { width: 80 } }}
-                        />
-                        <TextField
-                            label="Hop Size (samples)"
-                            type="number"
-                            size="small"
-                            value={hopSize}
-                            onChange={e => setHopSize(Number(e.target.value))}
-                            inputProps={{ min: 1, step: 1, style: { width: 80 } }}
-                        />
-                        <Button
-                            variant="contained"
-                            size="small"
-                            onClick={handleProcess}
-                            disabled={!file || loading}
-                        >
-                            {loading ? 'Processing...' : 'Process Audio'}
-                        </Button>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', ml: 2 }}>
-                            <Typography variant="caption" sx={{ mb: 0.5, ml: 0.5 }}>Time Window (seconds)</Typography>
-                            <GlobalControls
-                                windowSec={windowSec}
-                                maxTime={summary ? summary.totalDurationMs / 1000 : 60}
-                                onWindowSecChange={setWindowSec}
-                                followCursor={followCursor}
-                                onFollowCursorChange={setFollowCursor}
-                                snapToWindow={snapToWindow}
-                                onSnapToWindowChange={setSnapToWindow}
-                            />
-                        </Box>
-                    </Stack>
-                    {summary && (
-                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
-                            <Typography variant="body2" color="text.secondary">
-                                <strong>Chunks:</strong> {summary.numChunks}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                <strong>Chunk:</strong> {summary.chunkDurationMs.toFixed(2)} ms
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                <strong>Total:</strong> {summary.totalDurationMs.toFixed(2)} ms
-                            </Typography>
-                        </Stack>
-                    )}
-                    <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
-                        <DerivativeImpulseToggles
-                            showFirstDerivative={showFirstDerivative}
-                            onShowFirstDerivative={setShowFirstDerivative}
-                            showSecondDerivative={showSecondDerivative}
-                            onShowSecondDerivative={setShowSecondDerivative}
-                            showImpulses={showImpulses}
-                            onShowImpulses={setShowImpulses}
-                        />
-                        {fftSequence.length > 0 && (
-                            <BandSelector
-                                bands={fftSequence[0] && audioBufferRef.current ? [
-                                    { name: 'Bass' }, { name: 'Low Mid' }, { name: 'Mid' }, { name: 'Treble' }, { name: 'High Treble' }
-                                ] : []}
-                                selectedBand={selectedBand}
-                                onSelect={setSelectedBand}
-                            />
-                        )}
-                    </Stack>
-                    {!loading && fftSequence.length > 0 && audioBufferRef.current && (
-                        <AudioFrequencyVisualizer
-                            fftSequence={fftSequence}
-                            sampleRate={audioBufferRef.current.sampleRate}
-                            windowSize={windowSize}
-                            hopSize={hopSize}
-                            audioBuffer={audioBufferRef.current}
-                            playbackTime={playbackTime}
-                            windowSec={windowSec}
-                            followCursor={followCursor}
-                            snapToWindow={snapToWindow}
-                            showFirstDerivative={showFirstDerivative}
-                            showSecondDerivative={showSecondDerivative}
-                            showImpulses={showImpulses}
-                            selectedBand={selectedBand}
-                        />
-                    )}
-                </Box>
-                {/* Right: Visualizer → Lights Connection Placeholder */}
-                <Box sx={{ flex: 1, minWidth: 220, maxWidth: 320, width: '100%', ml: 2 }}>
-                    <Paper elevation={1} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider', minHeight: 120, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start' }}>
-                        <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
-                            Visualizer → Lights Connection
-                        </Typography>
-                        {connectedDevices.length === 0 ? (
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1 }}>
-                                No devices connected.
-                            </Typography>
-                        ) : (
-                            <Box sx={{ width: '100%' }}>
-                                <Typography variant="body2" sx={{ mb: 1 }}>Select Active Device:</Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    {connectedDevices.map(device => (
-                                        <Button
-                                            key={device.id}
-                                            variant={activeDeviceId === device.id ? 'contained' : 'outlined'}
-                                            color={activeDeviceId === device.id ? 'primary' : 'inherit'}
-                                            onClick={() => setActiveDeviceId(device.id)}
-                                            sx={{ justifyContent: 'flex-start', textTransform: 'none', mb: 0.5 }}
-                                            fullWidth
-                                        >
-                                            {device.name} {activeDeviceId === device.id && <span style={{ marginLeft: 8, fontWeight: 600 }}>(Active)</span>}
-                                        </Button>
-                                    ))}
+                    <ImpulseResponseProvider>
+                        <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%' }}>
+                            {/* Left: controls and plot */}
+                            <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
+                                {/* Modern, compact horizontal toolbar for all top controls */}
+                                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2, mt: 1 }}>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="audio/*"
+                                        onChange={handleFileChange}
+                                        style={{ display: 'none' }}
+                                    />
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={handleFileButtonClick}
+                                        sx={{ minWidth: 110 }}
+                                    >
+                                        Choose File
+                                    </Button>
+                                    <Typography variant="body2" sx={{ minWidth: 120, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {file ? file.name : 'No file chosen'}
+                                    </Typography>
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={handleProcess}
+                                        disabled={!file || loading}
+                                        sx={{ minWidth: 120 }}
+                                    >
+                                        {loading ? 'Processing...' : 'Process Audio'}
+                                    </Button>
+                                    <FFTProcessingControls
+                                        windowSize={windowSize}
+                                        setWindowSize={setWindowSize}
+                                        hopSize={hopSize}
+                                        setHopSize={setHopSize}
+                                        fileLoaded={!!file}
+                                    />
+                                    <Box sx={{ minWidth: 180, ml: 2 }}>
+                                        <GlobalControls
+                                            windowSec={windowSec}
+                                            maxTime={audioData.analysis?.summary ? audioData.analysis.summary.totalDurationMs / 1000 : 60}
+                                            onWindowSecChange={setWindowSec}
+                                            followCursor={followCursor}
+                                            onFollowCursorChange={setFollowCursor}
+                                            snapToWindow={snapToWindow}
+                                            onSnapToWindowChange={setSnapToWindow}
+                                        />
+                                    </Box>
                                 </Box>
+                                {audioUrl && (
+                                    <Box sx={{ mt: 1 }}>
+                                        <div ref={waveformRef} />
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            sx={{ mt: 1 }}
+                                            onClick={handlePlayPause}
+                                            disabled={!audioUrl}
+                                        >
+                                            {isPlaying ? 'Pause' : 'Play'}
+                                        </Button>
+                                    </Box>
+                                )}
+                                {audioData.analysis?.summary && (
+                                    <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            <strong>Chunks:</strong> {audioData.analysis.summary.numChunks}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            <strong>Chunk:</strong> {audioData.analysis.summary.chunkDurationMs?.toFixed(2)} ms
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            <strong>Total:</strong> {audioData.analysis.summary.totalDurationMs?.toFixed(2)} ms
+                                        </Typography>
+                                    </Stack>
+                                )}
+                                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
+                                    <DerivativeImpulseToggles
+                                        showFirstDerivative={showFirstDerivative}
+                                        onShowFirstDerivative={setShowFirstDerivative}
+                                        showSecondDerivative={showSecondDerivative}
+                                        onShowSecondDerivative={setShowSecondDerivative}
+                                        showImpulses={showImpulses}
+                                        onShowImpulses={setShowImpulses}
+                                    />
+                                    {audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && (
+                                        <BandSelector
+                                            bands={audioData.analysis.fftSequence[0] && audioData.analysis.audioBuffer ? [
+                                                { name: 'Bass' }, { name: 'Low Mid' }, { name: 'Mid' }, { name: 'Treble' }, { name: 'High Treble' }
+                                            ] : []}
+                                            selectedBand={selectedBand}
+                                            onSelect={setSelectedBand}
+                                        />
+                                    )}
+                                </Stack>
+                                {/* Main plot area: show plot, skeletons, or loading spinner in the same space */}
+                                <AudioChunkerDemoPlotArea
+                                  file={file}
+                                  loading={loading}
+                                  processingProgress={processingProgress}
+                                  audioData={audioData}
+                                  plotProps={{
+                                    fftSequence: audioData.analysis?.fftSequence,
+                                    sampleRate: audioData.analysis?.audioBuffer?.sampleRate,
+                                    windowSize,
+                                    hopSize,
+                                    audioBuffer: audioData.analysis?.audioBuffer,
+                                    playbackTime,
+                                    windowSec,
+                                    followCursor,
+                                    snapToWindow,
+                                    showFirstDerivative,
+                                    showSecondDerivative,
+                                    showImpulses,
+                                    selectedBand,
+                                  }}
+                                  debouncedPulse={debouncedPulse}
+                                />
                             </Box>
-                        )}
-                        <Button variant="outlined" color="primary" disabled sx={{ mt: 2 }}>
-                            Connect (Coming Soon)
-                        </Button>
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                            Placeholder for BLE/Device connection from visualizer
-                        </Typography>
-                    </Paper>
-                </Box>
-            </Box>
-            {loading && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: 120, my: 2, width: '100%' }}>
-                    <CircularProgress />
-                    <Typography sx={{ ml: 2, mb: 2 }}>Processing audio...</Typography>
-                    {processingProgress && (
-                        <Box sx={{ width: '100%', maxWidth: 400, mt: 2 }}>
-                            <LinearProgress
-                                variant="determinate"
-                                value={100 * processingProgress.processed / processingProgress.total}
-                            />
-                            <Typography variant="caption" sx={{ mt: 1 }}>
-                                {`Processed ${processingProgress.processed} of ${processingProgress.total} chunks`}
-                            </Typography>
+                            {/* Right: Visualizer → Lights Connection Placeholder */}
+                            <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <LightsConnectionCard
+                                    connectedDevices={connectedDevices}
+                                    activeDeviceId={activeDeviceId}
+                                    setActiveDeviceId={setActiveDeviceId}
+                                />
+                                <PulseToolsCard />
+                                <ImpulseResponseCard />
+                            </Box>
                         </Box>
-                    )}
-                    {/* Skeletons for plot cards */}
-                    <Box sx={{ width: '100%', maxWidth: 700 }}>
-                        {[0,1,2,3,4].map(i => (
-                            <Box key={i} sx={{ mb: 2 }}>
-                                <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 2, mb: 1 }} />
-                                <Skeleton variant="text" width="40%" />
-                                <Skeleton variant="text" width="60%" />
-                            </Box>
-                        ))}
-                    </Box>
-                </Box>
-            )}
-        </Paper>
+                    </ImpulseResponseProvider>
+                    {/* Button to manually clear app state from IndexedDB */}
+                    <Button variant="outlined" color="error" size="small" onClick={handleClearAppState} sx={{ mb: 1 }}>
+                        Clear App State (IndexedDB)
+                    </Button>
+                    {clearMsg && <Alert severity="info" sx={{ mb: 1 }}>{clearMsg}</Alert>}
+                </Paper>
+            </PulseToolsProvider>
+        </ActiveDeviceContext.Provider>
     );
 };
 

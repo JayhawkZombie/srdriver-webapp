@@ -5,62 +5,40 @@ import {
   CardContent,
   Typography,
   Button,
-  Slider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
-  Stack,
-  TextField
 } from '@mui/material';
 import {
   Bluetooth as BluetoothIcon
 } from '@mui/icons-material';
-import { Device } from '../types/Device';
-
-// Utility functions for color conversion
-const rgbToHex = (r: number, g: number, b: number): string => {
-  return '#' + [r, g, b].map(x => {
-    const hex = x.toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  }).join('');
-};
-
-const hexToRgb = (hex: string): { r: number, g: number, b: number } => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : { r: 0, g: 0, b: 0 };
-};
-
-// Pattern names for the 9 available patterns
-const patternNames = [
-  'Pattern 0',
-  'Pattern 1', 
-  'Pattern 2',
-  'Pattern 3',
-  'Pattern 4',
-  'Pattern 5',
-  'Pattern 6',
-  'Pattern 7',
-  'Pattern 8'
-];
+import PulseControlsPanel from './PulseControlsPanel';
+import DeviceConnectionPanel from './DeviceConnectionPanel';
+import DeviceControls from './DeviceControls';
+import EditableNickname from './EditableNickname';
+import { useAppStore } from '../store/appStore';
+import { useSingleDevice, useHeartbeatStatus } from '../controllers/DeviceControllerContext';
+import AnimatedStatusChip from './AnimatedStatusChip';
 
 interface DevicePanelProps {
-  device: Device;
   onConnect: () => Promise<void>;
   onDisconnect: () => Promise<void>;
-  onUpdate: (update: Partial<Device>) => void;
+  onUpdate: (id: string, update: any) => void;
 }
 
-const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconnect, onUpdate }) => {
-  const [pulseDuration, setPulseDuration] = useState(1000);
-  const [pulseTargetBrightness, setPulseTargetBrightness] = useState(255);
-  const [isPulsing, setIsPulsing] = useState(false);
+const DevicePanel: React.FC<DevicePanelProps> = ({ onConnect, onDisconnect, onUpdate }) => {
+  const device = useSingleDevice();
   const [error, setError] = useState<string | null>(null);
+  const devicesMetadata = useAppStore(state => state.devicesMetadata);
+  const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
+  const heartbeat = useHeartbeatStatus(device.id);
+  const prevPulse = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    console.log('DevicePanel effect running', heartbeat?.pulse, prevPulse.current, device.id);
+    if (heartbeat?.pulse && heartbeat.pulse !== prevPulse.current) {
+      console.log('Heartbeat!', device.id);
+    }
+    prevPulse.current = heartbeat?.pulse ?? null;
+  }, [heartbeat?.pulse, device.id]);
 
   const handleConnect = async () => {
     setError(null);
@@ -80,56 +58,26 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconne
     }
   };
 
-  const handleBrightnessChange = async (_: Event, value: number | number[]) => {
-    if (!device.controller) return;
-    const brightness = value as number;
-    try {
-      await device.controller.setBrightness(brightness);
-      onUpdate({ brightness });
-    } catch (e: any) {
-      setError(e.message || 'Failed to set brightness');
-    }
-  };
-
-  const handleSpeedChange = async (_: Event, value: number | number[]) => {
-    if (!device.controller) return;
-    const speed = value as number;
-    try {
-      await device.controller.setSpeed(speed);
-      onUpdate({ speed });
-    } catch (e: any) {
-      setError(e.message || 'Failed to set speed');
-    }
-  };
-
-  const handlePatternChange = async (event: any) => {
-    if (!device.controller) return;
-    const patternIndex = event.target.value;
-    try {
-      await device.controller.setPattern(patternIndex);
-      onUpdate({ patternIndex });
-    } catch (e: any) {
-      setError(e.message || 'Failed to set pattern');
-    }
-  };
-
-  const handlePulseBrightness = async () => {
-    if (!device.controller) return;
-    setIsPulsing(true);
-    try {
-      await device.controller.pulseBrightness(pulseTargetBrightness, pulseDuration);
-    } catch (e: any) {
-      setError(e.message || 'Failed to pulse brightness');
-    } finally {
-      setIsPulsing(false);
-    }
-  };
-
   // UI rendering (simplified for brevity)
   return (
     <Card sx={{ mb: 2, p: 2 }}>
       <CardContent>
-        <Typography variant="h6">{device.name}</Typography>
+        <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EditableNickname
+            macOrId={device.macOrId}
+            value={devicesMetadata[device.macOrId]?.nickname}
+            fallbackName={device.name}
+            onChange={nickname => setDeviceNickname(device.macOrId, nickname)}
+            size="medium"
+          />
+          <AnimatedStatusChip
+            label={device.isConnected ? 'Connected' : device.isConnecting ? 'Connecting...' : 'Disconnected'}
+            color={device.isConnected ? 'success' : device.isConnecting ? 'warning' : 'default'}
+            isActive={!!heartbeat?.isAlive}
+            pulse={heartbeat?.pulse != null}
+            icon={<BluetoothIcon fontSize="small" color={heartbeat?.isAlive ? 'error' : 'disabled'} />}
+          />
+        </Box>
         {error && <Alert severity="error">{error}</Alert>}
         <Box sx={{ mt: 2 }}>
           {device.isConnected ? (
@@ -142,44 +90,16 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ device, onConnect, onDisconne
             </Button>
           )}
         </Box>
-        {device.isConnected && device.controller && (
+        {!device.isConnected && (
           <Box sx={{ mt: 3 }}>
-            <Typography variant="subtitle1">Brightness</Typography>
-            <Slider min={0} max={255} value={device.brightness} valueLabelDisplay="auto" onChange={handleBrightnessChange} />
-            <Typography variant="subtitle1">Speed</Typography>
-            <Slider min={0} max={255} value={device.speed} valueLabelDisplay="auto" onChange={handleSpeedChange} />
-            <Typography variant="subtitle1">Pattern</Typography>
-            <FormControl fullWidth sx={{ mt: 1 }}>
-              <InputLabel id="pattern-select-label">Pattern</InputLabel>
-              <Select labelId="pattern-select-label" onChange={handlePatternChange} value={device.patternIndex}>
-                {patternNames.map((name, idx) => (
-                  <MenuItem key={idx} value={idx}>{name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Typography variant="subtitle1" sx={{ mt: 2 }}>Pulse Brightness</Typography>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <TextField
-                label="Target Brightness"
-                type="number"
-                size="small"
-                value={pulseTargetBrightness}
-                onChange={e => setPulseTargetBrightness(Number(e.target.value))}
-                inputProps={{ min: 0, max: 255 }}
-              />
-              <TextField
-                label="Duration (ms)"
-                type="number"
-                size="small"
-                value={pulseDuration}
-                onChange={e => setPulseDuration(Number(e.target.value))}
-                inputProps={{ min: 10, max: 10000 }}
-              />
-              <Button variant="contained" onClick={handlePulseBrightness} disabled={isPulsing}>
-                {isPulsing ? 'Pulsing...' : 'Pulse'}
-              </Button>
-            </Stack>
+            <DeviceConnectionPanel />
           </Box>
+        )}
+        <Box sx={{ mt: 3 }}>
+          <PulseControlsPanel />
+        </Box>
+        {device.isConnected && device.controller && (
+          <DeviceControls deviceId={device.id} onUpdate={update => onUpdate(device.id, update)} />
         )}
       </CardContent>
     </Card>

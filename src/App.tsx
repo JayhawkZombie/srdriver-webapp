@@ -6,11 +6,12 @@ import {
   FormControlLabel,
   Switch
 } from '@mui/material';
-import DeviceManager from './components/DeviceManager';
+import Dashboard from './components/Dashboard';
 import { DeviceControllerProvider } from './controllers/DeviceControllerContext';
 import { PulseProvider } from './controllers/PulseContext';
 import { ToastProvider } from './controllers/ToastContext';
 import GlobalToast from './components/GlobalToast';
+import DevAppStateViewer from './components/DevAppStateViewer';
 
 function App() {
   const getInitialMode = () => {
@@ -29,17 +30,19 @@ function App() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <ToastProvider>
-        <GlobalToast />
-        <PulseProvider>
-          <DeviceControllerProvider>
-            <DeviceManager mode={mode} onToggleMode={handleToggle} />
-          </DeviceControllerProvider>
-        </PulseProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <DeviceControllerProvider>
+          <PulseProvider>
+            <ToastProvider>
+              <GlobalToast />
+              <Dashboard mode={mode} onToggleMode={handleToggle} />
+            </ToastProvider>
+          </PulseProvider>
+        </DeviceControllerProvider>
+      </ThemeProvider>
+    </>
   );
 }
 

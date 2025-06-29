@@ -24,6 +24,9 @@ export class WebSRDriverController implements ISRDriverController {
   private leftSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private rightSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private _debounceBrightnessTimeout: ReturnType<typeof setTimeout> | null = null;
+  private _lastBrightnessValue: number | null = null;
+  private _debouncers: Record<string, { timeout: ReturnType<typeof setTimeout> | null; lastValue: any }> = {};
 
   // Callbacks
   onBrightnessChange?: (value: number) => void;
@@ -251,59 +254,91 @@ export class WebSRDriverController implements ISRDriverController {
     return this.device?.gatt?.connected ?? false;
   }
 
-  async setSpeed(value: number): Promise<void> {
-    if (!this.speedCharacteristic) {
-      throw new Error('No speed characteristic');
+  // Shared helper for writing a number to a characteristic
+  private async writeNumberCharacteristic(
+    characteristic: BluetoothRemoteGATTCharacteristic | null,
+    value: number,
+    label: string
+  ): Promise<void> {
+    if (!characteristic) {
+      throw new Error(`No ${label} characteristic`);
     }
-    
     const encoder = new TextEncoder();
     const valueString = Math.round(value).toString();
-    await this.speedCharacteristic.writeValue(encoder.encode(valueString));
-    console.log(`Set speed to: ${valueString}`);
+    await characteristic.writeValue(encoder.encode(valueString));
+    console.log(`Set ${label} to: ${valueString}`);
   }
 
-  async setBrightness(value: number): Promise<void> {
-    if (!this.brightnessCharacteristic) {
-      throw new Error('No brightness characteristic');
-    }
-    
-    const encoder = new TextEncoder();
-    const valueString = Math.round(value).toString();
-    await this.brightnessCharacteristic.writeValue(encoder.encode(valueString));
-    console.log(`Set brightness to: ${valueString}`);
+  // Private immediate BLE write methods
+  private async _setBrightnessImmediate(value: number): Promise<void> {
+    await this.writeNumberCharacteristic(this.brightnessCharacteristic, value, 'brightness');
   }
-
-  async setPattern(index: number): Promise<void> {
-    if (!this.patternCharacteristic) {
-      throw new Error('No pattern characteristic');
-    }
-    
-    const encoder = new TextEncoder();
-    const indexString = Math.round(index).toString();
-    await this.patternCharacteristic.writeValue(encoder.encode(indexString));
-    console.log(`Set pattern to: ${indexString}`);
+  private async _setSpeedImmediate(value: number): Promise<void> {
+    await this.writeNumberCharacteristic(this.speedCharacteristic, value, 'speed');
   }
-
-  async setHighColor(color: RGBColor): Promise<void> {
+  private async _setPatternImmediate(index: number): Promise<void> {
+    await this.writeNumberCharacteristic(this.patternCharacteristic, index, 'pattern');
+  }
+  private async _setHighColorImmediate(color: RGBColor): Promise<void> {
     if (!this.highColorCharacteristic) {
       throw new Error('No high color characteristic');
     }
-    
     const encoder = new TextEncoder();
     const colorString = `${color.r},${color.g},${color.b}`;
     await this.highColorCharacteristic.writeValue(encoder.encode(colorString));
     console.log(`Set high color to: ${colorString}`);
   }
-
-  async setLowColor(color: RGBColor): Promise<void> {
+  private async _setLowColorImmediate(color: RGBColor): Promise<void> {
     if (!this.lowColorCharacteristic) {
       throw new Error('No low color characteristic');
     }
-    
     const encoder = new TextEncoder();
     const colorString = `${color.r},${color.g},${color.b}`;
     await this.lowColorCharacteristic.writeValue(encoder.encode(colorString));
     console.log(`Set low color to: ${colorString}`);
+  }
+  private async _setLeftSeriesCoefficientsImmediate(coeffs: [number, number, number]): Promise<void> {
+    if (!this.leftSeriesCoefficientsCharacteristic) {
+      throw new Error('No left series coefficients characteristic');
+    }
+    const encoder = new TextEncoder();
+    const coeffsString = `${coeffs[0].toFixed(2)},${coeffs[1].toFixed(2)},${coeffs[2].toFixed(2)}`;
+    await this.leftSeriesCoefficientsCharacteristic.writeValue(encoder.encode(coeffsString));
+    console.log(`Set left series coefficients to: ${coeffsString}`);
+  }
+  private async _setRightSeriesCoefficientsImmediate(coeffs: [number, number, number]): Promise<void> {
+    if (!this.rightSeriesCoefficientsCharacteristic) {
+      throw new Error('No right series coefficients characteristic');
+    }
+    const encoder = new TextEncoder();
+    const coeffsString = `${coeffs[0].toFixed(2)},${coeffs[1].toFixed(2)},${coeffs[2].toFixed(2)}`;
+    await this.rightSeriesCoefficientsCharacteristic.writeValue(encoder.encode(coeffsString));
+    console.log(`Set right series coefficients to: ${coeffsString}`);
+  }
+
+  // Public debounced methods
+  setBrightness(value: number, delay: number = 100): void {
+    this.debouncedWrite('brightness', value, (v) => this._setBrightnessImmediate(v), delay);
+  }
+  setSpeed(value: number, delay: number = 100): void {
+    this.debouncedWrite('speed', value, (v) => this._setSpeedImmediate(v), delay);
+  }
+  setPattern(index: number, delay: number = 100): void {
+    this.debouncedWrite('pattern', index, (v) => this._setPatternImmediate(v), delay);
+  }
+
+  // Public debounced setter methods
+  setHighColor(color: RGBColor, delay: number = 100): void {
+    this.debouncedWrite('highColor', color, (v) => this._setHighColorImmediate(v), delay);
+  }
+  setLowColor(color: RGBColor, delay: number = 100): void {
+    this.debouncedWrite('lowColor', color, (v) => this._setLowColorImmediate(v), delay);
+  }
+  setLeftSeriesCoefficients(coeffs: [number, number, number], delay: number = 100): void {
+    this.debouncedWrite('leftSeriesCoefficients', coeffs, (v) => this._setLeftSeriesCoefficientsImmediate(v), delay);
+  }
+  setRightSeriesCoefficients(coeffs: [number, number, number], delay: number = 100): void {
+    this.debouncedWrite('rightSeriesCoefficients', coeffs, (v) => this._setRightSeriesCoefficientsImmediate(v), delay);
   }
 
   async getBrightness(): Promise<number> {
@@ -363,28 +398,6 @@ export class WebSRDriverController implements ISRDriverController {
     return { r, g, b };
   }
 
-  async setLeftSeriesCoefficients(coeffs: [number, number, number]): Promise<void> {
-    if (!this.leftSeriesCoefficientsCharacteristic) {
-      throw new Error('No left series coefficients characteristic');
-    }
-    
-    const encoder = new TextEncoder();
-    const coeffsString = `${coeffs[0].toFixed(2)},${coeffs[1].toFixed(2)},${coeffs[2].toFixed(2)}`;
-    await this.leftSeriesCoefficientsCharacteristic.writeValue(encoder.encode(coeffsString));
-    console.log(`Set left series coefficients to: ${coeffsString}`);
-  }
-
-  async setRightSeriesCoefficients(coeffs: [number, number, number]): Promise<void> {
-    if (!this.rightSeriesCoefficientsCharacteristic) {
-      throw new Error('No right series coefficients characteristic');
-    }
-    
-    const encoder = new TextEncoder();
-    const coeffsString = `${coeffs[0].toFixed(2)},${coeffs[1].toFixed(2)},${coeffs[2].toFixed(2)}`;
-    await this.rightSeriesCoefficientsCharacteristic.writeValue(encoder.encode(coeffsString));
-    console.log(`Set right series coefficients to: ${coeffsString}`);
-  }
-
   async getLeftSeriesCoefficients(): Promise<[number, number, number]> {
     if (!this.leftSeriesCoefficientsCharacteristic) {
       throw new Error('No left series coefficients characteristic');
@@ -422,5 +435,36 @@ export class WebSRDriverController implements ISRDriverController {
   async pulseBrightness(targetBrightness: number, durationMs: number): Promise<void> {
     const command = `pulse_brightness:${targetBrightness},${durationMs}`;
     await this.sendCommand(command);
+  }
+
+  async firePattern(patternIndex: number): Promise<void> {
+    const command = `fire_pattern:${patternIndex}`;
+    await this.sendCommand(command);
+  }
+
+  public getDeviceId(): string | undefined {
+    return this.device?.id;
+  }
+
+  public getService(): BluetoothRemoteGATTService | null {
+    return this.service;
+  }
+
+  private debouncedWrite<T>(
+    key: string,
+    value: T,
+    writeFn: (v: T) => Promise<void>,
+    delay: number = 100
+  ) {
+    if (!this._debouncers[key]) {
+      this._debouncers[key] = { timeout: null, lastValue: value };
+    }
+    this._debouncers[key].lastValue = value;
+    if (this._debouncers[key].timeout) {
+      clearTimeout(this._debouncers[key].timeout!);
+    }
+    this._debouncers[key].timeout = setTimeout(() => {
+      writeFn(this._debouncers[key].lastValue);
+    }, delay);
   }
 } 
