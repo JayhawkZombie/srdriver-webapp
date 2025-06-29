@@ -1,54 +1,42 @@
 // @ts-nocheck
 /* eslint-disable */
-// aubio.js Web Worker for onset/impulse detection (browser-compatible)
-// Uses the UMD build from CDN via importScripts to avoid Node polyfill issues
-// TypeScript and ESLint will complain about importScripts and global aubio, but these are valid in browser workers.
+// Pluggable audio worker for onset/impulse detection (browser-compatible)
+// Supports multiple engines: 'aubio', 'spectral-flux', etc.
 importScripts('https://cdn.jsdelivr.net/npm/aubiojs@latest/dist/aubio.js');
 import { DetectionEvent } from './types';
 
 let aubioModule = null;
 
 onmessage = async (e) => {
-  const { audioBuffer, sampleRate, params } = e.data;
-  if (!audioBuffer || !sampleRate) {
-    postMessage({ events: [], error: 'Missing audioBuffer or sampleRate' });
-    return;
-  }
+  const { audioBuffer, sampleRate, params = {}, engine = 'spectral-flux' } = e.data;
+  let events = [];
+  let error = null;
 
-  // Initialize aubiojs if not already
-  if (!aubioModule) {
-    try {
-      aubioModule = await aubio(); // aubio is now a global from importScripts
-    } catch (err) {
-      postMessage({ events: [], error: 'Failed to load aubiojs: ' + err });
-      return;
-    }
-  }
-
-  // Convert AudioBuffer to Float32Array if needed
-  let audioData;
-  if (audioBuffer instanceof Float32Array) {
-    audioData = audioBuffer;
-  } else if (audioBuffer.getChannelData) {
-    // AudioBuffer from Web Audio API
-    audioData = audioBuffer.getChannelData(0); // Use first channel
-  } else {
-    postMessage({ events: [], error: 'audioBuffer must be Float32Array or AudioBuffer' });
-    return;
-  }
-
-  // Create aubio onset detector
-  const hopSize = params?.hopSize || 512;
-  const method = params?.method || 'default'; // e.g., 'default', 'energy', 'hfc', 'complex', etc.
-  let onset;
   try {
-    onset = new aubioModule.Onset(method, 1024, hopSize, sampleRate);
-  } catch (err) {
-    postMessage({ events: [], error: 'Failed to create aubio onset detector: ' + err });
-    return;
+    if (engine === 'aubio') {
+      events = await detectWithAubio(audioBuffer, sampleRate, params);
+    } else if (engine === 'spectral-flux') {
+      events = detectWithSpectralFlux(audioBuffer, sampleRate, params);
+    } else {
+      error = 'Unknown engine: ' + engine;
+    }
+  } catch (e) {
+    error = e.message || String(e);
   }
 
-  // Run onset detection
+  postMessage({ events, error });
+};
+
+// --- Engine: aubiojs ---
+async function detectWithAubio(audioBuffer, sampleRate, params) {
+  if (!audioBuffer || !sampleRate) return [];
+  if (!aubioModule) {
+    aubioModule = await aubio();
+  }
+  let audioData = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
+  const hopSize = params?.hopSize || 512;
+  const method = params?.method || 'default';
+  let onset = new aubioModule.Onset(method, 1024, hopSize, sampleRate);
   const events = [];
   let frame = new Float32Array(hopSize);
   let nFrames = Math.floor(audioData.length / hopSize);
@@ -61,6 +49,31 @@ onmessage = async (e) => {
       events.push({ time });
     }
   }
+  return events;
+}
 
-  postMessage({ events });
-}; 
+// --- Engine: Custom Spectral Flux ---
+function detectWithSpectralFlux(audioBuffer, sampleRate, params) {
+  // Simple spectral flux onset detection (single channel)
+  if (!audioBuffer || !sampleRate) return [];
+  let audioData = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
+  const hopSize = params?.hopSize || 512;
+  const fftSize = params?.fftSize || 1024;
+  // Compute magnitude spectrum for each frame
+  const nFrames = Math.floor(audioData.length / hopSize);
+  let prevMag = null;
+  const events = [];
+  for (let i = 0; i < nFrames; i++) {
+    // Simple energy-based flux (replace with FFT for real spectral flux)
+    let frame = audioData.slice(i * hopSize, i * hopSize + hopSize);
+    let mag = frame.reduce((sum, v) => sum + Math.abs(v), 0) / hopSize;
+    if (prevMag !== null) {
+      let flux = mag - prevMag;
+      if (flux > 0.05) { // crude threshold
+        events.push({ time: (i * hopSize) / sampleRate, strength: flux });
+      }
+    }
+    prevMag = mag;
+  }
+  return events;
+} 
