@@ -149,6 +149,8 @@ export interface AppState {
   // Global selected device
   activeDeviceId: string | null;
   setActiveDeviceId: (id: string | null) => void;
+  bleLookaheadMs: number;
+  setBleLookaheadMs: (ms: number) => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -262,5 +264,7 @@ export const useAppStore = create<AppState>(
     // Global selected device
     activeDeviceId: null,
     setActiveDeviceId: (id) => set({ activeDeviceId: id }),
+    bleLookaheadMs: 150,
+    setBleLookaheadMs: (ms: number) => set({ bleLookaheadMs: ms }),
   }))
 ); 

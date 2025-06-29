@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography, Slider, FormControlLabel, Checkbox } from '@mui/material';
+import { useAppStore } from '../store/appStore';
 
 interface GlobalControlsProps {
   windowSec: number;
@@ -20,6 +21,9 @@ const GlobalControls: React.FC<GlobalControlsProps> = ({
   snapToWindow,
   onSnapToWindowChange,
 }) => {
+  const bleLookaheadMs = useAppStore(state => state.bleLookaheadMs);
+  const setBleLookaheadMs = useAppStore(state => state.setBleLookaheadMs);
+
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
       <Typography variant="body2" sx={{ ml: 2 }}>
@@ -35,6 +39,16 @@ const GlobalControls: React.FC<GlobalControlsProps> = ({
         sx={{ width: 180 }}
       />
       <Typography variant="body2">{windowSec}s</Typography>
+      <Slider
+        value={bleLookaheadMs}
+        onChange={(_, v) => setBleLookaheadMs(Number(v))}
+        min={0}
+        max={500}
+        step={5}
+        valueLabelDisplay="auto"
+        sx={{ width: 180, ml: 2 }}
+      />
+      <Typography variant="caption" sx={{ ml: 1 }}>BLE Lookahead (ms)</Typography>
       <FormControlLabel
         control={<Checkbox checked={followCursor} onChange={e => onFollowCursorChange(e.target.checked)} />}
         label="Follow Cursor"

@@ -154,6 +154,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const analysis = audioData.analysis;
     const bandDataArr = (analysis?.bandDataArr ?? []) as any[];
     const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
+    const bleLookaheadMs = useAppStore(state => state.bleLookaheadMs);
 
     // Debounced impulse handler using new paradigm
     const debouncedPulse = useDebouncedCallback(
@@ -461,7 +462,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
         const minStrength = Math.min(...impulseStrengths);
         const maxStrength = Math.max(...impulseStrengths);
         const prev = lastPlaybackTimeRef.current;
-        const curr = playbackTime;
+        const curr = playbackTime + (bleLookaheadMs / 1000);
         impulseTimes.forEach((time, idx) => {
             const key = `${bandData.band.name}|${time}`;
             const crossed = ((time > prev && time <= curr) || (time > curr && time <= prev));
@@ -477,7 +478,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
             emittedImpulseKeysRef.current.clear();
         }
         lastPlaybackTimeRef.current = curr;
-    }, [playbackTime, analysis, selectedBand]);
+    }, [playbackTime, analysis, selectedBand, bleLookaheadMs]);
 
     return (
         <ActiveDeviceContext.Provider value={{ activeDeviceId, setActiveDeviceId }}>
