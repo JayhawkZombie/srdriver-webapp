@@ -108,43 +108,10 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({
     }
 
     return (
-        <Paper
-            elevation={3}
-            sx={{
-                p: 1.5,
-                borderRadius: 2,
-                bgcolor: 'background.default',
-                border: '1px solid',
-                borderColor: 'divider',
-                minHeight: 120,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'flex-start',
-                position: 'fixed',
-                top: 32,
-                right: 32,
-                minWidth: 340,
-                zIndex: 2000,
-                boxShadow: 8,
-            }}
-        >
-            <IconButton
-                size="small"
-                onClick={() => setVisible(false)}
-                sx={{ position: 'absolute', top: 8, right: 8 }}
-                aria-label="Hide Lights Connection"
-            >
-                <CloseIcon fontSize="small" />
-            </IconButton>
+        <Box sx={{ p: 2, width: '100%', maxWidth: 380 }}>
             <Typography
                 variant="subtitle1"
-                sx={{
-                    mb: 1,
-                    fontWeight: 600,
-                    width: "100%",
-                    textAlign: "center",
-                }}
+                sx={{ mb: 1, fontWeight: 600, width: '100%', textAlign: 'center' }}
             >
                 Visualizer → Lights Connection
             </Typography>
@@ -318,7 +285,7 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({
                     </Box>
                 </>
             )}
-        </Paper>
+        </Box>
     );
 };
 

@@ -110,7 +110,11 @@ const HeartbeatManager: React.FC = () => {
           activeHeartbeatListeners.add(device.id);
           console.log('Added heartbeat event listener for device', device.id);
         } catch (e) {
-          console.error('Error subscribing to heartbeat notifications:', e);
+          if (e && typeof e === 'object' && (e as any).name === 'NotFoundError') {
+            console.warn('Heartbeat characteristic not found on device. Skipping heartbeat subscription.');
+          } else {
+            console.error('Error subscribing to heartbeat notifications:', e);
+          }
         }
       })();
     });

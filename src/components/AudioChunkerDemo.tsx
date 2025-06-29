@@ -39,8 +39,6 @@ import BandSelector from './BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { usePulseContext } from '../controllers/PulseContext';
 import { useToastContext } from '../controllers/ToastContext';
-import LightsConnectionCard from './LightsConnectionCard';
-import { useAppStore } from '../store/appStore';
 import PulseToolsCard from './PulseToolsCard';
 import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
 import { Device } from '../types/Device';
@@ -57,6 +55,7 @@ import FFTProcessingControls from './FFTProcessingControls';
 import { alpha } from '@mui/material/styles';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import Tooltip from '@mui/material/Tooltip';
+import { useAppStore } from '../store/appStore';
 
 interface ChunkSummary {
     numChunks: number;
@@ -444,28 +443,6 @@ const AudioChunkerDemo: React.FC = () => {
                                             <WarningAmberIcon color="warning" sx={{ ml: 1, verticalAlign: 'middle' }} />
                                         </Tooltip>
                                     )}
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', ml: 2, gap: 0.5, minWidth: 90 }}>
-                                        <TextField
-                                            label="FFT Window"
-                                            type="number"
-                                            size="small"
-                                            value={windowSize}
-                                            onChange={e => setWindowSize(Number(e.target.value))}
-                                            inputProps={{ min: 128, step: 128, style: { width: 70 } }}
-                                            sx={{ width: 90, mb: 0.5 }}
-                                            disabled={!file}
-                                        />
-                                        <TextField
-                                            label="Hop Size"
-                                            type="number"
-                                            size="small"
-                                            value={hopSize}
-                                            onChange={e => setHopSize(Number(e.target.value))}
-                                            inputProps={{ min: 1, step: 1, style: { width: 70 } }}
-                                            sx={{ width: 90 }}
-                                            disabled={!file}
-                                        />
-                                    </Box>
                                     <FFTProcessingControls
                                         windowSize={windowSize}
                                         setWindowSize={setWindowSize}
@@ -557,11 +534,6 @@ const AudioChunkerDemo: React.FC = () => {
                             </Box>
                             {/* Right: Visualizer → Lights Connection Placeholder */}
                             <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                <LightsConnectionCard
-                                    connectedDevices={connectedDevices}
-                                    activeDeviceId={activeDeviceId}
-                                    setActiveDeviceId={setActiveDeviceId}
-                                />
                                 <PulseToolsCard />
                                 <ImpulseResponseCard />
                             </Box>
