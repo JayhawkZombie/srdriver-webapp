@@ -48,6 +48,8 @@ export interface AudioDataAnalysis {
   fftSequence: (Float32Array | number[])[];
   summary: any;
   audioBuffer: any;
+  bandDataArr?: any[];
+  impulseStrengths?: number[][];
 }
 
 export interface AudioDataState {
@@ -55,12 +57,43 @@ export interface AudioDataState {
   analysis: AudioDataAnalysis | null;
 }
 
+export interface DeviceUIState {
+  brightness: number;
+  speed: number;
+  patternIndex: number;
+}
+
 export interface AppState {
   audioData: AudioDataState;
   setAudioData: (data: Partial<AudioDataState>) => void;
   devicesMetadata: { [macOrId: string]: { nickname: string } };
   setDeviceNickname: (macOrId: string, nickname: string) => void;
-  // Add more slices here as needed
+  devices: { [id: string]: DeviceUIState };
+  setDeviceState: (id: string, update: Partial<DeviceUIState>) => void;
+  // UI controls and toggles
+  selectedBand: string;
+  setSelectedBand: (band: string) => void;
+  windowSec: number;
+  setWindowSec: (sec: number) => void;
+  showFirstDerivative: boolean;
+  setShowFirstDerivative: (show: boolean) => void;
+  showSecondDerivative: boolean;
+  setShowSecondDerivative: (show: boolean) => void;
+  showImpulses: boolean;
+  setShowImpulses: (show: boolean) => void;
+  // Impulse controls (per band)
+  impulseThresholds: number[];
+  setImpulseThresholds: (thresholds: number[] | { index: number, value: number }) => void;
+  // Global normalized impulse threshold (in standard deviations)
+  normalizedImpulseThreshold: number;
+  setNormalizedImpulseThreshold: (value: number) => void;
+  // Impulse/FFT processing controls
+  impulseWindowSize: number; // How many frames apart for derivative (1 = current - prev)
+  setImpulseWindowSize: (n: number) => void;
+  impulseSmoothing: number; // Smoothing window for magnitude/derivative
+  setImpulseSmoothing: (n: number) => void;
+  impulseDetectionMode: 'second-derivative' | 'first-derivative' | 'z-score';
+  setImpulseDetectionMode: (mode: 'second-derivative' | 'first-derivative' | 'z-score') => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -69,6 +102,7 @@ const initialAudioData: AudioDataState = {
 };
 
 const initialDevicesMetadata: { [macOrId: string]: { nickname: string } } = {};
+const initialDevices: { [id: string]: DeviceUIState } = {};
 
 export const useAppStore = create<AppState>(
   persistWithIndexedDB<AppState>('app-state', (set, get) => ({
@@ -81,6 +115,45 @@ export const useAppStore = create<AppState>(
         [macOrId]: { nickname }
       }
     })),
-    // Add more actions/slices here
+    devices: initialDevices,
+    setDeviceState: (id, update) => set(state => ({
+      devices: {
+        ...state.devices,
+        [id]: { ...state.devices[id], ...update }
+      }
+    })),
+    // UI controls and toggles
+    selectedBand: 'Bass',
+    setSelectedBand: (band) => set({ selectedBand: band }),
+    windowSec: 4,
+    setWindowSec: (sec) => set({ windowSec: sec }),
+    showFirstDerivative: false,
+    setShowFirstDerivative: (show) => set({ showFirstDerivative: show }),
+    showSecondDerivative: false,
+    setShowSecondDerivative: (show) => set({ showSecondDerivative: show }),
+    showImpulses: true,
+    setShowImpulses: (show) => set({ showImpulses: show }),
+    // Impulse controls (per band, default 5 bands)
+    impulseThresholds: [50, 50, 50, 50, 50],
+    setImpulseThresholds: (payload) => set(state => {
+      if (Array.isArray(payload)) {
+        return { impulseThresholds: payload };
+      } else if (typeof payload === 'object' && payload.index !== undefined) {
+        const arr = [...state.impulseThresholds];
+        arr[payload.index] = payload.value;
+        return { impulseThresholds: arr };
+      }
+      return {};
+    }),
+    // Global normalized impulse threshold (in standard deviations)
+    normalizedImpulseThreshold: 2.0,
+    setNormalizedImpulseThreshold: (value: number) => set({ normalizedImpulseThreshold: value }),
+    // Impulse/FFT processing controls
+    impulseWindowSize: 1,
+    setImpulseWindowSize: (n) => set({ impulseWindowSize: n }),
+    impulseSmoothing: 1,
+    setImpulseSmoothing: (n) => set({ impulseSmoothing: n }),
+    impulseDetectionMode: 'second-derivative',
+    setImpulseDetectionMode: (mode) => set({ impulseDetectionMode: mode }),
   }))
 ); 

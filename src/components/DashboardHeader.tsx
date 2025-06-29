@@ -43,7 +43,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           }
         />
       )}
-      <DevAppStateViewer />
+      {/* <DevAppStateViewer />  // Disabled for performance while working with large audio/plot data */}
     </Toolbar>
     <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)} centered>
       <Tab label="Devices" />

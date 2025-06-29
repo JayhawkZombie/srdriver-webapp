@@ -11,11 +11,12 @@ import {
   Bluetooth as BluetoothIcon
 } from '@mui/icons-material';
 import PulseControlsPanel from './PulseControlsPanel';
-import { DeviceConnectionPanel } from '../controllers/DeviceControllerContext';
+import DeviceConnectionPanel from './DeviceConnectionPanel';
 import DeviceControls from './DeviceControls';
 import EditableNickname from './EditableNickname';
 import { useAppStore } from '../store/appStore';
-import { useSingleDevice } from '../controllers/DeviceControllerContext';
+import { useSingleDevice, useHeartbeatStatus } from '../controllers/DeviceControllerContext';
+import AnimatedStatusChip from './AnimatedStatusChip';
 
 interface DevicePanelProps {
   onConnect: () => Promise<void>;
@@ -28,6 +29,16 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ onConnect, onDisconnect, onUp
   const [error, setError] = useState<string | null>(null);
   const devicesMetadata = useAppStore(state => state.devicesMetadata);
   const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
+  const heartbeat = useHeartbeatStatus(device.id);
+  const prevPulse = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    console.log('DevicePanel effect running', heartbeat?.pulse, prevPulse.current, device.id);
+    if (heartbeat?.pulse && heartbeat.pulse !== prevPulse.current) {
+      console.log('Heartbeat!', device.id);
+    }
+    prevPulse.current = heartbeat?.pulse ?? null;
+  }, [heartbeat?.pulse, device.id]);
 
   const handleConnect = async () => {
     setError(null);
@@ -51,13 +62,20 @@ const DevicePanel: React.FC<DevicePanelProps> = ({ onConnect, onDisconnect, onUp
   return (
     <Card sx={{ mb: 2, p: 2 }}>
       <CardContent>
-        <Box sx={{ mb: 1 }}>
+        <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           <EditableNickname
             macOrId={device.macOrId}
             value={devicesMetadata[device.macOrId]?.nickname}
             fallbackName={device.name}
             onChange={nickname => setDeviceNickname(device.macOrId, nickname)}
             size="medium"
+          />
+          <AnimatedStatusChip
+            label={device.isConnected ? 'Connected' : device.isConnecting ? 'Connecting...' : 'Disconnected'}
+            color={device.isConnected ? 'success' : device.isConnecting ? 'warning' : 'default'}
+            isActive={!!heartbeat?.isAlive}
+            pulse={heartbeat?.pulse != null}
+            icon={<BluetoothIcon fontSize="small" color={heartbeat?.isAlive ? 'error' : 'disabled'} />}
           />
         </Box>
         {error && <Alert severity="error">{error}</Alert>}

@@ -4,6 +4,10 @@ import { useDeviceById } from '../controllers/DeviceControllerContext';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
+import { useAppStore } from '../store/appStore';
+import { Device } from '../types/Device';
+import { DeviceUIState, AppState } from '../store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 
 const patternNames = [
   'Pattern 0',
@@ -83,6 +87,17 @@ function LabeledSlider({
 
 const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, compact = false }) => {
   const device = useDeviceById(deviceId);
+  const { brightness, speed, patternIndex } = useAppStore(
+    useShallow((state: AppState) => {
+      const dev = state.devices[deviceId] as DeviceUIState | undefined;
+      return {
+        brightness: dev?.brightness ?? device?.brightness ?? 128,
+        speed: dev?.speed ?? device?.speed ?? 1,
+        patternIndex: dev?.patternIndex ?? device?.patternIndex ?? 0,
+      };
+    })
+  );
+  const setDeviceState = useAppStore((state) => state.setDeviceState);
   const [pulseDuration, setPulseDuration] = useState(1000);
   const [pulseTargetBrightness, setPulseTargetBrightness] = useState(255);
   const [isPulsing, setIsPulsing] = useState(false);
@@ -90,49 +105,28 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
   const [firePatternIndex, setFirePatternIndex] = useState(0);
   const [isFiringPattern, setIsFiringPattern] = useState(false);
 
-  const brightnessWriteRef = useRef(
-    debounce((controller, brightness) => {
-      setTimeout(() => {
-        controller.setBrightness(brightness).catch(() => {});
-      }, 0);
-    }, 100)
-  ).current;
-
-  const speedWriteRef = useRef(
-    debounce((controller, speed) => {
-      setTimeout(() => {
-        controller.setSpeed(speed).catch(() => {});
-      }, 0);
-    }, 100)
-  ).current;
-
-  const patternWriteRef = useRef(
-    debounce((controller, patternIndex) => {
-      setTimeout(() => {
-        controller.setPattern(patternIndex).catch(() => {});
-      }, 0);
-    }, 100)
-  ).current;
-
   const handleBrightnessChange = (event: React.SyntheticEvent | Event, value: number | number[]) => {
     if (!device || !device.controller) return;
-    const brightness = value as number;
-    onUpdate({ brightness });
-    brightnessWriteRef(device.controller, brightness);
+    const brightnessValue = value as number;
+    setDeviceState(deviceId, { brightness: brightnessValue });
+    onUpdate({ brightness: brightnessValue });
+    device.controller.setBrightness(brightnessValue);
   };
 
   const handleSpeedChange = (event: React.SyntheticEvent | Event, value: number | number[]) => {
     if (!device || !device.controller) return;
-    const speed = value as number;
-    onUpdate({ speed });
-    speedWriteRef(device.controller, speed);
+    const speedValue = value as number;
+    setDeviceState(deviceId, { speed: speedValue });
+    onUpdate({ speed: speedValue });
+    device.controller.setSpeed(speedValue);
   };
 
   const handlePatternChange = (event: any) => {
     if (!device || !device.controller) return;
-    const patternIndex = event.target.value;
-    onUpdate({ patternIndex });
-    patternWriteRef(device.controller, patternIndex);
+    const patternIndexValue = event.target.value;
+    setDeviceState(deviceId, { patternIndex: patternIndexValue });
+    onUpdate({ patternIndex: patternIndexValue });
+    device.controller.setPattern(patternIndexValue);
   };
 
   const handlePulseBrightness = async () => {
@@ -186,7 +180,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
               label=""
               min={0}
               max={255}
-              value={device.brightness}
+              value={brightness}
               onChange={handleBrightnessChange}
               size="small"
               sx={{ height: 18, minWidth: 0, maxWidth: '100%', fontSize: 10, p: 0, m: 0 }}
@@ -200,7 +194,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
               label=""
               min={0}
               max={255}
-              value={device.speed}
+              value={speed}
               onChange={handleSpeedChange}
               size="small"
               sx={{ height: 18, minWidth: 0, maxWidth: '100%', fontSize: 10, p: 0, m: 0 }}
@@ -210,7 +204,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
             <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Pattern</Typography>
             <FormControl fullWidth size="small" sx={{ mt: 0.5 }}>
               <InputLabel id="pattern-select-label" sx={{ fontSize: 12 }}>Pattern</InputLabel>
-              <Select labelId="pattern-select-label" onChange={handlePatternChange} value={device.patternIndex} label="Pattern" sx={{ fontSize: 12 }}>
+              <Select labelId="pattern-select-label" onChange={handlePatternChange} value={patternIndex} label="Pattern" sx={{ fontSize: 12 }}>
                 {patternNames.map((name, idx) => (
                   <MenuItem key={idx} value={idx} sx={{ fontSize: 12 }}>{name}</MenuItem>
                 ))}
@@ -276,7 +270,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
               label="Brightness"
               min={0}
               max={255}
-              value={device.brightness}
+              value={brightness}
               onChange={handleBrightnessChange}
               size="medium"
             />
@@ -286,7 +280,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
               label="Speed"
               min={0}
               max={255}
-              value={device.speed}
+              value={speed}
               onChange={handleSpeedChange}
               size="medium"
             />
@@ -295,7 +289,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
             <Typography variant="subtitle2" sx={{ fontSize: 16 }}>Pattern</Typography>
             <FormControl fullWidth size="medium" sx={{ mt: 0.5 }}>
               <InputLabel id="pattern-select-label">Pattern</InputLabel>
-              <Select labelId="pattern-select-label" onChange={handlePatternChange} value={device.patternIndex} label="Pattern">
+              <Select labelId="pattern-select-label" onChange={handlePatternChange} value={patternIndex} label="Pattern">
                 {patternNames.map((name, idx) => (
                   <MenuItem key={idx} value={idx}>{name}</MenuItem>
                 ))}

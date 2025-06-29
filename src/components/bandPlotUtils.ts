@@ -1,4 +1,3 @@
-import React, { useMemo } from 'react';
 import { PlotData, PlotType, Dash } from 'plotly.js';
 
 interface BandData {
@@ -9,6 +8,7 @@ interface BandData {
   derivatives: number[];
   secondDerivatives: number[];
   impulseStrengths: number[];
+  normalizedImpulseStrengths: number[];
 }
 
 export interface BandPlotData {
@@ -23,13 +23,12 @@ export interface BandPlotData {
   sliderStep: number;
   threshold: number;
   freq: number;
-  // traces: { [key: string]: Partial<PlotData> }; // keep for internal use
+  yAxisRange: [number, number];
 }
 
-interface UseBandPlotsProps {
+interface GetBandPlotDataOptions {
   bandDataArr: BandData[];
   xRange: [number, number];
-  impulseThresholds: number[];
   playbackTime: number;
   isDark: boolean;
   hopSize: number;
@@ -38,8 +37,13 @@ interface UseBandPlotsProps {
   axisColor: string;
   gridColor: string;
   plotBg: string;
-  setImpulseThresholds: (thresholds: number[]) => void;
+  normalizedImpulseThreshold: number;
+  impulseThresholds?: number[];
+  setImpulseThresholds?: (thresholds: number[]) => void;
 }
+
+// UI scaling factor for impulse strengths (to make slider more user-friendly)
+const IMPULSE_UI_SCALING = 1000;
 
 function lightenColor(hex: string, amount = 0.5) {
   const num = parseInt(hex.replace('#', ''), 16);
@@ -50,10 +54,22 @@ function lightenColor(hex: string, amount = 0.5) {
   return `rgb(${r},${g},${b})`;
 }
 
-const useBandPlots = ({
+// Helper to clamp dB values
+function clampDB(m: number) {
+  return Math.max(-80, Math.min(0, 20 * Math.log10(Math.max(m, 1e-6))));
+}
+
+// Helper to compute percentile
+function percentile(arr: number[], p: number) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.floor(p * (sorted.length - 1));
+  return sorted[idx];
+}
+
+export function getBandPlotData({
   bandDataArr,
   xRange,
-  impulseThresholds,
   playbackTime,
   isDark,
   hopSize,
@@ -62,53 +78,58 @@ const useBandPlots = ({
   axisColor,
   gridColor,
   plotBg,
+  normalizedImpulseThreshold,
+  impulseThresholds,
   setImpulseThresholds,
-}: UseBandPlotsProps): BandPlotData[] => {
+}: GetBandPlotDataOptions): BandPlotData[] {
+  // Debug: log a sample of the raw magnitudes and computed dB values for the first band
+  if (bandDataArr.length > 0) {
+    const sampleMags = bandDataArr[0].magnitudes.slice(0, 10);
+    const sampleDBs = sampleMags.map(clampDB);
+    console.log('[bandPlotUtils] Sample magnitudes:', sampleMags, 'Sample dB:', sampleDBs);
+  }
   // Compute static traces ONCE per band unless bandDataArr or display params change
-  const staticTracesArr = useMemo(() =>
-    bandDataArr.map((data: BandData) => {
-      const { band, bandIdx, binIdx, magnitudes, derivatives, secondDerivatives } = data;
-      const times = Array.from({ length: magnitudes.length }, (_, i) => (i * hopSize) / sampleRate);
-      // Precompute all static traces for the full data
-      return {
-        band,
-        bandIdx,
-        binIdx,
-        times,
-        magnitudeTrace: {
-          x: times,
-          y: magnitudes.map(m => 20 * Math.log10(m + 1e-6)),
-          type: 'scatter' as PlotType,
-          mode: 'lines' as const,
-          line: { color: band.color, width: 2 },
-          name: band.name,
-        },
-        derivativeTrace: {
-          x: times,
-          y: derivatives.map(m => 20 * Math.log10(Math.abs(m) + 1e-6)),
-          type: 'scatter' as PlotType,
-          mode: 'lines' as const,
-          line: { color: isDark ? lightenColor(band.color, 0.5) : 'rgba(255,0,255,0.5)', width: 3 },
-          name: band.name + ' Rate of Change',
-          yaxis: 'y2',
-        },
-        secondDerivativeTrace: {
-          x: times,
-          y: secondDerivatives.map(m => 20 * Math.log10(Math.abs(m) + 1e-6)),
-          type: 'scatter' as PlotType,
-          mode: 'lines' as const,
-          line: { color: 'cyan', width: 2 },
-          name: band.name + ' 2nd Derivative',
-          yaxis: 'y3',
-        },
-        magnitudes,
-        derivatives,
-        secondDerivatives,
-        impulseStrengths: data.impulseStrengths,
-      };
-    }),
-    [bandDataArr, hopSize, sampleRate, isDark]
-  );
+  const staticTracesArr = bandDataArr.map((data: BandData) => {
+    const { band, bandIdx, binIdx, magnitudes, derivatives, secondDerivatives } = data;
+    const times = Array.from({ length: magnitudes.length }, (_, i) => (i * hopSize) / sampleRate);
+    // Precompute all static traces for the full data
+    return {
+      band,
+      bandIdx,
+      binIdx,
+      times,
+      magnitudeTrace: {
+        x: times,
+        y: magnitudes.map(clampDB), // Clamp dB values
+        type: 'scatter' as PlotType,
+        mode: 'lines' as const,
+        line: { color: band.color, width: 2 },
+        name: band.name,
+      },
+      derivativeTrace: {
+        x: times,
+        y: derivatives.map(clampDB), // Clamp dB values
+        type: 'scatter' as PlotType,
+        mode: 'lines' as const,
+        line: { color: isDark ? lightenColor(band.color, 0.5) : 'rgba(255,0,255,0.5)', width: 3 },
+        name: band.name + ' Rate of Change',
+        yaxis: 'y2',
+      },
+      secondDerivativeTrace: {
+        x: times,
+        y: secondDerivatives.map(clampDB), // Clamp dB values
+        type: 'scatter' as PlotType,
+        mode: 'lines' as const,
+        line: { color: 'cyan', width: 2 },
+        name: band.name + ' 2nd Derivative',
+        yaxis: 'y3',
+      },
+      magnitudes,
+      derivatives,
+      secondDerivatives,
+      impulseStrengths: data.normalizedImpulseStrengths,
+    };
+  });
 
   // Now, for each band, compute the impulse trace only when threshold or xRange changes
   return staticTracesArr.map((staticData, bandIdx) => {
@@ -116,9 +137,15 @@ const useBandPlots = ({
     const [xMin, xMax] = xRange;
     // Only show impulses in the visible window
     const visibleIndices = times.map((t, i) => (t >= xMin && t <= xMax ? i : -1)).filter(i => i >= 0);
-    let threshold = impulseThresholds[bandIdx] ?? 50;
-    // Compute impulse indices for visible window only
+    let threshold = normalizedImpulseThreshold;
+    // Only impulses above the normalized threshold are plotted
     const impulseIndices = visibleIndices.filter(i => impulseStrengths[i] > threshold);
+    // Debug: log threshold and filtering results
+    if (visibleIndices.length > 0) {
+      console.log(`[Impulse Debug] Band: ${band.name}`);
+      console.log(`  Threshold: ${threshold}`);
+      console.log(`  Number of impulses above threshold:`, impulseIndices.length, 'of', visibleIndices.length);
+    }
     const impulseTimes = impulseIndices.map(i => times[i]);
     const impulseValues = impulseIndices.map(i => magnitudes[i]);
     const impulseStrengthVals = impulseIndices.map(i => impulseStrengths[i]);
@@ -126,24 +153,24 @@ const useBandPlots = ({
     const maxStrength = Math.max(...impulseStrengthVals, 1);
     const normStrengths = impulseStrengthVals.map((s: number) => (s - minStrength) / (maxStrength - minStrength || 1));
     const impulseColors = normStrengths.map((t: number) => `hsl(${240 - 240 * t}, 100%, 50%)`);
-    // Slider range for impulses (visible window only)
-    const visibleImpulseStrengths = visibleIndices.map(i => Math.abs(impulseStrengths[i]));
-    const bandMin = Math.min(...visibleImpulseStrengths, 0);
-    const bandMax = Math.max(...visibleImpulseStrengths, 1);
-    let sliderMin = bandMin;
-    let sliderMax = bandMax;
-    if (sliderMax === sliderMin) sliderMax = sliderMin + 1;
+    // Scale impulse strengths for UI
+    const visibleImpulseStrengths = visibleIndices.map(i => impulseStrengths[i]);
+    // Use percentiles for slider min/max
+    let sliderMin = -1; // Allow for some negative outliers
+    let sliderMax = 6; // 6 standard deviations above mean is very strong
     let sliderStep = Math.max((sliderMax - sliderMin) / 100, 0.001);
-    if (threshold < sliderMin || threshold > sliderMax) {
-      threshold = (sliderMin + sliderMax) / 2;
+    // Clamp threshold to slider range
+    let clampedThreshold = Math.max(sliderMin, Math.min(threshold, sliderMax));
+    if (impulseThresholds && setImpulseThresholds && threshold !== clampedThreshold) {
       const newThresholds = [...impulseThresholds];
-      newThresholds[bandIdx] = threshold;
+      newThresholds[bandIdx] = clampedThreshold;
       setImpulseThresholds(newThresholds);
+      threshold = clampedThreshold;
     }
     // Only the impulse trace is dynamic
     const impulsesTrace = {
       x: impulseTimes,
-      y: impulseIndices.map(i => 20 * Math.log10(magnitudes[i] + 1e-6)),
+      y: impulseIndices.map(i => clampDB(magnitudes[i])), // Clamp dB values
       type: 'scatter' as PlotType,
       mode: 'markers' as const,
       marker: { color: impulseColors, size: 10, symbol: 'x' },
@@ -176,8 +203,8 @@ const useBandPlots = ({
       sliderStep,
       threshold,
       freq: freqs[binIdx],
+      // Add a fixed y-axis range for dB
+      yAxisRange: [-80, 0],
     };
   });
-};
-
-export default useBandPlots; 
+} 

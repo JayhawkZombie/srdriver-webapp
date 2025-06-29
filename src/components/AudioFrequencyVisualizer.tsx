@@ -4,48 +4,22 @@ import { Box, Slider, Typography, Card, CardContent, Skeleton, CircularProgress 
 import { useTheme } from '@mui/material/styles';
 // @ts-ignore
 import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
-import useBandPlots, { BandPlotData } from './useBandPlots';
-import useAudioFrequencyData from './useAudioFrequencyData';
+import { getBandPlotData, BandPlotData } from './bandPlotUtils';
+import { useAppStore } from '../store/appStore';
 import { usePulseContext } from '../controllers/PulseContext';
 import { useImpulseResponse } from '../context/ImpulseResponseContext';
+import BandPlot from './BandPlot';
 
 interface AudioFrequencyVisualizerProps {
-  /**
-   * Sequence of FFT magnitude arrays (each is a Float32Array or number[])
-   * Each array represents one time slice (row in the spectrogram)
-   */
   fftSequence: (Float32Array | number[])[];
-  /**
-   * Sample rate of the audio (Hz)
-   */
   sampleRate: number;
-  /**
-   * FFT window size (number of samples per FFT)
-   */
   windowSize: number;
-  /**
-   * Max number of time slices to display (for scrolling effect)
-   */
   maxSlices?: number;
-  /**
-   * Hop size (number of samples between consecutive FFTs)
-   */
   hopSize: number;
-  /**
-   * The decoded AudioBuffer for playback (optional)
-   */
   audioBuffer?: AudioBuffer;
-  /**
-   * (Optional) Playback time in seconds, to externally control the cursor (e.g. from wavesurfer)
-   */
   playbackTime?: number;
-  windowSec: number;
   followCursor: boolean;
   snapToWindow: boolean;
-  showFirstDerivative: boolean;
-  showSecondDerivative: boolean;
-  showImpulses: boolean;
-  selectedBand: string;
   onImpulse?: (strength: number, min: number, max: number, bandName?: string, time?: number) => void;
 }
 
@@ -231,16 +205,12 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   fftSequence,
   sampleRate,
   windowSize,
+  maxSlices,
   hopSize,
   audioBuffer,
   playbackTime: externalPlaybackTime,
-  windowSec,
   followCursor,
   snapToWindow,
-  showFirstDerivative,
-  showSecondDerivative,
-  showImpulses,
-  selectedBand,
   onImpulse,
 }) => {
   const theme = useTheme();
@@ -254,82 +224,99 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
   }, [isDark]);
 
   // --- Playback state (move hooks to top) ---
-  const [internalPlaybackTime, setInternalPlaybackTime] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, etc.
-  const pausedAtRef = useRef<number>(0); // Where we paused
-
+  const [internalPlaybackTime] = useState(0);
   const playbackTime = externalPlaybackTime !== undefined ? externalPlaybackTime : internalPlaybackTime;
 
-  // --- Use new computation hook ---
-  const {
-    bandDataArr,
-    impulseThresholds,
-    setImpulseThresholds,
-    visualizing,
-    visualizationStatus,
-    xRange,
-    maxTime,
-    freqs,
-  } = useAudioFrequencyData({
-    fftSequence,
-    sampleRate,
-    hopSize,
-    bands: STANDARD_BANDS,
-    playbackTime,
-    windowSec,
-    followCursor,
-    snapToWindow,
-    isDark,
-    axisColor,
-    gridColor,
-    plotBg,
-  });
+  // --- Get static analysis data from Zustand global state ---
+  const analysis = useAppStore(state => state.audioData.analysis);
+  const bandDataArr = analysis?.bandDataArr ?? [];
+  const impulseStrengths = analysis?.impulseStrengths ?? [];
+  const globalFFTSequence = analysis?.fftSequence ?? [];
+  const globalAudioBuffer = analysis?.audioBuffer;
 
-  // Memoized band plots, only depends on bandDataArr and display toggles
-  const bandPlotsData: BandPlotData[] = useBandPlots({
-    bandDataArr,
-    xRange,
-    impulseThresholds,
-    playbackTime,
-    isDark,
-    hopSize,
-    sampleRate,
-    freqs,
-    axisColor,
-    gridColor,
-    plotBg,
-    setImpulseThresholds,
-  });
+  // UI controls and toggles from global state
+  const windowSec = useAppStore(state => state.windowSec);
+  const showFirstDerivative = useAppStore(state => state.showFirstDerivative);
+  const showSecondDerivative = useAppStore(state => state.showSecondDerivative);
+  const showImpulses = useAppStore(state => state.showImpulses);
+  const selectedBand = useAppStore(state => state.selectedBand);
+  const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
 
-  const numBins = fftSequence[0]?.length || 0;
+  // Use the passed-in props if provided, otherwise fall back to global state
+  const fftSeq = fftSequence && fftSequence.length > 0 ? fftSequence : globalFFTSequence;
+  const audioBuf = audioBuffer || globalAudioBuffer;
+
+  // Compute xRange and freqs locally
+  const numBins = fftSeq[0]?.length || 0;
+  const times = useMemo(() => Array.from({ length: fftSeq.length }, (_, i) => (i * hopSize) / sampleRate), [fftSeq.length, hopSize, sampleRate]);
+  const maxTime = times.length > 0 ? times[times.length - 1] : 0;
+  const freqs = useMemo(() => Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins)), [numBins, sampleRate]);
+  const xRange: [number, number] = useMemo(() => {
+    if (!followCursor) {
+      if (windowSec >= maxTime) {
+        return [0, maxTime];
+      } else {
+        return [0, windowSec];
+      }
+    } else {
+      if (windowSec >= maxTime) {
+        return [0, maxTime];
+      } else if (snapToWindow) {
+        const windowIdx = Math.floor(playbackTime / windowSec);
+        let start = windowIdx * windowSec;
+        let end = start + windowSec;
+        if (end > maxTime) {
+          end = maxTime;
+          start = Math.max(0, end - windowSec);
+        }
+        return [start, end];
+      } else if (playbackTime < windowSec / 2) {
+        return [0, windowSec];
+      } else if (playbackTime > maxTime - windowSec / 2) {
+        return [maxTime - windowSec, maxTime];
+      } else {
+        return [playbackTime - windowSec / 2, playbackTime + windowSec / 2];
+      }
+    }
+  }, [playbackTime, windowSec, snapToWindow, followCursor, maxTime]);
+
+  // Ensure impulseThresholds is a flat array of numbers
+  let initialImpulseThresholds: number[] = [];
+  if (Array.isArray(impulseStrengths)) {
+    initialImpulseThresholds = impulseStrengths.map(arr => Array.isArray(arr) ? arr[0] ?? 0 : arr);
+  }
+  const [localImpulseThresholds, setLocalImpulseThresholds] = useState<number[]>(initialImpulseThresholds);
+
+  // Compute band plot data for all bands using the new utility
+  const bandPlotsData: BandPlotData[] = useMemo(() => {
+    if (!Array.isArray(bandDataArr) || bandDataArr.length === 0) return [];
+    return getBandPlotData({
+      bandDataArr,
+      xRange,
+      normalizedImpulseThreshold,
+      playbackTime,
+      isDark,
+      hopSize,
+      sampleRate,
+      freqs,
+      axisColor,
+      gridColor,
+      plotBg,
+    });
+  }, [bandDataArr, xRange, normalizedImpulseThreshold, playbackTime, isDark, hopSize, sampleRate, freqs, axisColor, gridColor, plotBg]);
+
+  // Debug logs for state
+  console.log('bandDataArr', bandDataArr, 'selectedBand', selectedBand, 'bandPlotsData', bandPlotsData);
+
+  // Find the index of the selected band
+  const selectedBandIdx = useMemo(() => bandDataArr.findIndex(b => b?.band?.name?.toLowerCase() === selectedBand?.toLowerCase()), [bandDataArr, selectedBand]);
 
   // Show a message if there is no data to display
-  if (bandPlotsData.length === 0 || bandPlotsData.every(b => !b.traces.magnitude.x || b.traces.magnitude.x.length === 0)) {
+  if (bandDataArr.length === 0 || selectedBandIdx === -1) {
     return <Typography sx={{mt:2, textAlign:'center'}}>No data to display. Try loading and processing audio.</Typography>;
   }
 
   if (numBins === 0) return null;
-
-  if (visualizing) {
-    return (
-      <Box sx={{ width: '100%', maxWidth: 700, mx: 'auto', my: 2, textAlign: 'center' }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
-          <CircularProgress sx={{ mb: 2 }} />
-          <Typography variant="h6">
-            {visualizationStatus || 'Preparing visualizations...'}
-          </Typography>
-        </Box>
-        {[0,1,2,3,4].map(i => (
-          <Box key={i} sx={{ mb: 2 }}>
-            <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 2, mb: 1 }} />
-            <Skeleton variant="text" width="40%" />
-            <Skeleton variant="text" width="60%" />
-          </Box>
-        ))}
-      </Box>
-    );
-  }
 
   return (
     <Box
@@ -349,27 +336,16 @@ const AudioFrequencyVisualizer: React.FC<AudioFrequencyVisualizerProps> = ({
       <Typography variant="h5" sx={{ mb: 1 }}>
         Frequency Band Magnitude Over Time
       </Typography>
-      {/* Band plot list (no virtualization) */}
-      {bandPlotsData
-        .filter(data => data.band.name === selectedBand)
-        .map(data => (
-          <Box key={data.band.name}>
-            <BandPlotCard
-              data={data}
-              xRange={xRange}
-              axisColor={axisColor}
-              gridColor={gridColor}
-              plotBg={plotBg}
-              showImpulses={showImpulses}
-              impulseThresholds={impulseThresholds}
-              setImpulseThresholds={setImpulseThresholds}
-              showFirstDerivative={showFirstDerivative}
-              showSecondDerivative={showSecondDerivative}
-              playbackTime={playbackTime}
-              onImpulse={onImpulse}
-            />
-          </Box>
-        ))}
+      {/* Render the selected band plot using the new BandPlot component */}
+      <BandPlot
+        bandIdx={selectedBandIdx}
+        xRange={xRange}
+        playbackTime={playbackTime}
+        isDark={isDark}
+        axisColor={axisColor}
+        gridColor={gridColor}
+        plotBg={plotBg}
+      />
     </Box>
   );
 };

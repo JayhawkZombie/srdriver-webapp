@@ -14,7 +14,8 @@ import {
     Skeleton,
     LinearProgress,
     Snackbar,
-    Alert
+    Alert,
+    Slider
 } from '@mui/material';
 import {
     decodeAudioFile,
@@ -44,6 +45,11 @@ import { useDebouncedCallback } from './useDebouncedCallback';
 import ImpulseResponseCard from './ImpulseResponseCard';
 import AudioChunkerDemoPlotArea from './AudioChunkerDemoPlotArea';
 import { ImpulseResponseProvider } from '../context/ImpulseResponseContext';
+// Import the visualization worker
+// @ts-ignore
+import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
+import { del } from 'idb-keyval';
+import FFTProcessingControls from './FFTProcessingControls';
 
 interface ChunkSummary {
     numChunks: number;
@@ -70,6 +76,14 @@ export function useActiveDevice() {
     return ctx;
 }
 
+const BAND_DEFINITIONS = [
+    { name: 'Bass', freq: 60, color: 'blue' },
+    { name: 'Low Mid', freq: 250, color: 'green' },
+    { name: 'Mid', freq: 1000, color: 'orange' },
+    { name: 'Treble', freq: 4000, color: 'red' },
+    { name: 'High Treble', freq: 8000, color: 'purple' },
+];
+
 const AudioChunkerDemo: React.FC = () => {
     const [file, setFile] = useState<File | null>(null);
     const [windowSize, setWindowSize] = useState<number>(DEFAULT_WINDOW_SIZE);
@@ -83,13 +97,18 @@ const AudioChunkerDemo: React.FC = () => {
     const [playbackTime, setPlaybackTime] = useState(0);
     const audioWorkerRef = useRef<Worker | null>(null);
     const [processingProgress, setProcessingProgress] = useState<{ processed: number, total: number } | null>(null);
-    const [windowSec, setWindowSec] = useState(4);
+    const windowSec = useAppStore(state => state.windowSec);
+    const setWindowSec = useAppStore(state => state.setWindowSec);
+    const showFirstDerivative = useAppStore(state => state.showFirstDerivative);
+    const setShowFirstDerivative = useAppStore(state => state.setShowFirstDerivative);
+    const showSecondDerivative = useAppStore(state => state.showSecondDerivative);
+    const setShowSecondDerivative = useAppStore(state => state.setShowSecondDerivative);
+    const showImpulses = useAppStore(state => state.showImpulses);
+    const setShowImpulses = useAppStore(state => state.setShowImpulses);
+    const selectedBand = useAppStore(state => state.selectedBand);
+    const setSelectedBand = useAppStore(state => state.setSelectedBand);
     const [followCursor, setFollowCursor] = useState(false);
     const [snapToWindow, setSnapToWindow] = useState(true);
-    const [showFirstDerivative, setShowFirstDerivative] = useState(false);
-    const [showSecondDerivative, setShowSecondDerivative] = useState(false);
-    const [showImpulses, setShowImpulses] = useState(true);
-    const [selectedBand, setSelectedBand] = useState('');
     const { devices } = useDeviceControllerContext();
     const connectedDevices = devices.filter(d => d.isConnected);
     const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
@@ -99,6 +118,11 @@ const AudioChunkerDemo: React.FC = () => {
     const audioBufferRef = useRef<AudioBuffer | null>(null);
     const { values } = usePulseTools();
     const activeDevice = devices.find(d => d.id === activeDeviceId);
+    const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
+    const setNormalizedImpulseThreshold = useAppStore(state => state.setNormalizedImpulseThreshold);
+    const impulseWindowSize = useAppStore(state => state.impulseWindowSize);
+    const impulseSmoothing = useAppStore(state => state.impulseSmoothing);
+    const impulseDetectionMode = useAppStore(state => state.impulseDetectionMode);
 
     // Debounce state for pulses
     const pulseInProgressRef = React.useRef(false);
@@ -121,8 +145,19 @@ const AudioChunkerDemo: React.FC = () => {
         values.current.debounceMs
     );
 
+    // Visualization worker ref
+    const visualizationWorkerRef = useRef<Worker | null>(null);
+
+    // State for showing clear confirmation
+    const [clearMsg, setClearMsg] = useState<string | null>(null);
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
+            // Clear persisted app state in IndexedDB when a new file is uploaded
+            del('app-state').then(() => {
+                setClearMsg('Cleared app-state from IndexedDB');
+                setTimeout(() => setClearMsg(null), 2000);
+            });
             setFile(e.target.files[0]);
             setAudioData({ analysis: null, metadata: null });
             setAudioUrl(URL.createObjectURL(e.target.files[0]));
@@ -137,6 +172,8 @@ const AudioChunkerDemo: React.FC = () => {
     useEffect(() => {
         // @ts-ignore
         audioWorkerRef.current = new Worker(new URL('../controllers/audioWorker.ts', import.meta.url));
+        // @ts-ignore
+        visualizationWorkerRef.current = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url));
         audioWorkerRef.current.onmessage = (e) => {
             const { type, processed, total, summary, fftSequence } = e.data;
             if (type === 'progress') {
@@ -146,17 +183,46 @@ const AudioChunkerDemo: React.FC = () => {
                 if (audioBuffer && summary) {
                     summary.totalDurationMs = audioBuffer.duration * 1000;
                 }
-                setAudioData({ analysis: {
-                    fftSequence: fftSequence ?? [],
-                    summary: summary ?? null,
-                    audioBuffer: audioBuffer ?? null
-                }});
-                setLoading(false);
-                setProcessingProgress(null);
+                // After audio worker is done, call visualization worker
+                if (visualizationWorkerRef.current && fftSequence && fftSequence.length > 0) {
+                    visualizationWorkerRef.current.onmessage = (ve: MessageEvent) => {
+                        const { bandDataArr } = ve.data;
+                        setAudioData({
+                            analysis: {
+                                fftSequence: fftSequence ?? [],
+                                summary: summary ?? null,
+                                audioBuffer: audioBuffer ?? null,
+                                bandDataArr,
+                                impulseStrengths: bandDataArr.map((b: any) => b.impulseStrengths),
+                            }
+                        });
+                        setLoading(false);
+                        setProcessingProgress(null);
+                    };
+                    visualizationWorkerRef.current.postMessage({
+                        fftSequence: fftSequence.map((arr: any) => Array.from(arr)),
+                        bands: BAND_DEFINITIONS,
+                        sampleRate: audioBuffer?.sampleRate || 44100,
+                        hopSize: summary?.hopSize || 512,
+                        impulseWindowSize,
+                        impulseSmoothing,
+                        impulseDetectionMode,
+                    });
+                } else {
+                    // Fallback: just save fftSequence etc.
+                    setAudioData({ analysis: {
+                        fftSequence: fftSequence ?? [],
+                        summary: summary ?? null,
+                        audioBuffer: audioBuffer ?? null
+                    }});
+                    setLoading(false);
+                    setProcessingProgress(null);
+                }
             }
         };
         return () => {
             audioWorkerRef.current?.terminate();
+            visualizationWorkerRef.current?.terminate();
         };
     }, []);
 
@@ -230,7 +296,7 @@ const AudioChunkerDemo: React.FC = () => {
         ) {
             setSelectedBand('Bass');
         }
-    }, [audioData.analysis, selectedBand]);
+    }, [audioData.analysis, selectedBand, setSelectedBand]);
 
     useEffect(() => {
         if (connectedDevices.length > 0 && !activeDeviceId) {
@@ -239,6 +305,14 @@ const AudioChunkerDemo: React.FC = () => {
             setActiveDeviceId(null);
         }
     }, [connectedDevices, activeDeviceId]);
+
+    // Handler for manual clear
+    const handleClearAppState = () => {
+        del('app-state').then(() => {
+            setClearMsg('Cleared app-state from IndexedDB');
+            setTimeout(() => setClearMsg(null), 2000);
+        });
+    };
 
     return (
         <ActiveDeviceContext.Provider value={{ activeDeviceId, setActiveDeviceId }}>
@@ -400,10 +474,39 @@ const AudioChunkerDemo: React.FC = () => {
                                     activeDeviceId={activeDeviceId}
                                     setActiveDeviceId={setActiveDeviceId}
                                 />
+                                <PulseToolsCard />
                                 <ImpulseResponseCard />
                             </Box>
                         </Box>
                     </ImpulseResponseProvider>
+                    {/* Button to manually clear app state from IndexedDB */}
+                    <Button variant="outlined" color="error" size="small" onClick={handleClearAppState} sx={{ mb: 1 }}>
+                        Clear App State (IndexedDB)
+                    </Button>
+                    {clearMsg && <Alert severity="info" sx={{ mb: 1 }}>{clearMsg}</Alert>}
+                    {/* FFT/Impulse Processing Controls - always visible */}
+                    <FFTProcessingControls />
+                    <Typography variant="h5" sx={{ mb: 1 }}>
+                        Frequency Band Magnitude Over Time
+                    </Typography>
+                    {/* Global Impulse Threshold Slider */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
+                        <Typography variant="body2" sx={{ minWidth: 120, fontWeight: 500, fontSize: 15 }}>
+                            Impulse Strength Threshold (std dev):
+                        </Typography>
+                        <Slider
+                            min={-1}
+                            max={6}
+                            step={0.05}
+                            value={normalizedImpulseThreshold}
+                            onChange={(_, v) => setNormalizedImpulseThreshold(typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0))}
+                            valueLabelDisplay="on"
+                            valueLabelFormat={v => (typeof v === 'number' ? v.toFixed(2) : v)}
+                            size="small"
+                            sx={{ width: 220, ml: 0, mr: 2 }}
+                            marks={false}
+                        />
+                    </Box>
                 </Paper>
             </PulseToolsProvider>
         </ActiveDeviceContext.Provider>

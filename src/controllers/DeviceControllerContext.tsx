@@ -29,7 +29,7 @@ const heartbeatHandlerMap: WeakMap<BluetoothRemoteGATTCharacteristic, (event: an
 const activeHeartbeatListeners = new Set<string>();
 
 // Heartbeat context for decoupled heartbeat/pulse state
-type HeartbeatStatus = { last: number | null; isAlive: boolean; pulse: boolean };
+type HeartbeatStatus = { last: number | null; isAlive: boolean; pulse: number | null };
 type HeartbeatMap = { [deviceId: string]: HeartbeatStatus };
 const HeartbeatContext = createContext<{
   heartbeat: HeartbeatMap;
@@ -76,23 +76,33 @@ const HeartbeatManager: React.FC = () => {
           handler = (event: any) => {
             if (cancelled) return;
             const now = Date.now();
-            setHeartbeat(prev => ({
-              ...prev,
-              [device.id]: {
-                last: now,
-                isAlive: true,
-                pulse: true,
-              },
-            }));
+            console.log('BLE heartbeat event for', device.id, 'at', now);
+            setHeartbeat(prev => {
+              const newState = {
+                ...prev,
+                [device.id]: {
+                  last: now,
+                  isAlive: true,
+                  pulse: now,
+                },
+              };
+              console.log('setHeartbeat (pulse true)', device.id, newState[device.id]);
+              return newState;
+            });
             // Fire all onHeartbeat callbacks for this device
             if (heartbeatEventCallbacks.current[device.id]) {
               heartbeatEventCallbacks.current[device.id].forEach(cb => cb());
             }
             setTimeout(() => {
-              setHeartbeat(prev => prev[device.id] ? {
-                ...prev,
-                [device.id]: { ...prev[device.id], pulse: false }
-              } : prev);
+              setHeartbeat(prev => {
+                if (!prev[device.id]) return prev;
+                const newState = {
+                  ...prev,
+                  [device.id]: { ...prev[device.id], pulse: null }
+                };
+                console.log('setHeartbeat (pulse false)', device.id, newState[device.id]);
+                return newState;
+              });
             }, 300);
           };
           char.addEventListener('characteristicvaluechanged', handler);
