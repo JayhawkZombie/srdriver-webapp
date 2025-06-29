@@ -69,12 +69,10 @@ const HeartbeatManager: React.FC = () => {
           const prevHandler = heartbeatHandlerMap.get(char);
           if (prevHandler) {
             char.removeEventListener('characteristicvaluechanged', prevHandler);
-            console.log('Removed previous heartbeat event listener for device', device.id);
           }
           handler = (event: any) => {
             if (cancelled) return;
             const now = Date.now();
-            console.log('BLE heartbeat event for', device.id, 'at', now);
             setHeartbeat(prev => {
               const newState = {
                 ...prev,
@@ -84,7 +82,6 @@ const HeartbeatManager: React.FC = () => {
                   pulse: now,
                 },
               };
-              console.log('setHeartbeat (pulse true)', device.id, newState[device.id]);
               return newState;
             });
             // Fire all onHeartbeat callbacks for this device
@@ -98,7 +95,6 @@ const HeartbeatManager: React.FC = () => {
                   ...prev,
                   [device.id]: { ...prev[device.id], pulse: null }
                 };
-                console.log('setHeartbeat (pulse false)', device.id, newState[device.id]);
                 return newState;
               });
             }, 300);
@@ -106,12 +102,9 @@ const HeartbeatManager: React.FC = () => {
           char.addEventListener('characteristicvaluechanged', handler);
           heartbeatHandlerMap.set(char, handler);
           activeHeartbeatListeners.add(device.id);
-          console.log('Added heartbeat event listener for device', device.id);
         } catch (e) {
           if (e && typeof e === 'object' && (e as any).name === 'NotFoundError') {
-            console.warn('Heartbeat characteristic not found on device. Skipping heartbeat subscription.');
           } else {
-            console.error('Error subscribing to heartbeat notifications:', e);
           }
         }
       })();
@@ -130,7 +123,6 @@ const HeartbeatManager: React.FC = () => {
               if (handler) {
                 char.removeEventListener('characteristicvaluechanged', handler);
                 heartbeatHandlerMap.delete(char);
-                console.log('Cleaned up heartbeat event listener for device', device.id);
               }
             } catch (e) {
               // ignore
@@ -282,7 +274,6 @@ export const DeviceConnectionPanel: React.FC = () => {
 
   // Use a stable callback to avoid runaway subscriptions
   const heartbeatLogger = React.useCallback(() => {
-    console.log('Heartbeat');
   }, []);
   useHeartbeat(devices[0]?.id, heartbeatLogger);
 

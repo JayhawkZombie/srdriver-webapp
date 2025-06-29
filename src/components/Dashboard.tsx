@@ -16,6 +16,8 @@ import DashboardHeader from './DashboardHeader';
 import { SingleDeviceProvider } from '../controllers/DeviceControllerContext';
 import LightsConnectionCard from './LightsConnectionCard';
 import FirePatternOnImpulse from './FirePatternOnImpulse';
+import TestbedModal from './testbed/TestbedModal';
+import TestHarnessContent from './testbed/TestHarnessContent';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -25,6 +27,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
   const { devices } = useDeviceControllerContext();
   const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false);
+  const [testbedModalOpen, setTestbedModalOpen] = useState(false);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [activeDeviceId, setActiveDeviceId] = useState<string | null>(devices[0]?.id ?? null);
 
@@ -37,6 +40,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
           onToggleMode={onToggleMode}
           onOpenConnectionDrawer={() => setConnectionDrawerOpen(true)}
           onOpenLeftDrawer={() => setLeftDrawerOpen(true)}
+          onOpenTestbedModal={() => setTestbedModalOpen(true)}
         />
         <Box sx={{ flexGrow: 1, width: '100%', py: 1, px: 0, m: 0 }}>
           <PulseControlsProvider>
@@ -62,6 +66,12 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
       >
         <LightsConnectionCard />
       </Drawer>
+      <TestbedModal
+        open={testbedModalOpen}
+        onClose={() => setTestbedModalOpen(false)}
+      >
+        <TestHarnessContent />
+      </TestbedModal>
     </Box>
   );
 };
