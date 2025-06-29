@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Typography, Box, Button, List, ListItem, CircularProgress } from '@mui/material';
-import { DetectionEvent } from '../upgrade/types';
+import type { DetectionEvent } from '../upgrade/types';
 
-// @ts-ignore
-const worker = new Worker(new URL('../upgrade/aubioWorker.ts', import.meta.url), { type: 'module' });
+// @ts-expect-error "needed import for aubioWorker"
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const worker = new Worker(new URL('../../workers/aubioWorker.ts', import.meta.url), { type: 'module' });
 
 const SAMPLE_URL = 'https://cdn.jsdelivr.net/gh/mdn/webaudio-examples/voice-change-o-matic/audio/concert-crowd.ogg';
 

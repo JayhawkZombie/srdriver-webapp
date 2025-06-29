@@ -9,8 +9,6 @@ interface DeviceSidebarProps {
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
   devices: any[];
-  selectedDeviceIndex: number;
-  setSelectedDeviceIndex: (index: number) => void;
   addDevice: () => void;
   removeDevice: (id: string) => void;
 }
@@ -20,17 +18,21 @@ const DeviceSidebar: React.FC<DeviceSidebarProps> = ({
   drawerOpen,
   setDrawerOpen,
   devices,
-  selectedDeviceIndex,
-  setSelectedDeviceIndex,
   addDevice,
   removeDevice
 }) => {
-  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
-    setSelectedDeviceIndex(newValue);
-  };
-
+  const activeDeviceId = useAppStore(state => state.activeDeviceId);
+  const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
   const devicesMetadata = useAppStore(state => state.devicesMetadata);
   const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
+
+  // Find the index of the active device
+  const selectedDeviceIndex = devices.findIndex(d => d.id === activeDeviceId);
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    if (devices[newValue]) {
+      setActiveDeviceId(devices[newValue].id);
+    }
+  };
 
   if (mainTab === 0) {
     return (

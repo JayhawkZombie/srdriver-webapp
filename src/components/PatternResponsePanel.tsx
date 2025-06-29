@@ -1,13 +1,14 @@
-import React, { useState, createContext, useContext } from 'react';
-import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Button, Alert, Stack } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Button, Stack, Snackbar, Alert } from '@mui/material';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { useAppStore } from '../store/appStore';
+import type { Device } from '../types/Device';
 
 const PATTERN_COUNT = 18;
 
 const firePattern = (
   patternIndex: number,
-  activeDevice: any,
+  activeDevice: Device | undefined,
   setSuccess: (msg: string) => void,
   setError: (msg: string) => void,
   setIsFiring: (v: boolean) => void
@@ -25,12 +26,6 @@ const firePattern = (
     .then(() => setSuccess(`Fired pattern ${patternIndex}`))
     .catch((e: any) => setError(e.message || 'Failed to fire pattern'))
     .finally(() => setIsFiring(false));
-};
-
-// fireSelectedPattern: utility to fire a pattern on a given device and pattern index
-export const fireSelectedPattern = (patternIndex: number, activeDevice: any) => {
-  if (!activeDevice || !activeDevice.controller) return;
-  activeDevice.controller.firePattern(patternIndex);
 };
 
 /**
@@ -73,25 +68,73 @@ export function fireCurrentPattern() {
   }
 }
 
+// Utility to fire a pattern on the currently active device (by id)
+export function fireSelectedPattern(patternIndex: number, devices: Device[], activeDeviceId: string | null) {
+  const device = devices.find(d => d.id === activeDeviceId && d.isConnected);
+  if (device && device.controller) {
+    device.controller.firePattern(patternIndex);
+  } else {
+    console.warn('[fireSelectedPattern] No connected device to fire pattern on.', { patternIndex, activeDeviceId, devices });
+  }
+}
+
 const PatternResponsePanel: React.FC = () => {
   const { devices } = useDeviceControllerContext();
-  const activeDevice = devices.find(d => d.isConnected);
+  const activeDeviceId = useAppStore(state => state.activeDeviceId);
+  const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
+  const connectedDevices = devices.filter(d => d.isConnected);
+  // Use activeDeviceId if set, else default to first connected
+  const selectedDevice = connectedDevices.find(d => d.id === activeDeviceId) || connectedDevices[0];
   const patternIndex = useAppStore(state => state.patternResponseIndex || 0);
   const setPatternIndex = useAppStore(state => state.setPatternResponseIndex);
   const [isFiring, setIsFiring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Show Snackbar when error/success changes
+  React.useEffect(() => {
+    if (error) {
+      setShowError(true);
+      setShowSuccess(false);
+    } else if (success) {
+      setShowSuccess(true);
+      setShowError(false);
+    }
+  }, [error, success]);
+
+  const handleCloseSnackbar = () => {
+    setShowError(false);
+    setShowSuccess(false);
+    setError(null);
+    setSuccess(null);
+  };
 
   const handleFire = () => {
-    firePattern(patternIndex, activeDevice, setSuccess, setError, setIsFiring);
+    console.log('[PatternResponsePanel] Firing pattern', patternIndex, 'on device', selectedDevice?.id, selectedDevice);
+    firePattern(patternIndex, selectedDevice, (msg) => { setSuccess(msg); setShowSuccess(true); }, (msg) => { setError(msg); setShowError(true); }, setIsFiring);
   };
 
   return (
-    <Box sx={{ p: 1 }}>
+    <Box sx={{ p: 1, position: 'relative' }}>
       <Typography variant="h6" sx={{ mb: 2 }}>Pattern Response</Typography>
-      {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 1 }}>{success}</Alert>}
       <Stack direction="row" spacing={2} alignItems="center">
+        {connectedDevices.length > 1 && (
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel id="device-select-label">Device</InputLabel>
+            <Select
+              labelId="device-select-label"
+              value={selectedDevice?.id || ''}
+              label="Device"
+              onChange={e => setActiveDeviceId(e.target.value)}
+            >
+              {connectedDevices.map(d => (
+                <MenuItem key={d.id} value={d.id}>{d.name || d.id}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel id="pattern-select-label">Pattern</InputLabel>
           <Select
@@ -114,8 +157,32 @@ const PatternResponsePanel: React.FC = () => {
           {isFiring ? 'Firing...' : 'Fire'}
         </Button>
       </Stack>
+      <Snackbar
+        open={!!showSuccess && !!success}
+        autoHideDuration={2000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        {typeof success === 'string' && success.length > 0 && (
+          <Alert onClose={handleCloseSnackbar} severity="success" sx={{ width: '100%' }}>
+            {success}
+          </Alert>
+        )}
+      </Snackbar>
+      <Snackbar
+        open={!!showError && !!error}
+        autoHideDuration={2000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        {typeof error === 'string' && error.length > 0 && (
+          <Alert onClose={handleCloseSnackbar} severity="error" sx={{ width: '100%' }}>
+            {error}
+          </Alert>
+        )}
+      </Snackbar>
     </Box>
   );
 };
 
-export default PatternResponsePanel; 
+export default PatternResponsePanel;

@@ -1,6 +1,6 @@
 import { PlotData, PlotType, Dash } from 'plotly.js';
 
-interface BandData {
+export interface BandData {
   band: { name: string; color: string };
   bandIdx: number;
   binIdx: number;
@@ -30,6 +30,7 @@ export interface BandPlotData {
   detectionFunction?: number[];
   thresholdArr?: number[];
   sustainedImpulses?: number[];
+  magnitudes: number[];
 }
 
 interface GetBandPlotDataOptions {
@@ -61,7 +62,7 @@ function lightenColor(hex: string, amount = 0.5) {
 }
 
 // Helper to clamp dB values
-function clampDB(m: number) {
+export function clampDB(m: number) {
   return Math.max(-80, Math.min(0, 20 * Math.log10(Math.max(m, 1e-6))));
 }
 
@@ -207,6 +208,7 @@ export function getBandPlotData({
       detectionFunction,
       thresholdArr: threshold,
       sustainedImpulses,
+      magnitudes,
     };
   });
 } 

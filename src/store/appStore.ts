@@ -4,36 +4,38 @@ import { set as idbSet, get as idbGet } from 'idb-keyval';
 
 // --- Generic IndexedDB middleware ---
 export function persistWithIndexedDB<T extends object>(key: string, config: StateCreator<T>): StateCreator<T> {
-  return (set, get, api) => {
+  return (set, _get, api) => {
     // Only hydrate if store is at initial state
-    idbGet(key).then((stored: any) => {
+    idbGet(key).then((stored: unknown) => {
       // Only hydrate if store is at initial state
-      if (stored) {
-        if (stored.audioData) {
-          set((state: any) => ({ ...state, audioData: stored.audioData }));
+      if (stored && typeof stored === 'object' && stored !== null) {
+        const s = stored as Partial<AppState>;
+        if (s.audioData) {
+          set((state: T) => ({ ...state, audioData: s.audioData } as T));
         }
-        if (stored.devicesMetadata) {
-          set((state: any) => ({ ...state, devicesMetadata: stored.devicesMetadata }));
+        if (s.devicesMetadata) {
+          set((state: T) => ({ ...state, devicesMetadata: s.devicesMetadata } as T));
         }
       }
     });
     // Wrap set to persist to IndexedDB
     const setAndPersist: typeof set = (fnOrObj) => {
       set(fnOrObj);
-      const state = get();
+      // Use type assertion to AppState for persisted fields
+      const state = _get() as unknown as AppState;
       // Only persist serializable, minimal state
       const stateToPersist = {
         audioData: {
-          metadata: (state as any).audioData?.metadata ?? null,
-          analysis: (state as any).audioData?.analysis && (state as any).audioData.analysis.summary
-            ? { summary: (state as any).audioData.analysis.summary }
+          metadata: state.audioData?.metadata ?? null,
+          analysis: state.audioData?.analysis && state.audioData.analysis.summary
+            ? { summary: state.audioData.analysis.summary }
             : null
         },
-        devicesMetadata: (state as any).devicesMetadata ?? {},
+        devicesMetadata: state.devicesMetadata ?? {},
       };
       idbSet(key, stateToPersist);
     };
-    return config(setAndPersist, get, api);
+    return config(setAndPersist, _get, api);
   };
 }
 
@@ -45,10 +47,12 @@ export interface AudioDataMetadata {
 
 export interface AudioDataAnalysis {
   fftSequence: (Float32Array | number[])[];
-  summary: any;
-  audioBuffer: any;
-  bandDataArr?: any[];
+  summary: Record<string, unknown> | null;
+  audioBuffer: AudioBuffer | null;
+  bandDataArr?: Array<Record<string, unknown>>;
   impulseStrengths?: number[][];
+  detectionFunction?: number[];
+  detectionTimes?: number[];
 }
 
 export interface AudioDataState {
@@ -80,6 +84,39 @@ export interface AppState {
   setShowSecondDerivative: (show: boolean) => void;
   showImpulses: boolean;
   setShowImpulses: (show: boolean) => void;
+  showSustainedImpulses: boolean;
+  setShowSustainedImpulses: (show: boolean) => void;
+  onlySustained: boolean;
+  setOnlySustained: (show: boolean) => void;
+  showDetectionFunction: boolean;
+  setShowDetectionFunction: (show: boolean) => void;
+  // New: UI and control state
+  windowSize: number;
+  setWindowSize: (n: number) => void;
+  hopSize: number;
+  setHopSize: (n: number) => void;
+  followCursor: boolean;
+  setFollowCursor: (b: boolean) => void;
+  snapToWindow: boolean;
+  setSnapToWindow: (b: boolean) => void;
+  selectedEngine: string;
+  setSelectedEngine: (s: string) => void;
+  file: File | null;
+  setFile: (f: File | null) => void;
+  audioUrl: string | undefined;
+  setAudioUrl: (u: string | undefined) => void;
+  isPlaying: boolean;
+  setIsPlaying: (b: boolean) => void;
+  playbackTime: number;
+  setPlaybackTime: (n: number) => void;
+  loading: boolean;
+  setLoading: (b: boolean) => void;
+  processingProgress: { processed: number; total: number } | null;
+  setProcessingProgress: (p: { processed: number; total: number } | null) => void;
+  hasProcessedOnce: boolean;
+  setHasProcessedOnce: (b: boolean) => void;
+  isProcessingStale: boolean;
+  setIsProcessingStale: (b: boolean) => void;
   // Impulse controls (per band)
   impulseThresholds: number[];
   setImpulseThresholds: (thresholds: number[] | { index: number, value: number }) => void;
@@ -101,6 +138,11 @@ export interface AppState {
   setSpectralFluxK: (n: number) => void;
   spectralFluxMinSeparation: number;
   setSpectralFluxMinSeparation: (n: number) => void;
+  // New: dB and dB delta thresholds for impulse detection
+  minDb: number;
+  setMinDb: (n: number) => void;
+  minDbDelta: number;
+  setMinDbDelta: (n: number) => void;
   // Pattern response
   patternResponseIndex: number;
   setPatternResponseIndex: (idx: number) => void;
@@ -120,16 +162,16 @@ const initialDevices: { [id: string]: DeviceUIState } = {};
 export const useAppStore = create<AppState>(
   persistWithIndexedDB<AppState>('app-state', (set, get) => ({
     audioData: initialAudioData,
-    setAudioData: (data) => set(state => ({ audioData: { ...state.audioData, ...data } })),
+    setAudioData: (data: Partial<AudioDataState>) => set((state: AppState) => ({ audioData: { ...state.audioData, ...data } })),
     devicesMetadata: initialDevicesMetadata,
-    setDeviceNickname: (macOrId, nickname) => set(state => ({
+    setDeviceNickname: (macOrId: string, nickname: string) => set((state: AppState) => ({
       devicesMetadata: {
         ...state.devicesMetadata,
         [macOrId]: { nickname }
       }
     })),
     devices: initialDevices,
-    setDeviceState: (id, update) => set(state => ({
+    setDeviceState: (id: string, update: Partial<DeviceUIState>) => set((state: AppState) => ({
       devices: {
         ...state.devices,
         [id]: { ...state.devices[id], ...update }
@@ -146,13 +188,46 @@ export const useAppStore = create<AppState>(
     setShowSecondDerivative: (show) => set({ showSecondDerivative: show }),
     showImpulses: true,
     setShowImpulses: (show) => set({ showImpulses: show }),
+    showSustainedImpulses: false,
+    setShowSustainedImpulses: (show) => set({ showSustainedImpulses: show }),
+    onlySustained: false,
+    setOnlySustained: (show) => set({ onlySustained: show }),
+    showDetectionFunction: false,
+    setShowDetectionFunction: (show) => set({ showDetectionFunction: show }),
+    // New: UI and control state
+    windowSize: 1024,
+    setWindowSize: (n) => set({ windowSize: n }),
+    hopSize: 512,
+    setHopSize: (n) => set({ hopSize: n }),
+    followCursor: true,
+    setFollowCursor: (b) => set({ followCursor: b }),
+    snapToWindow: true,
+    setSnapToWindow: (b) => set({ snapToWindow: b }),
+    selectedEngine: 'spectral-flux',
+    setSelectedEngine: (s) => set({ selectedEngine: s }),
+    file: null,
+    setFile: (f) => set({ file: f }),
+    audioUrl: undefined,
+    setAudioUrl: (u) => set({ audioUrl: u }),
+    isPlaying: false,
+    setIsPlaying: (b) => set({ isPlaying: b }),
+    playbackTime: 0,
+    setPlaybackTime: (n) => set({ playbackTime: n }),
+    loading: false,
+    setLoading: (b) => set({ loading: b }),
+    processingProgress: null,
+    setProcessingProgress: (p) => set({ processingProgress: p }),
+    hasProcessedOnce: false,
+    setHasProcessedOnce: (b) => set({ hasProcessedOnce: b }),
+    isProcessingStale: false,
+    setIsProcessingStale: (b) => set({ isProcessingStale: b }),
     // Impulse controls (per band, default 5 bands)
     impulseThresholds: [50, 50, 50, 50, 50],
     setImpulseThresholds: (payload) => set(state => {
       if (Array.isArray(payload)) {
         return { impulseThresholds: payload };
       } else if (typeof payload === 'object' && payload.index !== undefined) {
-        const arr = [...state.impulseThresholds];
+        const arr: number[] = [...state.impulseThresholds];
         arr[payload.index] = payload.value;
         return { impulseThresholds: arr };
       }
@@ -176,6 +251,11 @@ export const useAppStore = create<AppState>(
     setSpectralFluxK: (n) => set({ spectralFluxK: n }),
     spectralFluxMinSeparation: 3,
     setSpectralFluxMinSeparation: (n) => set({ spectralFluxMinSeparation: n }),
+    // dB and dB delta thresholds for impulse detection
+    minDb: -60,
+    setMinDb: (n) => set({ minDb: n }),
+    minDbDelta: 3,
+    setMinDbDelta: (n) => set({ minDbDelta: n }),
     // Pattern response
     patternResponseIndex: 0,
     setPatternResponseIndex: (idx: number) => set({ patternResponseIndex: idx }),

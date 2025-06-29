@@ -1,9 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { useAppStore } from '../store/appStore';
-import { getBandPlotData, BandPlotData } from './bandPlotUtils';
-import { Box, Typography, Slider } from '@mui/material';
-import { useImpulseEvents } from '../context/ImpulseEventContext';
+import { getBandPlotData, type BandPlotData, clampDB, type BandData } from './bandPlotUtils';
 
 // Memoized BandPlot for a single band, optimized for Zustand and Plotly
 const BandPlot: React.FC<{
@@ -14,13 +12,35 @@ const BandPlot: React.FC<{
   axisColor: string;
   gridColor: string;
   plotBg: string;
-}> = React.memo(({ bandIdx, xRange, playbackTime, isDark, axisColor, gridColor, plotBg }) => {
-  // Select only the data needed for this band
-  const bandDataArr = useAppStore(state => state.audioData.analysis?.bandDataArr || []);
+  detectionFunction?: number[];
+  detectionTimes?: number[];
+}> = React.memo(({ bandIdx, xRange, playbackTime, isDark, axisColor, gridColor, plotBg, detectionFunction, detectionTimes }) => {
+  // Read toggles directly from global state
+  const showSustainedImpulses = useAppStore(state => state.showSustainedImpulses);
+  const onlySustained = useAppStore(state => state.onlySustained);
+  const showDetectionFunction = useAppStore(state => state.showDetectionFunction);
+  // Debug log for toggle props
+  console.log('BandPlot toggles:', { showSustainedImpulses, onlySustained, showDetectionFunction });
+
+  // Safely extract bandDataArr as BandData[] if possible, else use []
+  const rawBandDataArr = useAppStore(state => state.audioData.analysis?.bandDataArr ?? []);
+  // Type guard for BandData
+  function isBandData(obj: unknown): obj is BandData {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'band' in obj &&
+      'magnitudes' in obj &&
+      'derivatives' in obj
+    );
+  }
+  const bandDataArr: BandData[] = Array.isArray(rawBandDataArr) ? (rawBandDataArr as unknown[]).filter(isBandData) : [];
   const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
-  const metadata = useAppStore(state => state.audioData.metadata);
-  const hopSize = metadata && typeof metadata === 'object' && 'hopSize' in metadata ? (metadata as any).hopSize : 512;
-  const sampleRate = metadata && typeof metadata === 'object' && 'sampleRate' in metadata ? (metadata as any).sampleRate : 44100;
+  // Always use global hopSize/sampleRate
+  const globalHopSize = useAppStore(state => state.hopSize);
+  const globalSampleRate = useAppStore(state => state.audioData.analysis?.audioBuffer?.sampleRate ?? 44100);
+  const hopSize = globalHopSize;
+  const sampleRate = globalSampleRate;
   const freqs = useMemo(() => {
     const numBins = bandDataArr[bandIdx]?.magnitudes?.length || 0;
     return Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
@@ -48,19 +68,100 @@ const BandPlot: React.FC<{
     return arr[0];
   }, [bandDataArr, bandIdx, xRange, normalizedImpulseThreshold, playbackTime, isDark, hopSize, sampleRate, freqs, axisColor, gridColor, plotBg]);
 
+  // Debug log for sustainedImpulses
+  console.log('sustainedImpulses (first 20):', bandPlotData?.sustainedImpulses?.slice(0, 20));
+
+  const isPlaying = useAppStore(state => state.isPlaying);
+  // Smooth cursor animation
+  const [displayedCursorTime, setDisplayedCursorTime] = useState(playbackTime);
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isPlaying) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      setDisplayedCursorTime(playbackTime);
+      return;
+    }
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const animate = () => {
+      setDisplayedCursorTime(prev => {
+        const delta = playbackTime - prev;
+        if (Math.abs(delta) < 0.01) return playbackTime;
+        return prev + delta * 0.2;
+      });
+      rafRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [playbackTime, isPlaying]);
+
   // Memoize traces for Plotly (always call hooks at top level)
-  const traces = useMemo(() => bandPlotData ? [
-    bandPlotData.traces.magnitude,
-    ...(showFirstDerivative ? [bandPlotData.traces.derivative] : []),
-    ...(showSecondDerivative ? [bandPlotData.traces.secondDerivative] : []),
-    ...(showImpulses ? [bandPlotData.traces.impulses] : []),
-    bandPlotData.cursorTrace,
-  ] : [], [bandPlotData, showFirstDerivative, showSecondDerivative, showImpulses]);
+  const traces = useMemo(() => {
+    if (!bandPlotData) return [];
+    const baseTraces = [
+      bandPlotData.traces.magnitude,
+      ...(showFirstDerivative ? [bandPlotData.traces.derivative] : []),
+      ...(showSecondDerivative ? [bandPlotData.traces.secondDerivative] : []),
+      // Impulse marker logic:
+      ...(() => {
+        const times = (bandPlotData.traces.magnitude.x as number[]);
+        const magnitudes = bandPlotData.magnitudes;
+        const sustained = bandPlotData.sustainedImpulses;
+        const sustainedIndices = sustained ? sustained.map((v, i) => v > 0 ? i : -1).filter(i => i >= 0) : [];
+        const sustainedTrace = {
+          x: sustainedIndices.map(i => times[i]),
+          y: sustainedIndices.map(i => clampDB(magnitudes[i])),
+          type: 'scatter',
+          mode: 'markers',
+          name: bandPlotData.band.name + ' Sustained',
+          marker: { color: 'lime', size: 12, symbol: 'star' },
+        };
+        if (onlySustained && sustained && sustainedIndices.length > 0) {
+          // Only show sustained impulses
+          return [sustainedTrace];
+        } else if (showSustainedImpulses && sustained && sustainedIndices.length > 0) {
+          // Show both regular and sustained impulses
+          return [bandPlotData.traces.impulses, sustainedTrace];
+        } else {
+          // Only show regular impulses
+          return showImpulses ? [bandPlotData.traces.impulses] : [];
+        }
+      })(),
+      // Use displayedCursorTime for the cursor trace
+      {
+        x: [displayedCursorTime, displayedCursorTime],
+        y: [-10000, 10000],
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#FFFFFF', width: 2, dash: 'solid' },
+        name: 'Cursor',
+        showlegend: false,
+      },
+    ];
+    // Overlay detection function as a trace with yaxis: 'y2'
+    if (showDetectionFunction && detectionFunction && detectionTimes && detectionFunction.length > 0 && detectionTimes.length > 0) {
+      console.log('Detection Function trace:', {
+        showDetectionFunction,
+        detectionFunction: detectionFunction.slice(0, 10),
+        detectionTimes: detectionTimes.slice(0, 10),
+        length: detectionFunction.length
+      });
+      baseTraces.push({
+        x: detectionTimes,
+        y: detectionFunction,
+        type: 'scatter',
+        mode: 'lines',
+        name: 'Detection Function',
+        line: { color: 'orange', width: 2 },
+        yaxis: 'y2',
+      });
+    }
+    return baseTraces.flat();
+  }, [bandPlotData, showFirstDerivative, showSecondDerivative, showImpulses, showDetectionFunction, detectionFunction, detectionTimes, showSustainedImpulses, onlySustained, displayedCursorTime]);
 
   // Memoize layout for Plotly (always call hooks at top level)
   const layout = useMemo(() => ({
     height: 280,
-    margin: { l: 40, r: 10, t: 10, b: 24 },
+    margin: { l: 40, r: 40, t: 10, b: 24 },
     xaxis: {
       title: 'Time (seconds)',
       automargin: true,
@@ -80,14 +181,14 @@ const BandPlot: React.FC<{
       gridcolor: gridColor,
     },
     yaxis2: {
-      title: 'Rate of Change (dB)',
+      title: 'Detection Function',
       overlaying: 'y',
       side: 'right',
       showgrid: false,
       zeroline: false,
       showticklabels: true,
       position: 1.0,
-      color: axisColor,
+      color: 'orange',
     },
     yaxis3: {
       title: '2nd Derivative (dB)',
@@ -110,109 +211,15 @@ const BandPlot: React.FC<{
     },
   }), [xRange, axisColor, gridColor, plotBg, bandPlotData?.yAxisRange]);
 
-  const [showDetectionFunction, setShowDetectionFunction] = useState(false);
-  const [showSustainedImpulses, setShowSustainedImpulses] = useState(false);
-  const [onlySustained, setOnlySustained] = useState(false);
-
-  // Detection function plot data (spectral-flux only)
-  const detectionPlot = useMemo(() => {
-    if (!bandPlotData || !bandPlotData.detectionFunction || !bandPlotData.thresholdArr) return null;
-    // Downsample for performance if needed
-    const step = Math.max(1, Math.floor(bandPlotData.detectionFunction.length / 1000));
-    const times = bandPlotData.traces.magnitude.x as number[];
-    const detection = bandPlotData.detectionFunction;
-    const thresholdArr = bandPlotData.thresholdArr;
-    // Use impulses from the impulse trace y values (if available)
-    const impulses = bandPlotData.traces.impulses && Array.isArray(bandPlotData.traces.impulses.y) ? bandPlotData.traces.impulses.y as number[] : [];
-    const sustained = bandPlotData.sustainedImpulses;
-    const x = times.filter((_, i: number) => i % step === 0);
-    const y = detection.filter((_, i: number) => i % step === 0);
-    const th = thresholdArr.filter((_, i: number) => i % step === 0);
-    // Impulse markers: find indices where impulses are nonzero
-    const impulseIndices = impulses.map((v: number, i: number) => v > 0 ? i : -1).filter((i: number) => i >= 0);
-    const sustainedIndices = sustained ? sustained.map((v: number, i: number) => v > 0 ? i : -1).filter((i: number) => i >= 0) : [];
-    // Filtering logic
-    const showImpulses = !onlySustained;
-    const showSustained = showSustainedImpulses;
-    return [
-      { x, y, type: 'scatter', mode: 'lines', name: 'Detection Function', line: { color: 'orange', width: 2 } },
-      { x, y: th, type: 'scatter', mode: 'lines', name: 'Threshold', line: { color: 'gray', width: 2, dash: 'dash' } },
-      ...(showImpulses ? [{ x: impulseIndices.map((i: number) => times[i]), y: impulseIndices.map((i: number) => detection[i]), type: 'scatter', mode: 'markers', name: 'Impulses', marker: { color: 'red', size: 10, symbol: 'x' } }] : []),
-      ...(showSustained && sustainedIndices.length > 0 ? [{ x: sustainedIndices.map((i: number) => times[i]), y: sustainedIndices.map((i: number) => detection[i]), type: 'scatter', mode: 'markers', name: 'Sustained', marker: { color: 'lime', size: 12, symbol: 'star' } }] : []),
-    ];
-  }, [bandPlotData, showSustainedImpulses, onlySustained]);
-
-  const { emit } = useImpulseEvents();
-  const emittedPulsesRef = React.useRef<Set<string>>(new Set());
-  const lastCursorRef = React.useRef<number>(-Infinity);
-
-  // Impulse event emission logic (moved from BandPlotCard)
-  useEffect(() => {
-    if (!bandPlotData || !showImpulses || !bandPlotData.traces.impulses || !Array.isArray(bandPlotData.traces.impulses.x)) return;
-    const xArr = bandPlotData.traces.impulses.x as number[];
-    const yArr = bandPlotData.traces.impulses.y as number[];
-    const minStrength = Math.min(...yArr);
-    const maxStrength = Math.max(...yArr);
-    if (playbackTime > lastCursorRef.current) {
-      xArr.forEach((time, idx) => {
-        const key = `${bandPlotData.band.name}|${time}`;
-        if (
-          !emittedPulsesRef.current.has(key) &&
-          time > lastCursorRef.current &&
-          time <= playbackTime
-        ) {
-          emit({ strength: yArr[idx], min: minStrength, max: maxStrength, bandName: bandPlotData.band.name, time });
-          emittedPulsesRef.current.add(key);
-        }
-      });
-    }
-    lastCursorRef.current = playbackTime;
-  }, [playbackTime, showImpulses, bandPlotData, emit]);
-
   if (!bandPlotData) return null;
 
   return (
-    <>
-      <Plot
-        data={traces}
-        layout={layout}
-        config={{ displayModeBar: false, responsive: true }}
-        style={{ width: '100%' }}
-      />
-      {/* Detection function plot toggle and plot (spectral-flux only) */}
-      {bandPlotData && bandPlotData.detectionFunction && bandPlotData.thresholdArr && (
-        <Box sx={{ mt: 1, mb: 0.5 }}>
-          <label style={{ fontSize: 13, cursor: 'pointer', marginRight: 12 }}>
-            <input type="checkbox" checked={showDetectionFunction} onChange={e => setShowDetectionFunction(e.target.checked)} style={{ marginRight: 6 }} />
-            Show Detection Function
-          </label>
-          <label style={{ fontSize: 13, cursor: 'pointer', marginRight: 12 }}>
-            <input type="checkbox" checked={showSustainedImpulses} onChange={e => setShowSustainedImpulses(e.target.checked)} style={{ marginRight: 6 }} />
-            Show Sustained Impulses
-          </label>
-          <label style={{ fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={onlySustained} onChange={e => setOnlySustained(e.target.checked)} style={{ marginRight: 6 }} />
-            Only Sustained
-          </label>
-          {showDetectionFunction && detectionPlot && (
-            <Plot
-              data={detectionPlot}
-              layout={{
-                height: 140,
-                margin: { l: 40, r: 10, t: 10, b: 24 },
-                xaxis: { title: 'Time (seconds)', color: axisColor, gridcolor: gridColor },
-                yaxis: { title: 'Detection Value', color: axisColor, gridcolor: gridColor },
-                paper_bgcolor: plotBg,
-                plot_bgcolor: plotBg,
-                legend: { orientation: 'h', y: -0.25, yanchor: 'top', x: 0.5, xanchor: 'center' },
-              }}
-              config={{ displayModeBar: false, responsive: true }}
-              style={{ width: '100%' }}
-            />
-          )}
-        </Box>
-      )}
-    </>
+    <Plot
+      data={traces}
+      layout={layout}
+      config={{ displayModeBar: false, responsive: true }}
+      style={{ width: '100%' }}
+    />
   );
 });
 

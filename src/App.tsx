@@ -2,17 +2,15 @@ import React, { useState } from 'react';
 import { 
   ThemeProvider,
   createTheme,
-  CssBaseline,
-  FormControlLabel,
-  Switch
+  CssBaseline
 } from '@mui/material';
 import Dashboard from './components/Dashboard';
 import { DeviceControllerProvider } from './controllers/DeviceControllerContext';
 import { PulseProvider } from './controllers/PulseContext';
 import { ToastProvider } from './controllers/ToastContext';
 import GlobalToast from './components/GlobalToast';
-import DevAppStateViewer from './components/DevAppStateViewer';
 import { ImpulseEventProvider } from './context/ImpulseEventContext';
+import FirePatternOnImpulse from './components/FirePatternOnImpulse';
 
 function App() {
   const getInitialMode = () => {
@@ -39,6 +37,7 @@ function App() {
             <PulseProvider>
               <ToastProvider>
                 <GlobalToast />
+                <FirePatternOnImpulse />
                 <Dashboard mode={mode} onToggleMode={handleToggle} />
               </ToastProvider>
             </PulseProvider>

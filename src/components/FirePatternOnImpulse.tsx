@@ -1,15 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useImpulseEvents } from '../context/ImpulseEventContext';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { fireSelectedPattern } from './PatternResponsePanel';
 import { useAppStore } from '../store/appStore';
 
-function useDebouncedCallback(callback: (...args: any[]) => void, delay: number) {
-  const timeout = useRef<NodeJS.Timeout | null>(null);
-  return (...args: any[]) => {
-    if (timeout.current) clearTimeout(timeout.current);
-    timeout.current = setTimeout(() => callback(...args), delay);
-  };
+function useDebouncedCallback(callback: () => void, delay: number) {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedCallback = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callback();
+    }, delay);
+  }, [callback, delay]);
+  return debouncedCallback;
 }
 
 const FirePatternOnImpulse: React.FC = () => {
@@ -25,11 +30,12 @@ const FirePatternOnImpulse: React.FC = () => {
 
   // Debounced fire
   const debouncedFire = useDebouncedCallback(() => {
-    if (activeDeviceRef.current) {
-      console.log('[FirePatternOnImpulse] Impulse received, firing pattern 11 on device:', activeDeviceRef.current);
-      fireSelectedPattern(11, activeDeviceRef.current);
+    if (activeDeviceId) {
+      const patternIndex = useAppStore.getState().patternResponseIndex;
+      console.log('[FirePatternOnImpulse] Impulse received, firing pattern', patternIndex, 'on activeDeviceId:', activeDeviceId);
+      fireSelectedPattern(patternIndex, devices, activeDeviceId);
     } else {
-      console.log('[FirePatternOnImpulse] Impulse received, but no active device to fire pattern on.');
+      console.log('[FirePatternOnImpulse] Impulse received, but no active deviceId to fire pattern on.');
     }
   }, 200);
 

@@ -1,70 +1,44 @@
-import React, { useState, useRef, useEffect, useCallback, createContext, useContext } from "react";
+import React, { useState, useRef, useEffect, createContext, useContext } from "react";
 import {
     Box,
     Paper,
     Typography,
     Button,
-    TextField,
     Stack,
-    Divider,
-    List,
-    ListItem,
-    ListItemText,
-    CircularProgress,
-    Skeleton,
-    LinearProgress,
-    Snackbar,
     Alert,
-    Slider,
-    AppBar,
-    Toolbar,
-    Tabs,
-    Tab
-} from '@mui/material';
+    TextField,
+    FormControlLabel,
+    Checkbox} from '@mui/material';
 import {
     decodeAudioFile,
     getMonoPCMData,
-    chunkPCMData,
 } from "../controllers/audioChunker";
-import { computeFFTMagnitude } from "../controllers/fftUtils";
-import Plot from 'react-plotly.js';
-import AudioFrequencyVisualizer from './AudioFrequencyVisualizer';
 import WaveSurfer from "wavesurfer.js";
 // Import worker (Vite/CRA style)
-// @ts-ignore
-import audioWorkerUrl from '../controllers/audioWorker.ts?worker';
+// @ts-expect-error "needed import for audioWorker"
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import audioWorkerUrl from '../workers/audioWorker.ts?worker';
 import GlobalControls from './GlobalControls';
 import DerivativeImpulseToggles from './DerivativeImpulseToggles';
 import BandSelector from './BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
-import { usePulseContext } from '../controllers/PulseContext';
 import { useToastContext } from '../controllers/ToastContext';
-import PulseToolsCard from './PulseToolsCard';
 import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
-import { Device } from '../types/Device';
 import { emitPulse } from './useImpulseHandler';
 import { useDebouncedCallback } from './useDebouncedCallback';
-import ImpulseResponseCard from './ImpulseResponseCard';
 import AudioChunkerDemoPlotArea from './AudioChunkerDemoPlotArea';
 // Import the visualization worker
-// @ts-ignore
+// @ts-expect-error "needed import for visualizationWorker"
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
-import { del } from 'idb-keyval';
 import FFTProcessingControls from './FFTProcessingControls';
-import { alpha } from '@mui/material/styles';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import Tooltip from '@mui/material/Tooltip';
 import { useAppStore } from '../store/appStore';
-
-interface ChunkSummary {
-    numChunks: number;
-    chunkDurationMs: number;
-    totalDurationMs: number;
-    windowSize: number;
-    hopSize: number;
-    firstChunkFFT?: number[];
-    firstChunkFFTMagnitudes?: Float32Array;
-}
+import MenuItem from '@mui/material/MenuItem';
+import ImpulseResponseCard from './ImpulseResponseCard';
+import { useImpulseEvents } from '../context/ImpulseEventContext';
+import { clampDB } from './bandPlotUtils';
 
 const DEFAULT_WINDOW_SIZE = 1024;
 const DEFAULT_HOP_SIZE = 512;
@@ -93,42 +67,72 @@ interface AudioChunkerDemoProps {
     onImpulse?: (strength: number, min: number, max: number, bandName?: string, time?: number) => void;
 }
 
+const DETECTION_ENGINES = [
+    { label: 'Spectral Flux', value: 'spectral-flux' },
+    { label: 'Aubio', value: 'aubio' },
+    { label: '1st Derivative', value: 'first-derivative' },
+    { label: '2nd Derivative', value: 'second-derivative' },
+    { label: 'Z-Score (Derivative)', value: 'z-score' },
+];
+
+// --- Add a type for processing settings ---
+type ProcessingSettings = {
+    impulseWindowSize: number;
+    impulseSmoothing: number;
+    impulseDetectionMode: string;
+    derivativeMode: string;
+    spectralFluxWindow: number;
+    spectralFluxK: number;
+    spectralFluxMinSeparation: number;
+    minDb: number;
+    minDbDelta: number;
+    windowSize: number;
+    hopSize: number;
+    selectedEngine: string;
+};
+
 const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
-    const [file, setFile] = useState<File | null>(null);
-    const [windowSize, setWindowSize] = useState<number>(DEFAULT_WINDOW_SIZE);
-    const [hopSize, setHopSize] = useState<number>(DEFAULT_HOP_SIZE);
-    const [loading, setLoading] = useState(false);
+    const file = useAppStore(state => state.file);
+    const setFile = useAppStore(state => state.setFile);
+    const windowSize = useAppStore(state => state.windowSize);
+    const setWindowSize = useAppStore(state => state.setWindowSize);
+    const hopSize = useAppStore(state => state.hopSize);
+    const setHopSize = useAppStore(state => state.setHopSize);
+    const loading = useAppStore(state => state.loading);
+    const setLoading = useAppStore(state => state.setLoading);
+    const audioUrl = useAppStore(state => state.audioUrl);
+    const setAudioUrl = useAppStore(state => state.setAudioUrl);
+    const isPlaying = useAppStore(state => state.isPlaying);
+    const setIsPlaying = useAppStore(state => state.setIsPlaying);
+    const playbackTime = useAppStore(state => state.playbackTime);
+    const setPlaybackTime = useAppStore(state => state.setPlaybackTime);
+    const hasProcessedOnce = useAppStore(state => state.hasProcessedOnce);
+    const setHasProcessedOnce = useAppStore(state => state.setHasProcessedOnce);
+    const isProcessingStale = useAppStore(state => state.isProcessingStale);
+    const setIsProcessingStale = useAppStore(state => state.setIsProcessingStale);
+    const followCursor = useAppStore(state => state.followCursor);
+    const setFollowCursor = useAppStore(state => state.setFollowCursor);
+    const snapToWindow = useAppStore(state => state.snapToWindow);
+    const setSnapToWindow = useAppStore(state => state.setSnapToWindow);
+    const selectedEngine = useAppStore(state => state.selectedEngine);
+    const setSelectedEngine = useAppStore(state => state.setSelectedEngine);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const [audioUrl, setAudioUrl] = useState<string | undefined>(undefined);
     const waveformRef = useRef<HTMLDivElement | null>(null);
     const wavesurferRef = useRef<WaveSurfer | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [playbackTime, setPlaybackTime] = useState(0);
-    const audioWorkerRef = useRef<Worker | null>(null);
-    const [processingProgress, setProcessingProgress] = useState<{ processed: number, total: number } | null>(null);
+    const [clearMsg, setClearMsg] = useState<string | null>(null);
     const windowSec = useAppStore(state => state.windowSec);
     const setWindowSec = useAppStore(state => state.setWindowSec);
-    const showFirstDerivative = useAppStore(state => state.showFirstDerivative);
-    const setShowFirstDerivative = useAppStore(state => state.setShowFirstDerivative);
-    const showSecondDerivative = useAppStore(state => state.showSecondDerivative);
-    const setShowSecondDerivative = useAppStore(state => state.setShowSecondDerivative);
-    const showImpulses = useAppStore(state => state.showImpulses);
-    const setShowImpulses = useAppStore(state => state.setShowImpulses);
     const selectedBand = useAppStore(state => state.selectedBand);
     const setSelectedBand = useAppStore(state => state.setSelectedBand);
-    const [followCursor, setFollowCursor] = useState(true);
-    const [snapToWindow, setSnapToWindow] = useState(true);
     const { devices } = useDeviceControllerContext();
     const connectedDevices = devices.filter(d => d.isConnected);
-    const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
-    const { latestPulse, latestPulseTimestamp } = usePulseContext();
+    const activeDeviceId = useAppStore(state => state.activeDeviceId);
+    const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
     const { showToast } = useToastContext();
     const { audioData, setAudioData } = useAppStore();
     const audioBufferRef = useRef<AudioBuffer | null>(null);
     const { values } = usePulseTools();
     const activeDevice = devices.find(d => d.id === activeDeviceId);
-    const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
-    const setNormalizedImpulseThreshold = useAppStore(state => state.setNormalizedImpulseThreshold);
     const impulseWindowSize = useAppStore(state => state.impulseWindowSize);
     const impulseSmoothing = useAppStore(state => state.impulseSmoothing);
     const impulseDetectionMode = useAppStore(state => state.impulseDetectionMode);
@@ -136,12 +140,20 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const spectralFluxWindow = useAppStore((state) => state.spectralFluxWindow);
     const spectralFluxK = useAppStore((state) => state.spectralFluxK);
     const spectralFluxMinSeparation = useAppStore((state) => state.spectralFluxMinSeparation);
-    const [isProcessingStale, setIsProcessingStale] = useState(false);
-    const [hasProcessedOnce, setHasProcessedOnce] = useState(false);
-
-    // Debounce state for pulses
-    const pulseInProgressRef = React.useRef(false);
-    const lastPulseTimeRef = React.useRef(0);
+    const showSustainedImpulses = useAppStore(state => state.showSustainedImpulses);
+    const setShowSustainedImpulses = useAppStore(state => state.setShowSustainedImpulses);
+    const onlySustained = useAppStore(state => state.onlySustained);
+    const setOnlySustained = useAppStore(state => state.setOnlySustained);
+    const [processingProgress, setProcessingProgress] = useState<{ processed: number; total: number } | null>(null);
+    const minDb = useAppStore(state => state.minDb);
+    const minDbDelta = useAppStore(state => state.minDbDelta);
+    const lastProcessedSettings = useRef<ProcessingSettings | null>(null);
+    const { emit } = useImpulseEvents();
+    const lastPlaybackTimeRef = useRef<number>(-Infinity);
+    const emittedImpulseKeysRef = useRef<Set<string>>(new Set());
+    const analysis = audioData.analysis;
+    const bandDataArr = (analysis?.bandDataArr ?? []) as any[];
+    const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
 
     // Debounced impulse handler using new paradigm
     const debouncedPulse = useDebouncedCallback(
@@ -161,74 +173,52 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     );
 
     // Visualization worker ref
+    const audioWorkerRef = useRef<Worker | null>(null);
     const visualizationWorkerRef = useRef<Worker | null>(null);
-
-    // State for showing clear confirmation
-    const [clearMsg, setClearMsg] = useState<string | null>(null);
 
     // Determine if audio is loaded
     const audioLoaded = !!(audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0);
 
-    const derivativeLogDomain = true; // Always use log domain for now
+    // const derivativeLogDomain = true; // Always use log domain for now (commented out, unused)
 
-    // Debounced re-processing effect for FFT/impulse controls
-    React.useEffect(() => {
-        if (!audioLoaded || !file) return;
-        // Debounce re-processing
-        const debounced = setTimeout(() => {
-            setLoading(true);
-            setProcessingProgress(null);
-            // Only re-run visualization worker (not full audio worker)
-            if (visualizationWorkerRef.current && audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0) {
-                visualizationWorkerRef.current.onmessage = (ve: MessageEvent) => {
-                    const { bandDataArr } = ve.data;
-                    const currentAnalysis = audioData.analysis;
-                    setAudioData({
-                        analysis: {
-                            ...currentAnalysis,
-                            bandDataArr,
-                            impulseStrengths: bandDataArr.map((b: any) => b.impulseStrengths),
-                            fftSequence: currentAnalysis?.fftSequence ?? [],
-                            summary: currentAnalysis?.summary ?? {},
-                            audioBuffer: currentAnalysis?.audioBuffer ?? null,
-                        }
-                    });
-                    setLoading(false);
-                    setProcessingProgress(null);
-                    setIsProcessingStale(false);
-                };
-                visualizationWorkerRef.current.postMessage({
-                    fftSequence: audioData.analysis.fftSequence.map((arr: any) => Array.from(arr)),
-                    bands: BAND_DEFINITIONS,
-                    sampleRate: audioData.analysis.audioBuffer?.sampleRate || 44100,
-                    hopSize: audioData.analysis.summary?.hopSize || 512,
-                    impulseWindowSize,
-                    impulseSmoothing,
-                    impulseDetectionMode,
-                    derivativeLogDomain,
-                    derivativeMode,
-                    spectralFluxWindow,
-                    spectralFluxK,
-                    spectralFluxMinSeparation,
-                });
-            }
-        }, 500);
-        return () => clearTimeout(debounced);
-    }, [impulseWindowSize, impulseSmoothing, impulseDetectionMode, audioLoaded, file]);
-
-    // When any processing control changes, set isProcessingStale=true, but only if hasProcessedOnce
+    // Refactored effect for isProcessingStale
     useEffect(() => {
         if (!audioLoaded || !hasProcessedOnce) return;
-        setIsProcessingStale(true);
-    }, [impulseWindowSize, impulseSmoothing, impulseDetectionMode, derivativeMode, spectralFluxWindow, spectralFluxK, spectralFluxMinSeparation, audioLoaded, hasProcessedOnce]);
+        // Gather current settings
+        const currentSettings: ProcessingSettings = {
+            impulseWindowSize,
+            impulseSmoothing,
+            impulseDetectionMode,
+            derivativeMode,
+            spectralFluxWindow,
+            spectralFluxK,
+            spectralFluxMinSeparation,
+            minDb,
+            minDbDelta,
+            windowSize,
+            hopSize,
+            selectedEngine,
+        };
+        // Compare to last processed settings
+        const isStale = !lastProcessedSettings.current ||
+            (Object.keys(currentSettings) as (keyof ProcessingSettings)[]).some(
+                key => currentSettings[key] !== lastProcessedSettings.current?.[key]
+            );
+        if (isStale && !isProcessingStale) {
+            setIsProcessingStale(true);
+        }
+        if (!isStale && isProcessingStale) {
+            setIsProcessingStale(false);
+        }
+    }, [
+        impulseWindowSize, impulseSmoothing, impulseDetectionMode, derivativeMode,
+        spectralFluxWindow, spectralFluxK, spectralFluxMinSeparation,
+        minDb, minDbDelta, windowSize, hopSize, selectedEngine,
+        audioLoaded, hasProcessedOnce, isProcessingStale, setIsProcessingStale
+    ]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            // Clear persisted app state in IndexedDB when a new file is uploaded
-            del('app-state').then(() => {
-                setClearMsg('Cleared app-state from IndexedDB');
-                setTimeout(() => setClearMsg(null), 2000);
-            });
             setFile(e.target.files[0]);
             setAudioData({ analysis: null, metadata: null });
             setAudioUrl(URL.createObjectURL(e.target.files[0]));
@@ -242,55 +232,80 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     // Set up the worker and cleanup
     useEffect(() => {
         // @ts-ignore
-        audioWorkerRef.current = new Worker(new URL('../controllers/audioWorker.ts', import.meta.url), { type: 'module' });
+        audioWorkerRef.current = new Worker(new URL('../workers/audioWorker.ts', import.meta.url), { type: 'module' });
         // @ts-ignore
         visualizationWorkerRef.current = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url), { type: 'module' });
-        audioWorkerRef.current.onmessage = (e) => {
-            const { type, processed, total, summary, fftSequence } = e.data;
+        // Latch progress to highest value ever received, and filter by jobId
+        const highestProgressRef = { current: 0 };
+        const currentJobIdRef = { current: '' };
+        audioWorkerRef.current!.onmessage = (e: MessageEvent) => {
+            const { type, processed, total, summary, fftSequence, detectionFunction, times, jobId } = e.data;
             if (type === 'progress') {
-                setProcessingProgress({ processed, total });
-            } else if (type === 'done') {
-                const audioBuffer = audioBufferRef.current;
-                if (audioBuffer && summary) {
-                    summary.totalDurationMs = audioBuffer.duration * 1000;
+                console.log('setProcessingProgress called with:', { processed, total, jobId, currentJobId: currentJobIdRef.current });
+                if (jobId === currentJobIdRef.current && processed >= highestProgressRef.current) {
+                    highestProgressRef.current = processed;
+                    if (!processingProgress || processed > processingProgress.processed) {
+                        setProcessingProgress({ processed, total });
+                    }
                 }
-                // After audio worker is done, call visualization worker
-                if (visualizationWorkerRef.current && fftSequence && fftSequence.length > 0) {
-                    visualizationWorkerRef.current.onmessage = (ve: MessageEvent) => {
-                        const { bandDataArr } = ve.data;
-                        setAudioData({
-                            analysis: {
-                                fftSequence: fftSequence ?? [],
-                                summary: summary ?? null,
-                                audioBuffer: audioBuffer ?? null,
-                                bandDataArr,
-                                impulseStrengths: bandDataArr.map((b: any) => b.impulseStrengths),
-                            }
+            } else if (type === 'done') {
+                if (jobId === currentJobIdRef.current) {
+                    highestProgressRef.current = 0; // Reset for next run
+                    currentJobIdRef.current = '';
+                    const audioBuffer = audioBufferRef.current;
+                    let newSummary = summary;
+                    if (audioBuffer && summary) {
+                        newSummary = { ...summary, totalDurationMs: audioBuffer.duration * 1000 };
+                    }
+                    // After audio worker is done, call visualization worker
+                    if (visualizationWorkerRef.current && fftSequence && fftSequence.length > 0) {
+                        visualizationWorkerRef.current.onmessage = (ve: MessageEvent) => {
+                            const { bandDataArr } = ve.data;
+                            setAudioData({
+                                analysis: {
+                                    fftSequence: fftSequence ?? [],
+                                    summary: newSummary ?? null,
+                                    audioBuffer: audioBuffer ?? null,
+                                    bandDataArr,
+                                    impulseStrengths: Array.isArray(bandDataArr) ? bandDataArr.map((b: { impulseStrengths: number[] }) => b.impulseStrengths) : [],
+                                    detectionFunction: detectionFunction || [],
+                                    detectionTimes: times || [],
+                                }
+                            });
+                            setLoading(false);
+                            setProcessingProgress(null);
+                        };
+                        visualizationWorkerRef.current.postMessage({
+                            fftSequence: (fftSequence ?? []).map(arr => Array.isArray(arr) ? arr : Array.from(arr)),
+                            bands: BAND_DEFINITIONS,
+                            sampleRate: audioBuffer?.sampleRate || 44100,
+                            hopSize: newSummary?.hopSize || 512,
+                            impulseWindowSize,
+                            impulseSmoothing,
+                            impulseDetectionMode,
+                            minDb,
+                            minDbDelta,
                         });
+                    } else {
+                        // Fallback: just save fftSequence etc.
+                        setAudioData({ analysis: {
+                            fftSequence: fftSequence ?? [],
+                            summary: newSummary ?? null,
+                            audioBuffer: audioBuffer ?? null,
+                            detectionFunction: detectionFunction || [],
+                            detectionTimes: times || [],
+                        }});
                         setLoading(false);
                         setProcessingProgress(null);
-                    };
-                    visualizationWorkerRef.current.postMessage({
-                        fftSequence: fftSequence.map((arr: any) => Array.from(arr)),
-                        bands: BAND_DEFINITIONS,
-                        sampleRate: audioBuffer?.sampleRate || 44100,
-                        hopSize: summary?.hopSize || 512,
-                        impulseWindowSize,
-                        impulseSmoothing,
-                        impulseDetectionMode,
-                    });
-                } else {
-                    // Fallback: just save fftSequence etc.
-                    setAudioData({ analysis: {
-                        fftSequence: fftSequence ?? [],
-                        summary: summary ?? null,
-                        audioBuffer: audioBuffer ?? null
-                    }});
-                    setLoading(false);
-                    setProcessingProgress(null);
+                    }
                 }
             }
         };
+        // Expose jobId ref for handleProcess
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (audioWorkerRef.current as any).currentJobIdRef = currentJobIdRef;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (audioWorkerRef.current as any).highestProgressRef = highestProgressRef;
         return () => {
             audioWorkerRef.current?.terminate();
             visualizationWorkerRef.current?.terminate();
@@ -305,6 +320,15 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
         setAudioData({ analysis: null }); // Reset analysis
         setProcessingProgress(null); // Reset progress
         try {
+            // Generate a unique jobId for this processing run
+            const jobId = Date.now().toString() + Math.random().toString(36).slice(2);
+            // Save jobId to ref for filtering
+            if (audioWorkerRef.current && (audioWorkerRef.current as any).currentJobIdRef && (audioWorkerRef.current as any).highestProgressRef) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (audioWorkerRef.current as any).currentJobIdRef.current = jobId;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (audioWorkerRef.current as any).highestProgressRef.current = 0;
+            }
             // Decode in main thread, send PCM to worker
             const audioBuffer = await decodeAudioFile(file);
             audioBufferRef.current = audioBuffer; // Save to ref
@@ -314,11 +338,29 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                 audioBuffer
             }});
             const pcmData = getMonoPCMData(audioBuffer);
-            audioWorkerRef.current?.postMessage({
+            // Send to detection worker with selected engine and jobId
+            audioWorkerRef.current!.postMessage({
                 pcmBuffer: pcmData.buffer,
                 windowSize,
                 hopSize,
+                engine: selectedEngine,
+                jobId,
             });
+            // Save current settings as last processed
+            lastProcessedSettings.current = {
+                impulseWindowSize,
+                impulseSmoothing,
+                impulseDetectionMode,
+                derivativeMode,
+                spectralFluxWindow,
+                spectralFluxK,
+                spectralFluxMinSeparation,
+                minDb,
+                minDbDelta,
+                windowSize,
+                hopSize,
+                selectedEngine,
+            };
         } catch (err) {
             alert("Error decoding audio file.");
             setLoading(false);
@@ -381,11 +423,61 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
 
     // Handler for manual clear
     const handleClearAppState = () => {
-        del('app-state').then(() => {
-            setClearMsg('Cleared app-state from IndexedDB');
-            setTimeout(() => setClearMsg(null), 2000);
-        });
+        setAudioData({ analysis: null, metadata: null });
+        setFile(null);
+        setAudioUrl(undefined);
+        setClearMsg('Cleared audio data from app state');
+        setTimeout(() => setClearMsg(null), 2000);
     };
+
+    useEffect(() => {
+        if (!analysis || !analysis.summary || !analysis.audioBuffer) {
+            return;
+        }
+        const bandData = bandDataArr.find(b => b.band?.name === selectedBand);
+        if (!bandData) {
+            return;
+        }
+        const showImpulses = useAppStore.getState().showImpulses;
+        const onlySustained = useAppStore.getState().onlySustained;
+        if (!showImpulses) {
+            return;
+        }
+        let impulseTimes: number[] = [];
+        let impulseStrengths: number[] = [];
+        const times = Array.from({ length: bandData.magnitudes.length }, (_, i) => (i * (analysis.summary.hopSize as number)) / (analysis.audioBuffer!.sampleRate));
+        if (onlySustained && bandData.sustainedImpulses) {
+            const magnitudes = bandData.magnitudes;
+            const sustained = bandData.sustainedImpulses;
+            const indices = sustained.map((v: number, i: number) => v > 0 ? i : -1).filter((i: number) => i >= 0);
+            impulseTimes = indices.map((i: number) => times[i]);
+            impulseStrengths = indices.map((i: number) => clampDB(magnitudes[i]));
+        } else if (bandData.normalizedImpulseStrengths && bandData.magnitudes) {
+            const impulseStrengthsArr = bandData.normalizedImpulseStrengths;
+            const indices = impulseStrengthsArr.map((v: number, i: number) => v > normalizedImpulseThreshold ? i : -1).filter((i: number) => i >= 0);
+            impulseTimes = indices.map((i: number) => times[i]);
+            impulseStrengths = indices.map((i: number) => clampDB(bandData.magnitudes[i]));
+        }
+        const minStrength = Math.min(...impulseStrengths);
+        const maxStrength = Math.max(...impulseStrengths);
+        const prev = lastPlaybackTimeRef.current;
+        const curr = playbackTime;
+        impulseTimes.forEach((time, idx) => {
+            const key = `${bandData.band.name}|${time}`;
+            const crossed = ((time > prev && time <= curr) || (time > curr && time <= prev));
+            if (
+                !emittedImpulseKeysRef.current.has(key) &&
+                crossed
+            ) {
+                emit({ strength: impulseStrengths[idx], min: minStrength, max: maxStrength, bandName: bandData.band.name, time });
+                emittedImpulseKeysRef.current.add(key);
+            }
+        });
+        if (curr < prev) {
+            emittedImpulseKeysRef.current.clear();
+        }
+        lastPlaybackTimeRef.current = curr;
+    }, [playbackTime, analysis, selectedBand]);
 
     return (
         <ActiveDeviceContext.Provider value={{ activeDeviceId, setActiveDeviceId }}>
@@ -437,6 +529,21 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                                 >
                                     {loading ? 'Processing...' : 'Process Audio'}
                                 </Button>
+                                {/* Detection engine selector */}
+                                <TextField
+                                    select
+                                    label="Detection Engine"
+                                    value={selectedEngine}
+                                    onChange={e => setSelectedEngine(e.target.value)}
+                                    size="small"
+                                    sx={{ minWidth: 160 }}
+                                >
+                                    {DETECTION_ENGINES.map(opt => (
+                                        <MenuItem key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
                                 {isProcessingStale && hasProcessedOnce && (
                                     <Tooltip title="Processing settings changed. Click 'Process Audio' to update.">
                                         <WarningAmberIcon color="warning" sx={{ ml: 1, verticalAlign: 'middle' }} />
@@ -484,28 +591,15 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                                         <strong>Chunk:</strong> {audioData.analysis.summary.chunkDurationMs?.toFixed(2)} ms
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        <strong>Total:</strong> {audioData.analysis.summary.totalDurationMs?.toFixed(2)} ms
+                                        <strong>Total:</strong> {typeof audioData.analysis.summary.totalDurationMs === 'number' ? audioData.analysis.summary.totalDurationMs.toFixed(2) : ''} ms
                                     </Typography>
                                 </Stack>
                             )}
                             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
-                                <DerivativeImpulseToggles
-                                    showFirstDerivative={showFirstDerivative}
-                                    onShowFirstDerivative={setShowFirstDerivative}
-                                    showSecondDerivative={showSecondDerivative}
-                                    onShowSecondDerivative={setShowSecondDerivative}
-                                    showImpulses={showImpulses}
-                                    onShowImpulses={setShowImpulses}
-                                />
-                                {audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && (
-                                    <BandSelector
-                                        bands={audioData.analysis.fftSequence[0] && audioData.analysis.audioBuffer ? [
-                                            { name: 'Bass' }, { name: 'Low Mid' }, { name: 'Mid' }, { name: 'Treble' }, { name: 'High Treble' }
-                                        ] : []}
-                                        selectedBand={selectedBand}
-                                        onSelect={setSelectedBand}
-                                    />
-                                )}
+                                <DerivativeImpulseToggles />
+                                {audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && <BandSelector />}
+                                <FormControlLabel control={<Checkbox checked={showSustainedImpulses} onChange={e => setShowSustainedImpulses(e.target.checked)} />} label="Sustained" />
+                                <FormControlLabel control={<Checkbox checked={onlySustained} onChange={e => setOnlySustained(e.target.checked)} />} label="Only Sustained" />
                             </Stack>
                             {/* Main plot area: show plot, skeletons, or loading spinner in the same space */}
                             <AudioChunkerDemoPlotArea
@@ -513,35 +607,20 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                               loading={loading}
                               processingProgress={processingProgress}
                               audioData={audioData}
-                              plotProps={{
-                                fftSequence: audioData.analysis?.fftSequence,
-                                sampleRate: audioData.analysis?.audioBuffer?.sampleRate,
-                                windowSize,
-                                hopSize,
-                                audioBuffer: audioData.analysis?.audioBuffer,
-                                playbackTime,
-                                windowSec,
-                                followCursor,
-                                snapToWindow,
-                                showFirstDerivative,
-                                showSecondDerivative,
-                                showImpulses,
-                                selectedBand,
-                              }}
                               debouncedPulse={debouncedPulse}
                               onImpulse={onImpulse || debouncedPulse}
                             />
                         </Box>
                         {/* Right: Visualizer → Lights Connection Placeholder */}
-                        <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {/* {/* <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {/* <PulseToolsCard /> */}
                             {/* <PulseControlsPanel /> */}
                             <ImpulseResponseCard />
-                        </Box>
+                        {/* </Box> */}  
                     </Box>
                     {/* Button to manually clear app state from IndexedDB */}
                     <Button variant="outlined" color="error" size="small" onClick={handleClearAppState} sx={{ mb: 1 }}>
-                        Clear App State (IndexedDB)
+                        Clear Audio Data
                     </Button>
                     {clearMsg && <Alert severity="info" sx={{ mb: 1 }}>{clearMsg}</Alert>}
                 </Paper>

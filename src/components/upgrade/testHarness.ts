@@ -3,7 +3,7 @@
 import { DetectionEvent } from './types';
 
 // @ts-ignore
-const worker = new Worker(new URL('./aubioWorker.ts', import.meta.url), { type: 'module' });
+const worker = new Worker(new URL('../../workers/aubioWorker.ts', import.meta.url), { type: 'module' });
 
 worker.onmessage = (e: MessageEvent) => {
   const { events, error } = e.data as { events: DetectionEvent[], error?: string };

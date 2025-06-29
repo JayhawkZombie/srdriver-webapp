@@ -55,11 +55,18 @@ const LightsConnectionCard: React.FC = () => {
 
     // Auto-select the first connected device
     React.useEffect(() => {
-        const firstConnected = devices.find(d => d.isConnected);
-        if (firstConnected && activeDeviceId !== firstConnected.id) {
-            setActiveDeviceId(firstConnected.id);
+        if (!activeDeviceId) {
+            const firstConnected = devices.find(d => d.isConnected);
+            if (firstConnected) {
+                setActiveDeviceId(firstConnected.id);
+            }
         }
-    }, [devices, activeDeviceId, setActiveDeviceId]);
+        // Only run when devices change
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [devices]);
+
+    // Debug: log current activeDeviceId and selected device
+    console.log('[LightsConnectionCard] activeDeviceId:', activeDeviceId, 'activeDevice:', activeDevice);
 
     // Helper for status icon
     const getStatusIcon = (device: Device) => {
@@ -174,7 +181,12 @@ const LightsConnectionCard: React.FC = () => {
                                     return (
                                         <Box
                                             key={device.id}
-                                            onClick={() => device.isConnected && setActiveDeviceId(device.id)}
+                                            onClick={() => {
+                                                if (device.isConnected) {
+                                                    console.log('[LightsConnectionCard] setActiveDeviceId:', device.id);
+                                                    setActiveDeviceId(device.id);
+                                                }
+                                            }}
                                             sx={{
                                                 flex: 1,
                                                 justifyContent: "flex-start",

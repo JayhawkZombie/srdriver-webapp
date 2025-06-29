@@ -20,6 +20,8 @@ interface VisualizationRequest {
   spectralFluxWindow?: number;
   spectralFluxK?: number;
   spectralFluxMinSeparation?: number;
+  minDb?: number;
+  minDbDelta?: number;
 }
 
 interface BandData {
@@ -35,17 +37,12 @@ interface BandData {
   detectionFunction?: number[]; // e.g., spectral flux or derivative
   threshold?: number[]; // adaptive threshold
   sustainedImpulses?: number[]; // 1 if sustained, 0 otherwise
+  detectionTimes?: number[]; // times for each frame
 }
 
 interface VisualizationResult {
   bandDataArr: BandData[];
 }
-
-// If DedicatedWorkerGlobalScope is not defined, declare a minimal fallback type (for TypeScript in web workers)
-// @ts-ignore
-type _DedicatedWorkerGlobalScope = typeof globalThis & { onmessage: (e: MessageEvent) => void; postMessage: (msg: any) => void; };
-// @ts-ignore
-declare var self: _DedicatedWorkerGlobalScope;
 
 globalThis.onmessage = (e: MessageEvent) => {
   const data = e.data as VisualizationRequest;
@@ -58,10 +55,13 @@ globalThis.onmessage = (e: MessageEvent) => {
   const spectralFluxWindow = data.spectralFluxWindow || 21;
   const spectralFluxK = data.spectralFluxK || 2;
   const spectralFluxMinSeparation = data.spectralFluxMinSeparation || 3;
+  const minDb = data.minDb ?? -60;
+  const minDbDelta = data.minDbDelta ?? 3;
   const numBins = fftSequence[0]?.length || 0;
   // Compute frequency for each bin
   const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
-  const sustainedDuration = 10; // frames for sustained change
+  // How many frames must the magnitude stay high to count as sustained? (smaller = less strict)
+  const sustainedDuration = 3; // frames for sustained change (was 10)
   // Helper: moving median
   function movingMedian(arr: number[], window: number): number[] {
     const result = [];
@@ -104,13 +104,13 @@ globalThis.onmessage = (e: MessageEvent) => {
     // Get raw magnitudes
     let magnitudes = fftSequence.map(row => row[binIdx] ?? 0);
     // Only keep frames with magnitude > 1e-6 for impulse/derivative (avoid log(0) and noise)
-    let mask = magnitudes.map(m => m > 1e-6 ? 1 : 0);
+    const mask = magnitudes.map(m => m > 1e-6 ? 1 : 0);
     // Smoothing (moving average) if requested
     if (impulseSmoothing > 1) {
       magnitudes = movingAverage(magnitudes, impulseSmoothing);
     }
     // Compute log-magnitudes if requested
-    let procMagnitudes = derivativeLogDomain
+    const procMagnitudes = derivativeLogDomain
       ? magnitudes.map(m => Math.log10(Math.max(m, 1e-8)))
       : magnitudes.slice();
     // Derivative helpers
@@ -145,8 +145,8 @@ globalThis.onmessage = (e: MessageEvent) => {
       return result;
     }
     // Compute derivatives based on mode and window size
-    let derivatives: number[] = nthDerivative(procMagnitudes, 1, impulseWindowSize, derivativeMode);
-    let secondDerivatives: number[] = nthDerivative(procMagnitudes, 2, impulseWindowSize, derivativeMode);
+    const derivatives: number[] = nthDerivative(procMagnitudes, 1, impulseWindowSize, derivativeMode);
+    const secondDerivatives: number[] = nthDerivative(procMagnitudes, 2, impulseWindowSize, derivativeMode);
     let impulseStrengths: number[] = [];
     if (impulseDetectionMode === 'spectral-flux') {
       // Spectral flux: positive difference between frames (in log-magnitude domain)
@@ -156,8 +156,8 @@ globalThis.onmessage = (e: MessageEvent) => {
       const mad = movingMAD(impulseStrengths, spectralFluxWindow, med);
       // Mark impulses where flux > threshold and enforce min separation
       let lastImpulse = -spectralFluxMinSeparation;
-      let impulses = new Array(impulseStrengths.length).fill(0);
-      let thresholdArr = med.map((m, i) => m + spectralFluxK * mad[i]);
+      const impulses = new Array(impulseStrengths.length).fill(0);
+      const thresholdArr = med.map((m, i) => m + spectralFluxK * mad[i]);
       for (let i = 0; i < impulseStrengths.length; i++) {
         const threshold = thresholdArr[i];
         if (impulseStrengths[i] > threshold && (i - lastImpulse) >= spectralFluxMinSeparation) {
@@ -166,9 +166,13 @@ globalThis.onmessage = (e: MessageEvent) => {
         }
       }
       // Compute sustained impulses: only mark as sustained if magnitude stays above (or below) its value for at least sustainedDuration frames
-      let sustainedImpulses = new Array(impulses.length).fill(0);
+      const sustainedImpulses = new Array(impulses.length).fill(0);
       for (let i = 0; i < impulses.length; i++) {
-        if (impulses[i] > 0) {
+        if (
+          impulses[i] > 0 &&
+          (procMagnitudes[i] * 20 > minDb) &&
+          (i === 0 || ((procMagnitudes[i] - procMagnitudes[i - 1]) * 20 > minDbDelta))
+        ) {
           let isSustained = true;
           const magVal = magnitudes[i];
           for (let j = 1; j <= sustainedDuration; j++) {
@@ -195,18 +199,65 @@ globalThis.onmessage = (e: MessageEvent) => {
         impulseStrengths,
         normalizedImpulseStrengths: impulseStrengths.map(v => (v - mean) / std),
         detectionFunction: procMagnitudes.map((v, i, a) => i === 0 ? 0 : Math.max(0, v - a[i - 1])),
+        detectionTimes: procMagnitudes.map((_, i) => i * (data.hopSize || 512) / sampleRate),
         threshold: thresholdArr,
         sustainedImpulses,
       };
     } else if (impulseDetectionMode === 'second-derivative') {
       impulseStrengths = secondDerivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
+      const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
+      const std = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / impulseStrengths.length) || 1;
+      const normalizedImpulseStrengths = impulseStrengths.map(v => (v - mean) / std);
+      return {
+        band,
+        bandIdx,
+        binIdx,
+        magnitudes,
+        derivatives,
+        secondDerivatives,
+        impulseStrengths,
+        normalizedImpulseStrengths,
+        detectionFunction: secondDerivatives,
+        detectionTimes: secondDerivatives.map((_, i) => i * (data.hopSize || 512) / sampleRate),
+      };
     } else if (impulseDetectionMode === 'first-derivative') {
       impulseStrengths = derivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
+      const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
+      const std = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / impulseStrengths.length) || 1;
+      const normalizedImpulseStrengths = impulseStrengths.map(v => (v - mean) / std);
+      return {
+        band,
+        bandIdx,
+        binIdx,
+        magnitudes,
+        derivatives,
+        secondDerivatives,
+        impulseStrengths,
+        normalizedImpulseStrengths,
+        detectionFunction: derivatives,
+        detectionTimes: derivatives.map((_, i) => i * (data.hopSize || 512) / sampleRate),
+      };
     } else if (impulseDetectionMode === 'z-score') {
       // Z-score of first derivative
       const mean = derivatives.reduce((a, b) => a + b, 0) / derivatives.length;
       const std = Math.sqrt(derivatives.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / derivatives.length) || 1;
       impulseStrengths = derivatives.map((v, i) => mask[i] ? (v - mean) / std : 0);
+      const zScores = derivatives.map((v, i) => mask[i] ? (v - mean) / std : 0);
+      const meanZ = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
+      const stdZ = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - meanZ, 2), 0) / impulseStrengths.length) || 1;
+      const normalizedImpulseStrengths = impulseStrengths.map(v => (v - meanZ) / stdZ);
+      return {
+        band,
+        bandIdx,
+        binIdx,
+        magnitudes,
+        derivatives,
+        secondDerivatives,
+        impulseStrengths,
+        normalizedImpulseStrengths,
+        detectionFunction: zScores,
+        detectionTimes: zScores.map((_, i) => i * (data.hopSize || 512) / sampleRate),
+      };
     }
     // Normalization for UI thresholding
     const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;

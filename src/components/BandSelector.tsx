@@ -1,25 +1,24 @@
 import React from 'react';
 import { ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { useAppStore } from '../store/appStore';
 
-interface BandSelectorProps {
-  bands: { name: string }[];
-  selectedBand: string;
-  onSelect: (bandName: string) => void;
-}
+const BAND_NAMES = ['Bass', 'Low Mid', 'Mid', 'Treble', 'High Treble'];
 
-const BandSelector: React.FC<BandSelectorProps> = ({ bands, selectedBand, onSelect }) => {
+const BandSelector: React.FC = () => {
+  const selectedBand = useAppStore(state => state.selectedBand);
+  const setSelectedBand = useAppStore(state => state.setSelectedBand);
   return (
     <ToggleButtonGroup
       value={selectedBand}
       exclusive
       onChange={(_, newBand) => {
-        if (newBand) onSelect(newBand);
+        if (newBand) setSelectedBand(newBand);
       }}
       aria-label="Band selection"
     >
-      {bands.map(band => (
-        <ToggleButton key={band.name} value={band.name} aria-label={band.name}>
-          {band.name}
+      {BAND_NAMES.map(bandName => (
+        <ToggleButton key={bandName} value={bandName} aria-label={bandName}>
+          {bandName}
         </ToggleButton>
       ))}
     </ToggleButtonGroup>
