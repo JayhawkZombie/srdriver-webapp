@@ -102,6 +102,9 @@ export interface AppState {
   setSpectralFluxK: (n: number) => void;
   spectralFluxMinSeparation: number;
   setSpectralFluxMinSeparation: (n: number) => void;
+  // Pattern response
+  patternResponseIndex: number;
+  setPatternResponseIndex: (idx: number) => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -171,5 +174,8 @@ export const useAppStore = create<AppState>(
     setSpectralFluxK: (n) => set({ spectralFluxK: n }),
     spectralFluxMinSeparation: 3,
     setSpectralFluxMinSeparation: (n) => set({ spectralFluxMinSeparation: n }),
+    // Pattern response
+    patternResponseIndex: 0,
+    setPatternResponseIndex: (idx: number) => set({ patternResponseIndex: idx }),
   }))
 ); 

@@ -402,9 +402,6 @@ const AudioChunkerDemo: React.FC = () => {
                         mt: 4,
                     }}
                 >
-                    <Typography variant="h6" sx={{ mb: 1 }}>
-                        Audio Chunker Demo
-                    </Typography>
                     <ImpulseResponseProvider>
                         <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%' }}>
                             {/* Left: controls and plot */}
@@ -534,7 +531,8 @@ const AudioChunkerDemo: React.FC = () => {
                             </Box>
                             {/* Right: Visualizer → Lights Connection Placeholder */}
                             <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                <PulseToolsCard />
+                                {/* <PulseToolsCard /> */}
+                                {/* <PulseControlsPanel /> */}
                                 <ImpulseResponseCard />
                             </Box>
                         </Box>

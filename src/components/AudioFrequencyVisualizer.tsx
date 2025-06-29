@@ -8,6 +8,8 @@ import { getBandPlotData, BandPlotData } from './bandPlotUtils';
 import { useAppStore } from '../store/appStore';
 import { usePulseContext } from '../controllers/PulseContext';
 import { useImpulseResponse } from '../context/ImpulseResponseContext';
+import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
+import { fireSelectedPattern, fireCurrentPattern } from './PatternResponsePanel';
 import BandPlot from './BandPlot';
 
 interface AudioFrequencyVisualizerProps {
@@ -86,11 +88,12 @@ const BandPlotCard = memo(({
           time > lastCursorRef.current &&
           time <= playbackTime
         ) {
-          console.log('[IMPULSE-REALTIME] emitPulse', { bandName: data.band.name, time, strength: yArr[idx] });
           emitPulse({ bandName: data.band.name, time: 500, strength: yArr[idx] });
           if (onImpulse) onImpulse(yArr[idx], minStrength, maxStrength, data.band.name, time);
           const pulseData = { bandName: data.band.name, time: 500, strength: yArr[idx] };
           firePulse(pulseData);
+          // Fire the selected pattern using the simple utility
+          fireCurrentPattern();
           emittedPulsesRef.current.add(key);
         }
       });

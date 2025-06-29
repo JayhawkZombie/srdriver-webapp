@@ -4,6 +4,7 @@ import {
   Typography,
   Container,
   Drawer,
+  IconButton,
 } from '@mui/material';
 import DevicePanel from './DevicePanel';
 import AudioChunkerDemo from './AudioChunkerDemo';
@@ -21,100 +22,53 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
-  const {
-    devices,
-    addDevice,
-    removeDevice,
-    connectDevice,
-    disconnectDevice,
-    updateDevice
-  } = useDeviceControllerContext();
-  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState<number>(0);
-  const [mainTab, setMainTab] = useState<number>(0); // 0 = Devices, 1 = Audio Chunker
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { devices } = useDeviceControllerContext();
   const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false);
-
-  const selectedDevice = devices[selectedDeviceIndex];
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
+  const [activeDeviceId, setActiveDeviceId] = useState<string | null>(devices[0]?.id ?? null);
 
   return (
-    <>
-      <DeviceSidebar
-        mainTab={mainTab}
-        drawerOpen={drawerOpen}
-        setDrawerOpen={setDrawerOpen}
-        devices={devices}
-        selectedDeviceIndex={selectedDeviceIndex}
-        setSelectedDeviceIndex={setSelectedDeviceIndex}
-        addDevice={addDevice}
-        removeDevice={removeDevice}
-      />
-
-      {/* Main content area: margin-left and scrollable */}
-      <Box sx={{
-        ml: '220px',
-        height: '100vh',
-        overflowY: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
-        mt: 0,
-        pt: 0,
-      }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 0, py: 0 }}>
+      <Box sx={{ height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', mt: 0, pt: 0 }}>
         <DashboardHeader
           mode={mode}
           onToggleMode={onToggleMode}
-          selectedDevice={selectedDevice}
-          mainTab={mainTab}
-          setMainTab={setMainTab}
           onOpenConnectionDrawer={() => setConnectionDrawerOpen(true)}
+          onOpenLeftDrawer={() => setLeftDrawerOpen(true)}
         />
-        <Container maxWidth={false} sx={{ flexGrow: 1, width: '100%', py: 1, px: 0, m: 0 }}>
+        <Box sx={{ flexGrow: 1, width: '100%', py: 1, px: 0, m: 0 }}>
           <PulseControlsProvider>
-            {mainTab === 0 ? (
-              devices.length === 0 ? (
-                <Box sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%'
-                }}>
-                  <Typography variant="h6">No devices added. Click "Add Device" to begin.</Typography>
-                </Box>
-              ) : (
-                selectedDevice && (
-                  <SingleDeviceProvider value={selectedDevice}>
-                    <DevicePanel
-                      onConnect={() => connectDevice(selectedDevice.id)}
-                      onDisconnect={() => disconnectDevice(selectedDevice.id)}
-                      onUpdate={updateDevice}
-                    />
-                  </SingleDeviceProvider>
-                )
-              )
-            ) : (
-              <PulseToolsProvider>
-                <AudioChunkerDemo />
-              </PulseToolsProvider>
-            )}
+            <PulseToolsProvider>
+              <AudioChunkerDemo />
+            </PulseToolsProvider>
           </PulseControlsProvider>
-        </Container>
+        </Box>
       </Box>
-
+      <Drawer
+        anchor="left"
+        open={leftDrawerOpen}
+        onClose={() => setLeftDrawerOpen(false)}
+        PaperProps={{ sx: { width: 380, p: 2, bgcolor: 'background.default', boxShadow: 8, mt: '64px', height: 'calc(100% - 64px)', top: '64px' } }}
+      >
+        <LightsConnectionCard
+          connectedDevices={devices}
+          activeDeviceId={activeDeviceId}
+          setActiveDeviceId={setActiveDeviceId}
+        />
+      </Drawer>
       <Drawer
         anchor="right"
         open={connectionDrawerOpen}
         onClose={() => setConnectionDrawerOpen(false)}
-        PaperProps={{ sx: { width: 380, p: 2, bgcolor: 'background.default', boxShadow: 8 } }}
+        PaperProps={{ sx: { width: 380, p: 2, bgcolor: 'background.default', boxShadow: 8, mt: '64px', height: 'calc(100% - 64px)', top: '64px' } }}
       >
         <LightsConnectionCard
           connectedDevices={devices}
-          activeDeviceId={selectedDevice?.id ?? null}
-          setActiveDeviceId={id => {
-            const idx = devices.findIndex(d => d.id === id);
-            if (idx !== -1) setSelectedDeviceIndex(idx);
-          }}
+          activeDeviceId={activeDeviceId}
+          setActiveDeviceId={setActiveDeviceId}
         />
       </Drawer>
-    </>
+    </Box>
   );
 };
 

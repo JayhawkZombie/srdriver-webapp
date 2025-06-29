@@ -5,26 +5,33 @@ import AnimatedStatusChip from './AnimatedStatusChip';
 import BluetoothIcon from '@mui/icons-material/Bluetooth';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import IconButton from '@mui/material/IconButton';
+import MenuIcon from '@mui/icons-material/Menu';
 
 interface DashboardHeaderProps {
   mode: 'light' | 'dark';
   onToggleMode: () => void;
-  selectedDevice?: { isConnected: boolean };
-  mainTab: number;
-  setMainTab: (tab: number) => void;
   onOpenConnectionDrawer?: () => void;
+  onOpenLeftDrawer?: () => void;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   mode,
   onToggleMode,
-  selectedDevice,
-  mainTab,
-  setMainTab,
-  onOpenConnectionDrawer
+  onOpenConnectionDrawer,
+  onOpenLeftDrawer
 }) => (
-  <AppBar position="static" elevation={0}>
+  <AppBar position="sticky" elevation={2} sx={{ zIndex: 1201, top: 0 }}>
     <Toolbar sx={{ minHeight: 48, px: 2 }}>
+      {onOpenLeftDrawer && (
+        <IconButton
+          color="inherit"
+          aria-label="open drawer"
+          onClick={onOpenLeftDrawer}
+          sx={{ mr: 1 }}
+        >
+          <MenuIcon />
+        </IconButton>
+      )}
       <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
         SRDriver Dashboard
       </Typography>
@@ -43,26 +50,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         label={mode === 'dark' ? 'Dark' : 'Light'}
         sx={{ mr: 2 }}
       />
-      {selectedDevice && (
-        <AnimatedStatusChip
-          label={selectedDevice.isConnected ? 'Connected' : 'Disconnected'}
-          color={selectedDevice.isConnected ? 'success' : 'default'}
-          size="small"
-          isActive={selectedDevice.isConnected}
-          icon={
-            <BluetoothIcon
-              fontSize="small"
-              sx={{ color: selectedDevice.isConnected ? 'white' : 'action.disabled' }}
-            />
-          }
-        />
-      )}
       {/* <DevAppStateViewer />  // Disabled for performance while working with large audio/plot data */}
     </Toolbar>
-    <Tabs value={mainTab} onChange={(_, v) => setMainTab(v)} centered>
-      <Tab label="Devices" />
-      <Tab label="Audio Chunker" />
-    </Tabs>
   </AppBar>
 );
 

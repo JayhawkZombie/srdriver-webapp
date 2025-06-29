@@ -161,95 +161,63 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({
                                 {devices.map((device) => (
                                     <Box
                                         key={device.id}
+                                        onClick={() => device.isConnected && setActiveDeviceId(device.id)}
                                         sx={{
-                                            display: "flex",
-                                            alignItems: "center",
+                                            flex: 1,
+                                            justifyContent: "flex-start",
+                                            textTransform: "none",
+                                            minWidth: 0,
+                                            px: 1,
+                                            py: 0.5,
+                                            fontSize: 14,
+                                            cursor: device.isConnected ? 'pointer' : 'default',
+                                            opacity: device.isConnected ? 1 : 0.6,
+                                            border: activeDeviceId === device.id && device.isConnected ? '2px solid #1976d2' : '1px solid #ccc',
+                                            borderRadius: 1,
+                                            background: activeDeviceId === device.id && device.isConnected ? '#e3f2fd' : 'transparent',
+                                            display: 'flex',
+                                            alignItems: 'center',
                                             gap: 1,
-                                            width: "100%",
+                                            width: '100%',
                                         }}
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-disabled={!device.isConnected}
                                     >
-                                        <Button
-                                            variant={
-                                                activeDeviceId === device.id &&
-                                                device.isConnected
-                                                    ? "contained"
-                                                    : "outlined"
-                                            }
-                                            color={
-                                                activeDeviceId === device.id &&
-                                                device.isConnected
-                                                    ? "primary"
-                                                    : "inherit"
-                                            }
-                                            onClick={() =>
-                                                device.isConnected &&
-                                                setActiveDeviceId(device.id)
-                                            }
-                                            sx={{
-                                                flex: 1,
-                                                justifyContent: "flex-start",
-                                                textTransform: "none",
-                                                minWidth: 0,
-                                                px: 1,
-                                                py: 0.5,
-                                                fontSize: 14,
-                                            }}
+                                        <EditableNickname
+                                            macOrId={device.macOrId}
+                                            value={devicesMetadata[device.macOrId]?.nickname}
+                                            fallbackName={device.name}
+                                            onChange={(nickname) => setDeviceNickname(device.macOrId, nickname)}
                                             size="small"
-                                            fullWidth
-                                            disabled={!device.isConnected}
-                                        >
-                                            <EditableNickname
-                                                macOrId={device.macOrId}
-                                                value={
-                                                    devicesMetadata[
-                                                        device.macOrId
-                                                    ]?.nickname
-                                                }
-                                                fallbackName={device.name}
-                                                onChange={(nickname) =>
-                                                    setDeviceNickname(
-                                                        device.macOrId,
-                                                        nickname
-                                                    )
-                                                }
-                                                size="small"
-                                            />
-                                        </Button>
+                                        />
                                         {getStatusIcon(device)}
                                         {device.isConnected ? (
                                             <Tooltip title="Disconnect">
                                                 <IconButton
                                                     size="small"
                                                     color="secondary"
-                                                    onClick={() =>
-                                                        disconnectDevice(
-                                                            device.id
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        device.isConnecting
-                                                    }
+                                                    onClick={e => {
+                                                        e.stopPropagation();
+                                                        disconnectDevice(device.id);
+                                                    }}
+                                                    disabled={device.isConnecting}
                                                 >
                                                     <LinkOffIcon fontSize="small" />
                                                 </IconButton>
                                             </Tooltip>
                                         ) : (
                                             <Tooltip
-                                                title={
-                                                    device.isConnecting
-                                                        ? "Connecting..."
-                                                        : "Connect"
-                                                }
+                                                title={device.isConnecting ? "Connecting..." : "Connect"}
                                             >
                                                 <IconButton
                                                     size="small"
                                                     color="primary"
-                                                    onClick={() =>
-                                                        connectDevice(device.id)
-                                                    }
-                                                    disabled={
-                                                        device.isConnecting
-                                                    }
+                                                    onClick={e => {
+                                                        e.stopPropagation();
+                                                        connectDevice(device.id);
+                                                    }}
+                                                    disabled={device.isConnecting}
                                                 >
                                                     <PowerSettingsNewIcon fontSize="small" />
                                                 </IconButton>
