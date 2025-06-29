@@ -55,6 +55,8 @@ import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker
 import { del } from 'idb-keyval';
 import FFTProcessingControls from './FFTProcessingControls';
 import { alpha } from '@mui/material/styles';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import Tooltip from '@mui/material/Tooltip';
 
 interface ChunkSummary {
     numChunks: number;
@@ -112,7 +114,7 @@ const AudioChunkerDemo: React.FC = () => {
     const setShowImpulses = useAppStore(state => state.setShowImpulses);
     const selectedBand = useAppStore(state => state.selectedBand);
     const setSelectedBand = useAppStore(state => state.setSelectedBand);
-    const [followCursor, setFollowCursor] = useState(false);
+    const [followCursor, setFollowCursor] = useState(true);
     const [snapToWindow, setSnapToWindow] = useState(true);
     const { devices } = useDeviceControllerContext();
     const connectedDevices = devices.filter(d => d.isConnected);
@@ -132,6 +134,8 @@ const AudioChunkerDemo: React.FC = () => {
     const spectralFluxWindow = useAppStore((state) => state.spectralFluxWindow);
     const spectralFluxK = useAppStore((state) => state.spectralFluxK);
     const spectralFluxMinSeparation = useAppStore((state) => state.spectralFluxMinSeparation);
+    const [isProcessingStale, setIsProcessingStale] = useState(false);
+    const [hasProcessedOnce, setHasProcessedOnce] = useState(false);
 
     // Debounce state for pulses
     const pulseInProgressRef = React.useRef(false);
@@ -189,6 +193,7 @@ const AudioChunkerDemo: React.FC = () => {
                     });
                     setLoading(false);
                     setProcessingProgress(null);
+                    setIsProcessingStale(false);
                 };
                 visualizationWorkerRef.current.postMessage({
                     fftSequence: audioData.analysis.fftSequence.map((arr: any) => Array.from(arr)),
@@ -208,6 +213,12 @@ const AudioChunkerDemo: React.FC = () => {
         }, 500);
         return () => clearTimeout(debounced);
     }, [impulseWindowSize, impulseSmoothing, impulseDetectionMode, audioLoaded, file]);
+
+    // When any processing control changes, set isProcessingStale=true, but only if hasProcessedOnce
+    useEffect(() => {
+        if (!audioLoaded || !hasProcessedOnce) return;
+        setIsProcessingStale(true);
+    }, [impulseWindowSize, impulseSmoothing, impulseDetectionMode, derivativeMode, spectralFluxWindow, spectralFluxK, spectralFluxMinSeparation, audioLoaded, hasProcessedOnce]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -287,6 +298,8 @@ const AudioChunkerDemo: React.FC = () => {
     const handleProcess = async () => {
         if (!file) return;
         setLoading(true);
+        setIsProcessingStale(false);
+        setHasProcessedOnce(true);
         setAudioData({ analysis: null }); // Reset analysis
         setProcessingProgress(null); // Reset progress
         try {
@@ -426,6 +439,33 @@ const AudioChunkerDemo: React.FC = () => {
                                     >
                                         {loading ? 'Processing...' : 'Process Audio'}
                                     </Button>
+                                    {isProcessingStale && hasProcessedOnce && (
+                                        <Tooltip title="Processing settings changed. Click 'Process Audio' to update.">
+                                            <WarningAmberIcon color="warning" sx={{ ml: 1, verticalAlign: 'middle' }} />
+                                        </Tooltip>
+                                    )}
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', ml: 2, gap: 0.5, minWidth: 90 }}>
+                                        <TextField
+                                            label="FFT Window"
+                                            type="number"
+                                            size="small"
+                                            value={windowSize}
+                                            onChange={e => setWindowSize(Number(e.target.value))}
+                                            inputProps={{ min: 128, step: 128, style: { width: 70 } }}
+                                            sx={{ width: 90, mb: 0.5 }}
+                                            disabled={!file}
+                                        />
+                                        <TextField
+                                            label="Hop Size"
+                                            type="number"
+                                            size="small"
+                                            value={hopSize}
+                                            onChange={e => setHopSize(Number(e.target.value))}
+                                            inputProps={{ min: 1, step: 1, style: { width: 70 } }}
+                                            sx={{ width: 90 }}
+                                            disabled={!file}
+                                        />
+                                    </Box>
                                     <FFTProcessingControls
                                         windowSize={windowSize}
                                         setWindowSize={setWindowSize}

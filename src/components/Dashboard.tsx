@@ -3,6 +3,7 @@ import {
   Box,
   Typography,
   Container,
+  Drawer,
 } from '@mui/material';
 import DevicePanel from './DevicePanel';
 import AudioChunkerDemo from './AudioChunkerDemo';
@@ -12,6 +13,7 @@ import { PulseToolsProvider } from '../controllers/PulseToolsContext';
 import DeviceSidebar from './DeviceSidebar';
 import DashboardHeader from './DashboardHeader';
 import { SingleDeviceProvider } from '../controllers/DeviceControllerContext';
+import LightsConnectionCard from './LightsConnectionCard';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -30,6 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
   const [selectedDeviceIndex, setSelectedDeviceIndex] = useState<number>(0);
   const [mainTab, setMainTab] = useState<number>(0); // 0 = Devices, 1 = Audio Chunker
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false);
 
   const selectedDevice = devices[selectedDeviceIndex];
 
@@ -62,6 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
           selectedDevice={selectedDevice}
           mainTab={mainTab}
           setMainTab={setMainTab}
+          onOpenConnectionDrawer={() => setConnectionDrawerOpen(true)}
         />
         <Container maxWidth={false} sx={{ flexGrow: 1, width: '100%', py: 1, px: 0, m: 0 }}>
           <PulseControlsProvider>
@@ -94,6 +98,22 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
           </PulseControlsProvider>
         </Container>
       </Box>
+
+      <Drawer
+        anchor="right"
+        open={connectionDrawerOpen}
+        onClose={() => setConnectionDrawerOpen(false)}
+        PaperProps={{ sx: { width: 380, p: 2, bgcolor: 'background.default', boxShadow: 8 } }}
+      >
+        <LightsConnectionCard
+          connectedDevices={devices}
+          activeDeviceId={selectedDevice?.id ?? null}
+          setActiveDeviceId={id => {
+            const idx = devices.findIndex(d => d.id === id);
+            if (idx !== -1) setSelectedDeviceIndex(idx);
+          }}
+        />
+      </Drawer>
     </>
   );
 };

@@ -14,6 +14,7 @@ import LinkOffIcon from "@mui/icons-material/LinkOff";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
+import CloseIcon from '@mui/icons-material/Close';
 import { useDeviceControllerContext } from "../controllers/DeviceControllerContext";
 import DeviceControls from "./DeviceControls";
 import EditableNickname from "./EditableNickname";
@@ -47,6 +48,7 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({
     const activeDevice = devices.find((d) => d.id === activeDeviceId);
     const devicesMetadata = useAppStore((state) => state.devicesMetadata);
     const setDeviceNickname = useAppStore((state) => state.setDeviceNickname);
+    const [visible, setVisible] = React.useState(true);
 
     // Helper for status icon
     const getStatusIcon = (device: Device) => {
@@ -75,24 +77,66 @@ const LightsConnectionCard: React.FC<LightsConnectionCardProps> = ({
         );
     };
 
+    if (!visible) {
+        return (
+            <Box
+                onClick={() => setVisible(true)}
+                sx={{
+                    position: 'fixed',
+                    right: 0,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 2000,
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                    borderTopLeftRadius: 16,
+                    borderBottomLeftRadius: 16,
+                    boxShadow: 4,
+                    px: 1.5,
+                    py: 1,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    transition: 'background 0.2s',
+                    '&:hover': { bgcolor: 'primary.dark' },
+                }}
+                aria-label="Show Lights Connection"
+            >
+                <PowerSettingsNewIcon fontSize="medium" />
+            </Box>
+        );
+    }
+
     return (
         <Paper
-            elevation={1}
+            elevation={3}
             sx={{
                 p: 1.5,
                 borderRadius: 2,
-                bgcolor: "background.default",
-                border: "1px solid",
-                borderColor: "divider",
+                bgcolor: 'background.default',
+                border: '1px solid',
+                borderColor: 'divider',
                 minHeight: 120,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                position: "relative",
-                minWidth: 420
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                position: 'fixed',
+                top: 32,
+                right: 32,
+                minWidth: 340,
+                zIndex: 2000,
+                boxShadow: 8,
             }}
         >
+            <IconButton
+                size="small"
+                onClick={() => setVisible(false)}
+                sx={{ position: 'absolute', top: 8, right: 8 }}
+                aria-label="Hide Lights Connection"
+            >
+                <CloseIcon fontSize="small" />
+            </IconButton>
             <Typography
                 variant="subtitle1"
                 sx={{

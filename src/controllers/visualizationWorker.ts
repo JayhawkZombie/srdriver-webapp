@@ -31,6 +31,10 @@ interface BandData {
   secondDerivatives: number[];
   impulseStrengths: number[];
   normalizedImpulseStrengths: number[];
+  // For visualization:
+  detectionFunction?: number[]; // e.g., spectral flux or derivative
+  threshold?: number[]; // adaptive threshold
+  sustainedImpulses?: number[]; // 1 if sustained, 0 otherwise
 }
 
 interface VisualizationResult {
@@ -57,8 +61,7 @@ self.onmessage = (e: MessageEvent) => {
   const numBins = fftSequence[0]?.length || 0;
   // Compute frequency for each bin
   const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
-  const minImpulseSeparation = 3; // Minimum frames between impulses
-  const adaptiveK = 2; // Threshold = median + k * MAD
+  const sustainedDuration = 10; // frames for sustained change
   // Helper: moving median
   function movingMedian(arr: number[], window: number): number[] {
     const result = [];
@@ -152,16 +155,49 @@ self.onmessage = (e: MessageEvent) => {
       const med = movingMedian(impulseStrengths, spectralFluxWindow);
       const mad = movingMAD(impulseStrengths, spectralFluxWindow, med);
       // Mark impulses where flux > threshold and enforce min separation
-      let lastImpulse = -minImpulseSeparation;
+      let lastImpulse = -spectralFluxMinSeparation;
       let impulses = new Array(impulseStrengths.length).fill(0);
+      let thresholdArr = med.map((m, i) => m + spectralFluxK * mad[i]);
       for (let i = 0; i < impulseStrengths.length; i++) {
-        const threshold = med[i] + adaptiveK * mad[i];
+        const threshold = thresholdArr[i];
         if (impulseStrengths[i] > threshold && (i - lastImpulse) >= spectralFluxMinSeparation) {
           impulses[i] = impulseStrengths[i];
           lastImpulse = i;
         }
       }
+      // Compute sustained impulses: only mark as sustained if magnitude stays above (or below) its value for at least sustainedDuration frames
+      let sustainedImpulses = new Array(impulses.length).fill(0);
+      for (let i = 0; i < impulses.length; i++) {
+        if (impulses[i] > 0) {
+          let isSustained = true;
+          const magVal = magnitudes[i];
+          for (let j = 1; j <= sustainedDuration; j++) {
+            if (i + j >= magnitudes.length) break;
+            if (magnitudes[i + j] < magVal - 1e-6) { // allow small tolerance
+              isSustained = false;
+              break;
+            }
+          }
+          if (isSustained) sustainedImpulses[i] = impulses[i];
+        }
+      }
       impulseStrengths = impulses;
+      // Compute mean and std for normalization (move this up before use)
+      const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
+      const std = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / impulseStrengths.length) || 1;
+      return {
+        band,
+        bandIdx,
+        binIdx,
+        magnitudes,
+        derivatives,
+        secondDerivatives,
+        impulseStrengths,
+        normalizedImpulseStrengths: impulseStrengths.map(v => (v - mean) / std),
+        detectionFunction: procMagnitudes.map((v, i, a) => i === 0 ? 0 : Math.max(0, v - a[i - 1])),
+        threshold: thresholdArr,
+        sustainedImpulses,
+      };
     } else if (impulseDetectionMode === 'second-derivative') {
       impulseStrengths = secondDerivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
     } else if (impulseDetectionMode === 'first-derivative') {

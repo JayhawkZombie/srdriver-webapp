@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Plot from 'react-plotly.js';
 import { useAppStore } from '../store/appStore';
 import { getBandPlotData, BandPlotData } from './bandPlotUtils';
@@ -88,6 +88,16 @@ const BandPlot: React.FC<{
       position: 1.0,
       color: axisColor,
     },
+    yaxis3: {
+      title: '2nd Derivative (dB)',
+      overlaying: 'y',
+      side: 'right',
+      showgrid: false,
+      zeroline: false,
+      showticklabels: false,
+      position: 0.98,
+      color: 'cyan',
+    },
     paper_bgcolor: plotBg,
     plot_bgcolor: plotBg,
     legend: {
@@ -99,15 +109,82 @@ const BandPlot: React.FC<{
     },
   }), [xRange, axisColor, gridColor, plotBg, bandPlotData?.yAxisRange]);
 
+  const [showDetectionFunction, setShowDetectionFunction] = useState(false);
+  const [showSustainedImpulses, setShowSustainedImpulses] = useState(false);
+  const [onlySustained, setOnlySustained] = useState(false);
+
+  // Detection function plot data (spectral-flux only)
+  const detectionPlot = useMemo(() => {
+    if (!bandPlotData || !bandPlotData.detectionFunction || !bandPlotData.thresholdArr) return null;
+    // Downsample for performance if needed
+    const step = Math.max(1, Math.floor(bandPlotData.detectionFunction.length / 1000));
+    const times = bandPlotData.traces.magnitude.x as number[];
+    const detection = bandPlotData.detectionFunction;
+    const thresholdArr = bandPlotData.thresholdArr;
+    // Use impulses from the impulse trace y values (if available)
+    const impulses = bandPlotData.traces.impulses && Array.isArray(bandPlotData.traces.impulses.y) ? bandPlotData.traces.impulses.y as number[] : [];
+    const sustained = bandPlotData.sustainedImpulses;
+    const x = times.filter((_, i: number) => i % step === 0);
+    const y = detection.filter((_, i: number) => i % step === 0);
+    const th = thresholdArr.filter((_, i: number) => i % step === 0);
+    // Impulse markers: find indices where impulses are nonzero
+    const impulseIndices = impulses.map((v: number, i: number) => v > 0 ? i : -1).filter((i: number) => i >= 0);
+    const sustainedIndices = sustained ? sustained.map((v: number, i: number) => v > 0 ? i : -1).filter((i: number) => i >= 0) : [];
+    // Filtering logic
+    const showImpulses = !onlySustained;
+    const showSustained = showSustainedImpulses;
+    return [
+      { x, y, type: 'scatter', mode: 'lines', name: 'Detection Function', line: { color: 'orange', width: 2 } },
+      { x, y: th, type: 'scatter', mode: 'lines', name: 'Threshold', line: { color: 'gray', width: 2, dash: 'dash' } },
+      ...(showImpulses ? [{ x: impulseIndices.map((i: number) => times[i]), y: impulseIndices.map((i: number) => detection[i]), type: 'scatter', mode: 'markers', name: 'Impulses', marker: { color: 'red', size: 10, symbol: 'x' } }] : []),
+      ...(showSustained && sustainedIndices.length > 0 ? [{ x: sustainedIndices.map((i: number) => times[i]), y: sustainedIndices.map((i: number) => detection[i]), type: 'scatter', mode: 'markers', name: 'Sustained', marker: { color: 'lime', size: 12, symbol: 'star' } }] : []),
+    ];
+  }, [bandPlotData, showSustainedImpulses, onlySustained]);
+
   if (!bandPlotData) return null;
 
   return (
-    <Plot
-      data={traces}
-      layout={layout}
-      config={{ displayModeBar: false, responsive: true }}
-      style={{ width: '100%' }}
-    />
+    <>
+      <Plot
+        data={traces}
+        layout={layout}
+        config={{ displayModeBar: false, responsive: true }}
+        style={{ width: '100%' }}
+      />
+      {/* Detection function plot toggle and plot (spectral-flux only) */}
+      {bandPlotData && bandPlotData.detectionFunction && bandPlotData.thresholdArr && (
+        <Box sx={{ mt: 1, mb: 0.5 }}>
+          <label style={{ fontSize: 13, cursor: 'pointer', marginRight: 12 }}>
+            <input type="checkbox" checked={showDetectionFunction} onChange={e => setShowDetectionFunction(e.target.checked)} style={{ marginRight: 6 }} />
+            Show Detection Function
+          </label>
+          <label style={{ fontSize: 13, cursor: 'pointer', marginRight: 12 }}>
+            <input type="checkbox" checked={showSustainedImpulses} onChange={e => setShowSustainedImpulses(e.target.checked)} style={{ marginRight: 6 }} />
+            Show Sustained Impulses
+          </label>
+          <label style={{ fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={onlySustained} onChange={e => setOnlySustained(e.target.checked)} style={{ marginRight: 6 }} />
+            Only Sustained
+          </label>
+          {showDetectionFunction && detectionPlot && (
+            <Plot
+              data={detectionPlot}
+              layout={{
+                height: 140,
+                margin: { l: 40, r: 10, t: 10, b: 24 },
+                xaxis: { title: 'Time (seconds)', color: axisColor, gridcolor: gridColor },
+                yaxis: { title: 'Detection Value', color: axisColor, gridcolor: gridColor },
+                paper_bgcolor: plotBg,
+                plot_bgcolor: plotBg,
+                legend: { orientation: 'h', y: -0.25, yanchor: 'top', x: 0.5, xanchor: 'center' },
+              }}
+              config={{ displayModeBar: false, responsive: true }}
+              style={{ width: '100%' }}
+            />
+          )}
+        </Box>
+      )}
+    </>
   );
 });
 

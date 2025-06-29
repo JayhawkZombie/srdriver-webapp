@@ -9,6 +9,9 @@ interface BandData {
   secondDerivatives: number[];
   impulseStrengths: number[];
   normalizedImpulseStrengths: number[];
+  detectionFunction?: number[];
+  threshold?: number[];
+  sustainedImpulses?: number[];
 }
 
 export interface BandPlotData {
@@ -21,9 +24,12 @@ export interface BandPlotData {
   sliderMin: number;
   sliderMax: number;
   sliderStep: number;
-  threshold: number;
+  thresholdValue: number;
   freq: number;
   yAxisRange: [number, number];
+  detectionFunction?: number[];
+  thresholdArr?: number[];
+  sustainedImpulses?: number[];
 }
 
 interface GetBandPlotDataOptions {
@@ -90,7 +96,7 @@ export function getBandPlotData({
   }
   // Compute static traces ONCE per band unless bandDataArr or display params change
   const staticTracesArr = bandDataArr.map((data: BandData) => {
-    const { band, bandIdx, binIdx, magnitudes, derivatives, secondDerivatives } = data;
+    const { band, bandIdx, binIdx, magnitudes, derivatives, secondDerivatives, detectionFunction, threshold, sustainedImpulses } = data;
     const times = Array.from({ length: magnitudes.length }, (_, i) => (i * hopSize) / sampleRate);
     // Precompute all static traces for the full data
     return {
@@ -131,22 +137,25 @@ export function getBandPlotData({
       derivatives,
       secondDerivatives,
       impulseStrengths: data.normalizedImpulseStrengths,
+      detectionFunction,
+      threshold,
+      sustainedImpulses,
     };
   });
 
   // Now, for each band, compute the impulse trace only when threshold or xRange changes
   return staticTracesArr.map((staticData, bandIdx) => {
-    const { band, binIdx, times, magnitudeTrace, derivativeTrace, secondDerivativeTrace, magnitudes, impulseStrengths } = staticData;
+    const { band, binIdx, times, magnitudeTrace, derivativeTrace, secondDerivativeTrace, magnitudes, impulseStrengths, detectionFunction, threshold, sustainedImpulses } = staticData;
     const [xMin, xMax] = xRange;
     // Only show impulses in the visible window
     const visibleIndices = times.map((t, i) => (t >= xMin && t <= xMax ? i : -1)).filter(i => i >= 0);
-    let threshold = normalizedImpulseThreshold;
+    let thresholdValue = normalizedImpulseThreshold;
     // Only impulses above the normalized threshold are plotted
-    const impulseIndices = visibleIndices.filter(i => impulseStrengths[i] > threshold);
+    const impulseIndices = visibleIndices.filter(i => impulseStrengths[i] > thresholdValue);
     // Debug: log threshold and filtering results
     if (visibleIndices.length > 0) {
       console.log(`[Impulse Debug] Band: ${band.name}`);
-      console.log(`  Threshold: ${threshold}`);
+      console.log(`  Threshold: ${thresholdValue}`);
       console.log(`  Number of impulses above threshold:`, impulseIndices.length, 'of', visibleIndices.length);
     }
     const impulseTimes = impulseIndices.map(i => times[i]);
@@ -163,12 +172,12 @@ export function getBandPlotData({
     let sliderMax = 6; // 6 standard deviations above mean is very strong
     let sliderStep = Math.max((sliderMax - sliderMin) / 100, 0.001);
     // Clamp threshold to slider range
-    let clampedThreshold = Math.max(sliderMin, Math.min(threshold, sliderMax));
-    if (impulseThresholds && setImpulseThresholds && threshold !== clampedThreshold) {
+    let clampedThreshold = Math.max(sliderMin, Math.min(thresholdValue, sliderMax));
+    if (impulseThresholds && setImpulseThresholds && thresholdValue !== clampedThreshold) {
       const newThresholds = [...impulseThresholds];
       newThresholds[bandIdx] = clampedThreshold;
       setImpulseThresholds(newThresholds);
-      threshold = clampedThreshold;
+      thresholdValue = clampedThreshold;
     }
     // Only the impulse trace is dynamic
     const impulsesTrace = {
@@ -204,10 +213,12 @@ export function getBandPlotData({
       sliderMin,
       sliderMax,
       sliderStep,
-      threshold,
+      thresholdValue: normalizedImpulseThreshold,
       freq: freqs[binIdx],
-      // Add a fixed y-axis range for dB
       yAxisRange: [-80, 0],
+      detectionFunction,
+      thresholdArr: threshold,
+      sustainedImpulses,
     };
   });
 } 

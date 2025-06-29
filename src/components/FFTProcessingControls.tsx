@@ -48,45 +48,25 @@ const FFTProcessingControls: React.FC<FFTProcessingControlsProps> = ({ windowSiz
     const setSpectralFluxK = useAppStore((state) => state.setSpectralFluxK);
     const spectralFluxMinSeparation = useAppStore((state) => state.spectralFluxMinSeparation);
     const setSpectralFluxMinSeparation = useAppStore((state) => state.setSpectralFluxMinSeparation);
+    const detectionMethod = impulseDetectionMode;
+    const setDetectionMethod = setImpulseDetectionMode;
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1, p: 0, m: 0, opacity: disabled ? 0.5 : 1 }}>
-            <FormControl size="small" sx={{ minWidth: 120 }} disabled={disabled}>
+            <FormControl size="small" sx={{ minWidth: 150 }} disabled={disabled}>
                 <Select
-                    value={derivativeMode}
-                    onChange={(e) => setDerivativeMode(e.target.value as any)}
+                    value={detectionMethod}
+                    onChange={(e) => setDetectionMethod(e.target.value as any)}
                     displayEmpty
                     disabled={disabled}
                 >
-                    <MenuItem value="centered">Centered</MenuItem>
-                    <MenuItem value="forward">Forward</MenuItem>
-                    <MenuItem value="moving-average">Moving Avg</MenuItem>
-                </Select>
-            </FormControl>
-            <Tooltip title={
-                <>
-                    <b>Derivative Mode:</b><br/>
-                    <b>Centered</b>: (default) Slope between points before/after, best for local rate of change.<br/>
-                    <b>Forward</b>: Difference from previous window (step-like for large window).<br/>
-                    <b>Moving Avg</b>: Average of differences over window (smooth, slightly lagged).
-                </>
-            } placement="top" arrow>
-                <InfoOutlinedIcon fontSize="small" sx={{ ml: 0.5, color: 'text.secondary', cursor: 'pointer' }} />
-            </Tooltip>
-            <FormControl size="small" sx={{ minWidth: 120 }} disabled={disabled}>
-                <Select
-                    value={impulseDetectionMode}
-                    onChange={(e) => setImpulseDetectionMode(e.target.value as any)}
-                    displayEmpty
-                    disabled={disabled}
-                >
-                    <MenuItem value="second-derivative">2nd Deriv</MenuItem>
-                    <MenuItem value="first-derivative">1st Deriv</MenuItem>
-                    <MenuItem value="z-score">Z-Score</MenuItem>
                     <MenuItem value="spectral-flux">Spectral Flux</MenuItem>
+                    <MenuItem value="first-derivative">1st Derivative</MenuItem>
+                    <MenuItem value="second-derivative">2nd Derivative</MenuItem>
+                    <MenuItem value="z-score">Z-Score (Derivative)</MenuItem>
                 </Select>
             </FormControl>
-            {impulseDetectionMode === 'spectral-flux' && (
+            {detectionMethod === 'spectral-flux' && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5, ml: 1 }}>
                     <Tooltip title="Window size for adaptive threshold (median/MAD). Larger = more context, less sensitive."><span>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -141,6 +121,63 @@ const FFTProcessingControls: React.FC<FFTProcessingControlsProps> = ({ windowSiz
                     </span></Tooltip>
                 </Box>
             )}
+            {detectionMethod !== 'spectral-flux' && (
+                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1, ml: 1 }}>
+                    <Tooltip title={<>
+                        <b>Derivative Mode:</b><br/>
+                        <b>Centered</b>: (default) Slope between points before/after, best for local rate of change.<br/>
+                        <b>Forward</b>: Difference from previous window (step-like for large window).<br/>
+                        <b>Moving Avg</b>: Average of differences over window (smooth, slightly lagged).
+                    </>} placement="top" arrow>
+                        <FormControl size="small" sx={{ minWidth: 120 }} disabled={disabled}>
+                            <Select
+                                value={derivativeMode}
+                                onChange={(e) => setDerivativeMode(e.target.value as any)}
+                                displayEmpty
+                                disabled={disabled}
+                            >
+                                <MenuItem value="centered">Centered</MenuItem>
+                                <MenuItem value="forward">Forward</MenuItem>
+                                <MenuItem value="moving-average">Moving Avg</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Tooltip>
+                    <Tooltip title="Derivative window size: how many frames apart to compare for rate of change. Larger = less sensitive, smoother derivative."><span>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CropLandscapeIcon fontSize="small" sx={{ verticalAlign: 'middle', color: 'text.secondary' }} />
+                            <Typography variant="caption" sx={{ minWidth: 24 }}>Win</Typography>
+                            <Slider
+                                min={1}
+                                max={10}
+                                step={1}
+                                value={impulseWindowSize}
+                                onChange={(_, v) => setImpulseWindowSize(typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 1))}
+                                valueLabelDisplay="auto"
+                                size="small"
+                                sx={{ width: 60, ml: 1 }}
+                                disabled={disabled}
+                            />
+                        </Box>
+                    </span></Tooltip>
+                </Box>
+            )}
+            <Tooltip title="Smoothing window: moving average applied to the magnitude curve before detection. Larger = smoother, less sensitive to noise."><span>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
+                    <FunctionsIcon fontSize="small" sx={{ verticalAlign: 'middle', color: 'text.secondary' }} />
+                    <Typography variant="caption" sx={{ minWidth: 24 }}>Smooth</Typography>
+                    <Slider
+                        min={1}
+                        max={10}
+                        step={1}
+                        value={impulseSmoothing}
+                        onChange={(_, v) => setImpulseSmoothing(typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 1))}
+                        valueLabelDisplay="auto"
+                        size="small"
+                        sx={{ width: 60, ml: 1 }}
+                        disabled={disabled}
+                    />
+                </Box>
+            </span></Tooltip>
             <TextField
                 label="FFT Window"
                 type="number"
@@ -159,46 +196,6 @@ const FFTProcessingControls: React.FC<FFTProcessingControlsProps> = ({ windowSiz
                 onChange={e => setHopSize(Number(e.target.value))}
                 inputProps={{ min: 1, step: 1, style: { width: 70 } }}
                 sx={{ width: 110 }}
-                disabled={disabled}
-            />
-            <Typography variant="caption" sx={{ minWidth: 40 }}>Win</Typography>
-            <Slider
-                min={1}
-                max={10}
-                step={1}
-                value={impulseWindowSize}
-                onChange={(_, v) =>
-                    setImpulseWindowSize(
-                        typeof v === "number"
-                            ? v
-                            : Array.isArray(v)
-                            ? v[0]
-                            : 1
-                    )
-                }
-                valueLabelDisplay="auto"
-                size="small"
-                sx={{ width: 60 }}
-                disabled={disabled}
-            />
-            <Typography variant="caption" sx={{ minWidth: 40 }}>Smooth</Typography>
-            <Slider
-                min={1}
-                max={10}
-                step={1}
-                value={impulseSmoothing}
-                onChange={(_, v) =>
-                    setImpulseSmoothing(
-                        typeof v === "number"
-                            ? v
-                            : Array.isArray(v)
-                            ? v[0]
-                            : 1
-                    )
-                }
-                valueLabelDisplay="auto"
-                size="small"
-                sx={{ width: 60 }}
                 disabled={disabled}
             />
         </Box>

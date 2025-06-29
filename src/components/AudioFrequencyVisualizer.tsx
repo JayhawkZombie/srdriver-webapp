@@ -127,7 +127,7 @@ const BandPlotCard = memo(({
                 min={data.sliderMin}
                 max={data.sliderMax}
                 step={data.sliderStep}
-                value={data.threshold}
+                value={data.thresholdValue}
                 onChange={(_, v) => {
                   const newThresholds = [...impulseThresholds];
                   newThresholds[data.bandIdx] = typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0);
