@@ -78,6 +78,16 @@ const BandPlot: React.FC<{
       color: axisColor,
       gridcolor: gridColor,
     },
+    yaxis2: {
+      title: 'Rate of Change (dB)',
+      overlaying: 'y',
+      side: 'right',
+      showgrid: false,
+      zeroline: false,
+      showticklabels: true,
+      position: 1.0,
+      color: axisColor,
+    },
     paper_bgcolor: plotBg,
     plot_bgcolor: plotBg,
     legend: {

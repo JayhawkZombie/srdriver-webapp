@@ -94,6 +94,8 @@ export interface AppState {
   setImpulseSmoothing: (n: number) => void;
   impulseDetectionMode: 'second-derivative' | 'first-derivative' | 'z-score';
   setImpulseDetectionMode: (mode: 'second-derivative' | 'first-derivative' | 'z-score') => void;
+  derivativeMode: 'forward' | 'centered' | 'moving-average';
+  setDerivativeMode: (mode: 'forward' | 'centered' | 'moving-average') => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -155,5 +157,7 @@ export const useAppStore = create<AppState>(
     setImpulseSmoothing: (n) => set({ impulseSmoothing: n }),
     impulseDetectionMode: 'second-derivative',
     setImpulseDetectionMode: (mode) => set({ impulseDetectionMode: mode }),
+    derivativeMode: 'centered',
+    setDerivativeMode: (mode) => set({ derivativeMode: mode }),
   }))
 ); 

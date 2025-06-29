@@ -15,7 +15,11 @@ import {
     LinearProgress,
     Snackbar,
     Alert,
-    Slider
+    Slider,
+    AppBar,
+    Toolbar,
+    Tabs,
+    Tab
 } from '@mui/material';
 import {
     decodeAudioFile,
@@ -50,6 +54,7 @@ import { ImpulseResponseProvider } from '../context/ImpulseResponseContext';
 import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
 import { del } from 'idb-keyval';
 import FFTProcessingControls from './FFTProcessingControls';
+import { alpha } from '@mui/material/styles';
 
 interface ChunkSummary {
     numChunks: number;
@@ -123,6 +128,7 @@ const AudioChunkerDemo: React.FC = () => {
     const impulseWindowSize = useAppStore(state => state.impulseWindowSize);
     const impulseSmoothing = useAppStore(state => state.impulseSmoothing);
     const impulseDetectionMode = useAppStore(state => state.impulseDetectionMode);
+    const derivativeMode = useAppStore((state) => state.derivativeMode || 'centered');
 
     // Debounce state for pulses
     const pulseInProgressRef = React.useRef(false);
@@ -150,6 +156,52 @@ const AudioChunkerDemo: React.FC = () => {
 
     // State for showing clear confirmation
     const [clearMsg, setClearMsg] = useState<string | null>(null);
+
+    // Determine if audio is loaded
+    const audioLoaded = !!(audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0);
+
+    const derivativeLogDomain = true; // Always use log domain for now
+
+    // Debounced re-processing effect for FFT/impulse controls
+    React.useEffect(() => {
+        if (!audioLoaded || !file) return;
+        // Debounce re-processing
+        const debounced = setTimeout(() => {
+            setLoading(true);
+            setProcessingProgress(null);
+            // Only re-run visualization worker (not full audio worker)
+            if (visualizationWorkerRef.current && audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0) {
+                visualizationWorkerRef.current.onmessage = (ve: MessageEvent) => {
+                    const { bandDataArr } = ve.data;
+                    const currentAnalysis = audioData.analysis;
+                    setAudioData({
+                        analysis: {
+                            ...currentAnalysis,
+                            bandDataArr,
+                            impulseStrengths: bandDataArr.map((b: any) => b.impulseStrengths),
+                            fftSequence: currentAnalysis?.fftSequence ?? [],
+                            summary: currentAnalysis?.summary ?? {},
+                            audioBuffer: currentAnalysis?.audioBuffer ?? null,
+                        }
+                    });
+                    setLoading(false);
+                    setProcessingProgress(null);
+                };
+                visualizationWorkerRef.current.postMessage({
+                    fftSequence: audioData.analysis.fftSequence.map((arr: any) => Array.from(arr)),
+                    bands: BAND_DEFINITIONS,
+                    sampleRate: audioData.analysis.audioBuffer?.sampleRate || 44100,
+                    hopSize: audioData.analysis.summary?.hopSize || 512,
+                    impulseWindowSize,
+                    impulseSmoothing,
+                    impulseDetectionMode,
+                    derivativeLogDomain,
+                    derivativeMode,
+                });
+            }
+        }, 500);
+        return () => clearTimeout(debounced);
+    }, [impulseWindowSize, impulseSmoothing, impulseDetectionMode, audioLoaded, file]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -317,6 +369,7 @@ const AudioChunkerDemo: React.FC = () => {
     return (
         <ActiveDeviceContext.Provider value={{ activeDeviceId, setActiveDeviceId }}>
             <PulseToolsProvider>
+                {/* Main content area below sticky bars */}
                 <Paper
                     elevation={2}
                     sx={{
@@ -328,6 +381,7 @@ const AudioChunkerDemo: React.FC = () => {
                         border: '1px solid',
                         borderColor: 'divider',
                         minWidth: 320,
+                        mt: 4,
                     }}
                 >
                     <Typography variant="h6" sx={{ mb: 1 }}>
@@ -337,30 +391,56 @@ const AudioChunkerDemo: React.FC = () => {
                         <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', width: '100%' }}>
                             {/* Left: controls and plot */}
                             <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
-                                {/* File input and file selection button */}
-                                <Box sx={{ mb: 1, p: 1 }}>
-                                    <Stack direction="row" spacing={1} alignItems="center">
-                                        <input
-                                            ref={fileInputRef}
-                                            type="file"
-                                            accept="audio/*"
-                                            onChange={handleFileChange}
-                                            style={{ display: 'none' }}
+                                {/* Modern, compact horizontal toolbar for all top controls */}
+                                <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2, mt: 1 }}>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="audio/*"
+                                        onChange={handleFileChange}
+                                        style={{ display: 'none' }}
+                                    />
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={handleFileButtonClick}
+                                        sx={{ minWidth: 110 }}
+                                    >
+                                        Choose File
+                                    </Button>
+                                    <Typography variant="body2" sx={{ minWidth: 120, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {file ? file.name : 'No file chosen'}
+                                    </Typography>
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={handleProcess}
+                                        disabled={!file || loading}
+                                        sx={{ minWidth: 120 }}
+                                    >
+                                        {loading ? 'Processing...' : 'Process Audio'}
+                                    </Button>
+                                    <FFTProcessingControls
+                                        windowSize={windowSize}
+                                        setWindowSize={setWindowSize}
+                                        hopSize={hopSize}
+                                        setHopSize={setHopSize}
+                                        fileLoaded={!!file}
+                                    />
+                                    <Box sx={{ minWidth: 180, ml: 2 }}>
+                                        <GlobalControls
+                                            windowSec={windowSec}
+                                            maxTime={audioData.analysis?.summary ? audioData.analysis.summary.totalDurationMs / 1000 : 60}
+                                            onWindowSecChange={setWindowSec}
+                                            followCursor={followCursor}
+                                            onFollowCursorChange={setFollowCursor}
+                                            snapToWindow={snapToWindow}
+                                            onSnapToWindowChange={setSnapToWindow}
                                         />
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            onClick={handleFileButtonClick}
-                                        >
-                                            Choose File
-                                        </Button>
-                                        <Typography variant="body2" sx={{ ml: 1, minWidth: 120, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {file ? file.name : 'No file chosen'}
-                                        </Typography>
-                                    </Stack>
+                                    </Box>
                                 </Box>
                                 {audioUrl && (
-                                    <Box sx={{ mt: 2 }}>
+                                    <Box sx={{ mt: 1 }}>
                                         <div ref={waveformRef} />
                                         <Button
                                             variant="contained"
@@ -373,44 +453,6 @@ const AudioChunkerDemo: React.FC = () => {
                                         </Button>
                                     </Box>
                                 )}
-                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1, mt: 2 }}>
-                                    <TextField
-                                        label="FFT Window Size (samples)"
-                                        type="number"
-                                        size="small"
-                                        value={windowSize}
-                                        onChange={e => setWindowSize(Number(e.target.value))}
-                                        inputProps={{ min: 128, step: 128, style: { width: 80 } }}
-                                    />
-                                    <TextField
-                                        label="Hop Size (samples)"
-                                        type="number"
-                                        size="small"
-                                        value={hopSize}
-                                        onChange={e => setHopSize(Number(e.target.value))}
-                                        inputProps={{ min: 1, step: 1, style: { width: 80 } }}
-                                    />
-                                    <Button
-                                        variant="contained"
-                                        size="small"
-                                        onClick={handleProcess}
-                                        disabled={!file || loading}
-                                    >
-                                        {loading ? 'Processing...' : 'Process Audio'}
-                                    </Button>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', ml: 2 }}>
-                                        <Typography variant="caption" sx={{ mb: 0.5, ml: 0.5 }}>Time Window (seconds)</Typography>
-                                        <GlobalControls
-                                            windowSec={windowSec}
-                                            maxTime={audioData.analysis?.summary ? audioData.analysis.summary.totalDurationMs / 1000 : 60}
-                                            onWindowSecChange={setWindowSec}
-                                            followCursor={followCursor}
-                                            onFollowCursorChange={setFollowCursor}
-                                            snapToWindow={snapToWindow}
-                                            onSnapToWindowChange={setSnapToWindow}
-                                        />
-                                    </Box>
-                                </Stack>
                                 {audioData.analysis?.summary && (
                                     <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
                                         <Typography variant="body2" color="text.secondary">
@@ -484,29 +526,6 @@ const AudioChunkerDemo: React.FC = () => {
                         Clear App State (IndexedDB)
                     </Button>
                     {clearMsg && <Alert severity="info" sx={{ mb: 1 }}>{clearMsg}</Alert>}
-                    {/* FFT/Impulse Processing Controls - always visible */}
-                    <FFTProcessingControls />
-                    <Typography variant="h5" sx={{ mb: 1 }}>
-                        Frequency Band Magnitude Over Time
-                    </Typography>
-                    {/* Global Impulse Threshold Slider */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-                        <Typography variant="body2" sx={{ minWidth: 120, fontWeight: 500, fontSize: 15 }}>
-                            Impulse Strength Threshold (std dev):
-                        </Typography>
-                        <Slider
-                            min={-1}
-                            max={6}
-                            step={0.05}
-                            value={normalizedImpulseThreshold}
-                            onChange={(_, v) => setNormalizedImpulseThreshold(typeof v === 'number' ? v : (Array.isArray(v) ? v[0] : 0))}
-                            valueLabelDisplay="on"
-                            valueLabelFormat={v => (typeof v === 'number' ? v.toFixed(2) : v)}
-                            size="small"
-                            sx={{ width: 220, ml: 0, mr: 2 }}
-                            marks={false}
-                        />
-                    </Box>
                 </Paper>
             </PulseToolsProvider>
         </ActiveDeviceContext.Provider>

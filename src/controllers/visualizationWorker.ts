@@ -15,6 +15,8 @@ interface VisualizationRequest {
   impulseWindowSize?: number;
   impulseSmoothing?: number;
   impulseDetectionMode?: 'second-derivative' | 'first-derivative' | 'z-score';
+  derivativeLogDomain?: boolean; // compute derivatives in log domain
+  derivativeMode?: 'forward' | 'centered' | 'moving-average'; // NEW: derivative calculation mode
 }
 
 interface BandData {
@@ -44,6 +46,8 @@ self.onmessage = (e: MessageEvent) => {
   const impulseWindowSize = Math.max(1, data.impulseWindowSize || 1);
   const impulseSmoothing = Math.max(1, data.impulseSmoothing || 1);
   const impulseDetectionMode = data.impulseDetectionMode || 'second-derivative';
+  const derivativeLogDomain = data.derivativeLogDomain !== false; // default true
+  const derivativeMode = data.derivativeMode || 'centered'; // default to centered
   const numBins = fftSequence[0]?.length || 0;
   // Compute frequency for each bin
   const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
@@ -60,32 +64,60 @@ self.onmessage = (e: MessageEvent) => {
     }
     // Get raw magnitudes
     let magnitudes = fftSequence.map(row => row[binIdx] ?? 0);
+    // Only keep frames with magnitude > 1e-6 for impulse/derivative (avoid log(0) and noise)
+    let mask = magnitudes.map(m => m > 1e-6 ? 1 : 0);
     // Smoothing (moving average) if requested
     if (impulseSmoothing > 1) {
       magnitudes = movingAverage(magnitudes, impulseSmoothing);
     }
+    // Compute log-magnitudes if requested
+    let procMagnitudes = derivativeLogDomain
+      ? magnitudes.map(m => Math.log10(Math.max(m, 1e-8)))
+      : magnitudes.slice();
     // Derivative helpers
-    function nthDerivative(arr: number[], n: number, window: number): number[] {
+    /**
+     * nthDerivative with selectable mode:
+     * - 'forward': arr[i] - arr[i-window] (current - past, default previously)
+     * - 'centered': (arr[i+window] - arr[i-window]) / (2*window) (symmetric, best for local slope)
+     * - 'moving-average': average of arr[i] - arr[i-1] over window (smoother, lagged)
+     */
+    function nthDerivative(arr: number[], n: number, window: number, mode: 'forward' | 'centered' | 'moving-average'): number[] {
       if (n <= 0) return arr.slice();
       let result = arr.slice();
       for (let d = 0; d < n; d++) {
-        result = result.map((v, i, a) => i < window ? 0 : v - a[i - window]);
+        if (mode === 'forward') {
+          result = result.map((v, i, a) => i < window ? 0 : v - a[i - window]);
+        } else if (mode === 'centered') {
+          result = result.map((v, i, a) => {
+            if (i < window || i + window >= a.length) return 0;
+            return (a[i + window] - a[i - window]) / (2 * window);
+          });
+        } else if (mode === 'moving-average') {
+          result = result.map((v, i, a) => {
+            if (i < window) return 0;
+            let sum = 0;
+            for (let w = 1; w <= window; w++) {
+              sum += a[i - w + 1] - a[i - w];
+            }
+            return sum / window;
+          });
+        }
       }
       return result;
     }
     // Compute derivatives based on mode and window size
-    let derivatives: number[] = nthDerivative(magnitudes, 1, impulseWindowSize);
-    let secondDerivatives: number[] = nthDerivative(magnitudes, 2, impulseWindowSize);
+    let derivatives: number[] = nthDerivative(procMagnitudes, 1, impulseWindowSize, derivativeMode);
+    let secondDerivatives: number[] = nthDerivative(procMagnitudes, 2, impulseWindowSize, derivativeMode);
     let impulseStrengths: number[] = [];
     if (impulseDetectionMode === 'second-derivative') {
-      impulseStrengths = secondDerivatives.map(Math.abs);
+      impulseStrengths = secondDerivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
     } else if (impulseDetectionMode === 'first-derivative') {
-      impulseStrengths = derivatives.map(Math.abs);
+      impulseStrengths = derivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
     } else if (impulseDetectionMode === 'z-score') {
       // Z-score of first derivative
       const mean = derivatives.reduce((a, b) => a + b, 0) / derivatives.length;
       const std = Math.sqrt(derivatives.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / derivatives.length) || 1;
-      impulseStrengths = derivatives.map(v => (v - mean) / std);
+      impulseStrengths = derivatives.map((v, i) => mask[i] ? (v - mean) / std : 0);
     }
     // Normalization for UI thresholding
     const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
@@ -95,6 +127,7 @@ self.onmessage = (e: MessageEvent) => {
     if (bandIdx === 0) {
       console.log('[visualizationWorker] Band:', band.name);
       console.log('  magnitudes:', magnitudes.slice(0, 20));
+      console.log('  procMagnitudes:', procMagnitudes.slice(0, 20));
       console.log('  derivatives:', derivatives.slice(0, 20));
       console.log('  secondDerivatives:', secondDerivatives.slice(0, 20));
       console.log('  impulseStrengths:', impulseStrengths.slice(0, 20));

@@ -105,6 +105,8 @@ export function getBandPlotData({
         mode: 'lines' as const,
         line: { color: band.color, width: 2 },
         name: band.name,
+        yaxis: 'y', // Ensure on main axis
+        visible: true,
       },
       derivativeTrace: {
         x: times,
@@ -113,7 +115,8 @@ export function getBandPlotData({
         mode: 'lines' as const,
         line: { color: isDark ? lightenColor(band.color, 0.5) : 'rgba(255,0,255,0.5)', width: 3 },
         name: band.name + ' Rate of Change',
-        yaxis: 'y2',
+        yaxis: 'y2', // Ensure on secondary axis
+        visible: true,
       },
       secondDerivativeTrace: {
         x: times,
