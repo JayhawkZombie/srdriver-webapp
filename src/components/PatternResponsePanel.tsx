@@ -57,6 +57,7 @@ export function getActiveDevice() {
  */
 export function fireCurrentPattern() {
   const patternIndex = useAppStore.getState().patternResponseIndex;
+  console.log('Firing pattern', patternIndex);
   // You may want to pass the device explicitly for more control
   let activeDevice;
   try {

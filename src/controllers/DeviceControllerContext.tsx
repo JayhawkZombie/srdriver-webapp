@@ -5,7 +5,6 @@ import { Box, Button, Typography, Stack } from '@mui/material';
 import { useAppStore } from '../store/appStore';
 import AnimatedStatusChip from '../components/AnimatedStatusChip';
 import FavoriteIcon from '@mui/icons-material/Favorite';
-import BluetoothIcon from '@mui/icons-material/Bluetooth';
 
 export type DeviceControllerContextType = {
   devices: Device[];
@@ -21,7 +20,6 @@ export type DeviceControllerContextType = {
 const DeviceControllerContext = createContext<DeviceControllerContextType | undefined>(undefined);
 
 const HEARTBEAT_UUID = 'f6f7b0f1-c4ab-4c75-9ca7-b43972152f16';
-const HEARTBEAT_TIMEOUT = 5000;
 
 // WeakMap to track heartbeat event handlers for each characteristic
 const heartbeatHandlerMap: WeakMap<BluetoothRemoteGATTCharacteristic, (event: any) => void> = new WeakMap();

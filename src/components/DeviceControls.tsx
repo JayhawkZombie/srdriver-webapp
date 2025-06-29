@@ -8,6 +8,8 @@ import { useAppStore } from '../store/appStore';
 import { Device } from '../types/Device';
 import { DeviceUIState, AppState } from '../store/appStore';
 import { useShallow } from 'zustand/react/shallow';
+import InputAdornment from '@mui/material/InputAdornment';
+import { useTheme } from '@mui/material/styles';
 
 const patternNames = [
   'Pattern 0',
@@ -104,6 +106,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
   const [error, setError] = useState<string | null>(null);
   const [firePatternIndex, setFirePatternIndex] = useState(0);
   const [isFiringPattern, setIsFiringPattern] = useState(false);
+  const theme = useTheme();
 
   const handleBrightnessChange = (event: React.SyntheticEvent | Event, value: number | number[]) => {
     if (!device || !device.controller) return;
@@ -169,7 +172,8 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
           background: 'rgba(0,0,0,0.10)',
           borderRadius: 2,
           width: '100%',
-          maxWidth: '100%',
+          maxWidth: 320,
+          overflow: 'hidden',
           boxSizing: 'border-box',
         }}>
           <Box sx={{ width: '100%', minWidth: 0, p: 0, m: 0 }}>
@@ -183,7 +187,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
               value={brightness}
               onChange={handleBrightnessChange}
               size="small"
-              sx={{ height: 18, minWidth: 0, maxWidth: '100%', fontSize: 10, p: 0, m: 0 }}
+              sx={{ height: 18, minWidth: 0, maxWidth: 120, width: '100%', fontSize: 10, p: 0, m: 0 }}
             />
           </Box>
           <Box sx={{ width: '100%', minWidth: 0, p: 0, m: 0 }}>
@@ -197,7 +201,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
               value={speed}
               onChange={handleSpeedChange}
               size="small"
-              sx={{ height: 18, minWidth: 0, maxWidth: '100%', fontSize: 10, p: 0, m: 0 }}
+              sx={{ height: 18, minWidth: 0, maxWidth: 120, width: '100%', fontSize: 10, p: 0, m: 0 }}
             />
           </Box>
           <Box sx={{ width: '100%' }}>
@@ -213,29 +217,30 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
           </Box>
           <Box sx={{ width: '100%' }}>
             <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Pulse</Typography>
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <TextField
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: '100%' }}>
+              <LabeledSlider
                 label="Target"
-                type="number"
-                size="small"
+                min={0}
+                max={255}
                 value={pulseTargetBrightness}
-                onChange={e => setPulseTargetBrightness(Number(e.target.value))}
-                inputProps={{ min: 0, max: 255, style: { fontSize: 12, width: 40 } }}
-                sx={{ width: 60 }}
-              />
-              <TextField
-                label="ms"
-                type="number"
+                onChange={(e, v) => setPulseTargetBrightness(Number(v))}
                 size="small"
-                value={pulseDuration}
-                onChange={e => setPulseDuration(Number(e.target.value))}
-                inputProps={{ min: 10, max: 10000, style: { fontSize: 12, width: 40 } }}
-                sx={{ width: 60 }}
+                sx={{ height: 18, minWidth: 0, maxWidth: 120, width: '100%', fontSize: 10, p: 0, m: 0 }}
               />
-              <Button variant="contained" onClick={handlePulseBrightness} disabled={isPulsing} size="small" sx={{ minWidth: 0, px: 1, fontSize: 12 }}>
+              <LabeledSlider
+                label="Duration (ms)"
+                min={10}
+                max={10000}
+                step={10}
+                value={pulseDuration}
+                onChange={(e, v) => setPulseDuration(Number(v))}
+                size="small"
+                sx={{ height: 18, minWidth: 0, maxWidth: 120, width: '100%', fontSize: 10, p: 0, m: 0 }}
+              />
+              <Button variant="contained" onClick={handlePulseBrightness} disabled={isPulsing} size="small" sx={{ minWidth: 32, px: 1, fontSize: 12, alignSelf: 'flex-start' }}>
                 {isPulsing ? '...' : 'Go'}
               </Button>
-            </Stack>
+            </Box>
           </Box>
           <Box sx={{ width: '100%' }}>
             <Typography variant="subtitle2" sx={{ fontSize: 12, mb: 0.5 }}>Fire Pattern</Typography>

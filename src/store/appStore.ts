@@ -7,7 +7,6 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
   return (set, get, api) => {
     // Only hydrate if store is at initial state
     idbGet(key).then((stored: any) => {
-      const state = get();
       // Only hydrate if store is at initial state
       if (stored) {
         if (stored.audioData) {
@@ -105,6 +104,9 @@ export interface AppState {
   // Pattern response
   patternResponseIndex: number;
   setPatternResponseIndex: (idx: number) => void;
+  // Global selected device
+  activeDeviceId: string | null;
+  setActiveDeviceId: (id: string | null) => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -177,5 +179,8 @@ export const useAppStore = create<AppState>(
     // Pattern response
     patternResponseIndex: 0,
     setPatternResponseIndex: (idx: number) => set({ patternResponseIndex: idx }),
+    // Global selected device
+    activeDeviceId: null,
+    setActiveDeviceId: (id) => set({ activeDeviceId: id }),
   }))
 ); 

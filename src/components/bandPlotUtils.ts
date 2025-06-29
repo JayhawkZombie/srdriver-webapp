@@ -88,12 +88,6 @@ export function getBandPlotData({
   impulseThresholds,
   setImpulseThresholds,
 }: GetBandPlotDataOptions): BandPlotData[] {
-  // Debug: log a sample of the raw magnitudes and computed dB values for the first band
-  if (bandDataArr.length > 0) {
-    const sampleMags = bandDataArr[0].magnitudes.slice(0, 10);
-    const sampleDBs = sampleMags.map(clampDB);
-    console.log('[bandPlotUtils] Sample magnitudes:', sampleMags, 'Sample dB:', sampleDBs);
-  }
   // Compute static traces ONCE per band unless bandDataArr or display params change
   const staticTracesArr = bandDataArr.map((data: BandData) => {
     const { band, bandIdx, binIdx, magnitudes, derivatives, secondDerivatives, detectionFunction, threshold, sustainedImpulses } = data;
@@ -152,12 +146,6 @@ export function getBandPlotData({
     let thresholdValue = normalizedImpulseThreshold;
     // Only impulses above the normalized threshold are plotted
     const impulseIndices = visibleIndices.filter(i => impulseStrengths[i] > thresholdValue);
-    // Debug: log threshold and filtering results
-    if (visibleIndices.length > 0) {
-      console.log(`[Impulse Debug] Band: ${band.name}`);
-      console.log(`  Threshold: ${thresholdValue}`);
-      console.log(`  Number of impulses above threshold:`, impulseIndices.length, 'of', visibleIndices.length);
-    }
     const impulseTimes = impulseIndices.map(i => times[i]);
     const impulseValues = impulseIndices.map(i => magnitudes[i]);
     const impulseStrengthVals = impulseIndices.map(i => impulseStrengths[i]);

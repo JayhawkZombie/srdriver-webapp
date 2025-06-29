@@ -49,7 +49,7 @@ declare var self: _DedicatedWorkerGlobalScope;
 
 self.onmessage = (e: MessageEvent) => {
   const data = e.data as VisualizationRequest;
-  const { fftSequence, bands, sampleRate, hopSize } = data;
+  const { fftSequence, bands, sampleRate } = data;
   const impulseWindowSize = Math.max(1, data.impulseWindowSize || 1);
   const impulseSmoothing = Math.max(1, data.impulseSmoothing || 1);
   const impulseDetectionMode = data.impulseDetectionMode || 'spectral-flux';

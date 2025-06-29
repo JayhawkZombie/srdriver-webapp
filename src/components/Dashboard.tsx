@@ -15,6 +15,7 @@ import DeviceSidebar from './DeviceSidebar';
 import DashboardHeader from './DashboardHeader';
 import { SingleDeviceProvider } from '../controllers/DeviceControllerContext';
 import LightsConnectionCard from './LightsConnectionCard';
+import FirePatternOnImpulse from './FirePatternOnImpulse';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -29,6 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 0, py: 0 }}>
+      <FirePatternOnImpulse />
       <Box sx={{ height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', mt: 0, pt: 0 }}>
         <DashboardHeader
           mode={mode}
@@ -50,11 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
         onClose={() => setLeftDrawerOpen(false)}
         PaperProps={{ sx: { width: 380, p: 2, bgcolor: 'background.default', boxShadow: 8, mt: '64px', height: 'calc(100% - 64px)', top: '64px' } }}
       >
-        <LightsConnectionCard
-          connectedDevices={devices}
-          activeDeviceId={activeDeviceId}
-          setActiveDeviceId={setActiveDeviceId}
-        />
+        <LightsConnectionCard />
       </Drawer>
       <Drawer
         anchor="right"
@@ -62,11 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
         onClose={() => setConnectionDrawerOpen(false)}
         PaperProps={{ sx: { width: 380, p: 2, bgcolor: 'background.default', boxShadow: 8, mt: '64px', height: 'calc(100% - 64px)', top: '64px' } }}
       >
-        <LightsConnectionCard
-          connectedDevices={devices}
-          activeDeviceId={activeDeviceId}
-          setActiveDeviceId={setActiveDeviceId}
-        />
+        <LightsConnectionCard />
       </Drawer>
     </Box>
   );

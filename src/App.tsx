@@ -12,6 +12,7 @@ import { PulseProvider } from './controllers/PulseContext';
 import { ToastProvider } from './controllers/ToastContext';
 import GlobalToast from './components/GlobalToast';
 import DevAppStateViewer from './components/DevAppStateViewer';
+import { ImpulseEventProvider } from './context/ImpulseEventContext';
 
 function App() {
   const getInitialMode = () => {
@@ -33,14 +34,16 @@ function App() {
     <>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <DeviceControllerProvider>
-          <PulseProvider>
-            <ToastProvider>
-              <GlobalToast />
-              <Dashboard mode={mode} onToggleMode={handleToggle} />
-            </ToastProvider>
-          </PulseProvider>
-        </DeviceControllerProvider>
+        <ImpulseEventProvider>
+          <DeviceControllerProvider>
+            <PulseProvider>
+              <ToastProvider>
+                <GlobalToast />
+                <Dashboard mode={mode} onToggleMode={handleToggle} />
+              </ToastProvider>
+            </PulseProvider>
+          </DeviceControllerProvider>
+        </ImpulseEventProvider>
       </ThemeProvider>
     </>
   );

@@ -9,6 +9,7 @@ interface AudioChunkerDemoPlotAreaProps {
   audioData: any;
   plotProps: any;
   debouncedPulse: (...args: any[]) => void;
+  onImpulse?: (strength: number, min: number, max: number, bandName?: string, time?: number) => void;
 }
 
 const AudioChunkerDemoPlotArea: React.FC<AudioChunkerDemoPlotAreaProps> = ({
@@ -18,6 +19,7 @@ const AudioChunkerDemoPlotArea: React.FC<AudioChunkerDemoPlotAreaProps> = ({
   audioData,
   plotProps,
   debouncedPulse,
+  onImpulse,
 }) => {
   const hasAnalysis = audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && audioData.analysis.audioBuffer;
 
@@ -95,7 +97,7 @@ const AudioChunkerDemoPlotArea: React.FC<AudioChunkerDemoPlotAreaProps> = ({
       ) : (
         <AudioFrequencyVisualizer
           {...plotProps}
-          onImpulse={debouncedPulse}
+          onImpulse={onImpulse || debouncedPulse}
         />
       ))}
     </Box>

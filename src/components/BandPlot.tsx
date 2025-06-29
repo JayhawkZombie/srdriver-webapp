@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { useAppStore } from '../store/appStore';
 import { getBandPlotData, BandPlotData } from './bandPlotUtils';
 import { Box, Typography, Slider } from '@mui/material';
+import { useImpulseEvents } from '../context/ImpulseEventContext';
 
 // Memoized BandPlot for a single band, optimized for Zustand and Plotly
 const BandPlot: React.FC<{
@@ -140,6 +141,33 @@ const BandPlot: React.FC<{
       ...(showSustained && sustainedIndices.length > 0 ? [{ x: sustainedIndices.map((i: number) => times[i]), y: sustainedIndices.map((i: number) => detection[i]), type: 'scatter', mode: 'markers', name: 'Sustained', marker: { color: 'lime', size: 12, symbol: 'star' } }] : []),
     ];
   }, [bandPlotData, showSustainedImpulses, onlySustained]);
+
+  const { emit } = useImpulseEvents();
+  const emittedPulsesRef = React.useRef<Set<string>>(new Set());
+  const lastCursorRef = React.useRef<number>(-Infinity);
+
+  // Impulse event emission logic (moved from BandPlotCard)
+  useEffect(() => {
+    if (!bandPlotData || !showImpulses || !bandPlotData.traces.impulses || !Array.isArray(bandPlotData.traces.impulses.x)) return;
+    const xArr = bandPlotData.traces.impulses.x as number[];
+    const yArr = bandPlotData.traces.impulses.y as number[];
+    const minStrength = Math.min(...yArr);
+    const maxStrength = Math.max(...yArr);
+    if (playbackTime > lastCursorRef.current) {
+      xArr.forEach((time, idx) => {
+        const key = `${bandPlotData.band.name}|${time}`;
+        if (
+          !emittedPulsesRef.current.has(key) &&
+          time > lastCursorRef.current &&
+          time <= playbackTime
+        ) {
+          emit({ strength: yArr[idx], min: minStrength, max: maxStrength, bandName: bandPlotData.band.name, time });
+          emittedPulsesRef.current.add(key);
+        }
+      });
+    }
+    lastCursorRef.current = playbackTime;
+  }, [playbackTime, showImpulses, bandPlotData, emit]);
 
   if (!bandPlotData) return null;
 
