@@ -242,9 +242,9 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     // Set up the worker and cleanup
     useEffect(() => {
         // @ts-ignore
-        audioWorkerRef.current = new Worker(new URL('../controllers/audioWorker.ts', import.meta.url));
+        audioWorkerRef.current = new Worker(new URL('../controllers/audioWorker.ts', import.meta.url), { type: 'module' });
         // @ts-ignore
-        visualizationWorkerRef.current = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url));
+        visualizationWorkerRef.current = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url), { type: 'module' });
         audioWorkerRef.current.onmessage = (e) => {
             const { type, processed, total, summary, fftSequence } = e.data;
             if (type === 'progress') {

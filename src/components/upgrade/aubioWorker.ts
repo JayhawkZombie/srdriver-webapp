@@ -1,16 +1,21 @@
 // @ts-nocheck
 /* eslint-disable */
-// Pluggable audio worker for onset/impulse detection (browser-compatible)
+// Pluggable audio worker for onset/impulse detection (Vite-compatible, ES module)
 // Supports multiple engines: 'aubio', 'spectral-flux', etc.
-importScripts('https://cdn.jsdelivr.net/npm/aubiojs@latest/dist/aubio.js');
+import aubio from 'aubiojs';
 import { DetectionEvent } from './types';
 
-let aubioModule = null;
+let aubioModule: any = null;
 
-onmessage = async (e) => {
-  const { audioBuffer, sampleRate, params = {}, engine = 'spectral-flux' } = e.data;
-  let events = [];
-  let error = null;
+globalThis.onmessage = async (e: MessageEvent) => {
+  const { audioBuffer, sampleRate, params = {}, engine = 'spectral-flux' } = e.data as {
+    audioBuffer: Float32Array | { getChannelData: (ch: number) => Float32Array };
+    sampleRate: number;
+    params?: any;
+    engine?: string;
+  };
+  let events: DetectionEvent[] = [];
+  let error: string | null = null;
 
   try {
     if (engine === 'aubio') {
@@ -20,24 +25,32 @@ onmessage = async (e) => {
     } else {
       error = 'Unknown engine: ' + engine;
     }
-  } catch (e) {
-    error = e.message || String(e);
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      error = err.message;
+    } else {
+      error = String(err);
+    }
   }
 
-  postMessage({ events, error });
+  globalThis.postMessage({ events, error });
 };
 
 // --- Engine: aubiojs ---
-async function detectWithAubio(audioBuffer, sampleRate, params) {
+async function detectWithAubio(
+  audioBuffer: Float32Array | { getChannelData: (ch: number) => Float32Array },
+  sampleRate: number,
+  params: any
+): Promise<DetectionEvent[]> {
   if (!audioBuffer || !sampleRate) return [];
   if (!aubioModule) {
     aubioModule = await aubio();
   }
-  let audioData = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
+  let audioData: Float32Array = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
   const hopSize = params?.hopSize || 512;
   const method = params?.method || 'default';
   let onset = new aubioModule.Onset(method, 1024, hopSize, sampleRate);
-  const events = [];
+  const events: DetectionEvent[] = [];
   let frame = new Float32Array(hopSize);
   let nFrames = Math.floor(audioData.length / hopSize);
   for (let i = 0; i < nFrames; i++) {
@@ -53,16 +66,20 @@ async function detectWithAubio(audioBuffer, sampleRate, params) {
 }
 
 // --- Engine: Custom Spectral Flux ---
-function detectWithSpectralFlux(audioBuffer, sampleRate, params) {
+function detectWithSpectralFlux(
+  audioBuffer: Float32Array | { getChannelData: (ch: number) => Float32Array },
+  sampleRate: number,
+  params: any
+): DetectionEvent[] {
   // Simple spectral flux onset detection (single channel)
   if (!audioBuffer || !sampleRate) return [];
-  let audioData = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
+  let audioData: Float32Array = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
   const hopSize = params?.hopSize || 512;
   const fftSize = params?.fftSize || 1024;
   // Compute magnitude spectrum for each frame
   const nFrames = Math.floor(audioData.length / hopSize);
-  let prevMag = null;
-  const events = [];
+  let prevMag: number | null = null;
+  const events: DetectionEvent[] = [];
   for (let i = 0; i < nFrames; i++) {
     // Simple energy-based flux (replace with FFT for real spectral flux)
     let frame = audioData.slice(i * hopSize, i * hopSize + hopSize);

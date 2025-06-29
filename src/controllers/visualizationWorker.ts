@@ -1,4 +1,4 @@
-// visualizationWorker.ts - Web Worker for per-band audio visualization math
+// visualizationWorker.ts - Web Worker for per-band audio visualization math (Vite-compatible ES module)
 
 // Types for messages
 interface BandDefinition {
@@ -47,7 +47,7 @@ type _DedicatedWorkerGlobalScope = typeof globalThis & { onmessage: (e: MessageE
 // @ts-ignore
 declare var self: _DedicatedWorkerGlobalScope;
 
-self.onmessage = (e: MessageEvent) => {
+globalThis.onmessage = (e: MessageEvent) => {
   const data = e.data as VisualizationRequest;
   const { fftSequence, bands, sampleRate } = data;
   const impulseWindowSize = Math.max(1, data.impulseWindowSize || 1);
@@ -233,8 +233,7 @@ self.onmessage = (e: MessageEvent) => {
       normalizedImpulseStrengths,
     };
   });
-  // @ts-ignore
-  self.postMessage({ bandDataArr } as VisualizationResult);
+  globalThis.postMessage({ bandDataArr } as VisualizationResult);
 };
 
 // Helper: moving average smoothing
@@ -250,6 +249,4 @@ function movingAverage(arr: number[], window: number): number[] {
     result.push(sum / count);
   }
   return result;
-}
-
-export {}; 
+} 

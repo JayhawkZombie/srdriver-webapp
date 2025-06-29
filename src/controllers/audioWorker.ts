@@ -1,4 +1,4 @@
-// audioWorker.ts - Web Worker for audio processing
+// audioWorker.ts - Web Worker for audio processing (Vite-compatible ES module)
 
 // Import types and (eventually) processing functions
 // import { decodeAudioFile, getMonoPCMData, chunkPCMData } from './audioChunker';
@@ -55,7 +55,7 @@ function computeFFTMagnitude(chunk: Float32Array): Float32Array {
 }
 
 // Listen for messages from the main thread
-self.onmessage = async (e: MessageEvent) => {
+globalThis.onmessage = async (e: MessageEvent) => {
   const data = e.data as AudioProcessRequest;
   const pcmData = new Float32Array(data.pcmBuffer);
   let numChunks = 0;
@@ -71,8 +71,7 @@ self.onmessage = async (e: MessageEvent) => {
     fftSequence.push(magnitudes);
     // Progress reporting every 10 chunks or on last chunk
     if ((idx % 10 === 0 || idx === totalChunks - 1) && totalChunks > 1) {
-      // @ts-ignore
-      self.postMessage({ type: 'progress', processed: idx + 1, total: totalChunks });
+      globalThis.postMessage({ type: 'progress', processed: idx + 1, total: totalChunks });
     }
   }
   // Summary (minimal for now)
@@ -96,9 +95,7 @@ self.onmessage = async (e: MessageEvent) => {
   };
   // Debug: log first 3 rows of fftSequence
   console.log('audioWorker.ts: fftSequence (first 3 rows)', fftSequence.slice(0, 3));
-  // @ts-ignore
-  self.postMessage({ type: 'done', summary, fftSequence } as AudioProcessResult);
+  globalThis.postMessage({ type: 'done', summary, fftSequence } as AudioProcessResult);
 };
 
-// No exports (web worker file)
-export {}; 
+// No exports (web worker file) 
