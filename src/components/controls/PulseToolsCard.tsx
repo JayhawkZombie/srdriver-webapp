@@ -4,7 +4,6 @@ import PulseControlsPanel from './PulseControlsPanel';
 import { usePulseTools } from '../../controllers/PulseToolsContext';
 import { useDeviceControllerContext } from '../../controllers/DeviceControllerContext';
 import { useToastContext } from '../../controllers/ToastContext';
-import { emitPulse } from '../../hooks/useImpulseHandler';
 import { usePulseControls } from '../../controllers/PulseControlsContext';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useActiveDevice } from '../AudioChunkerDemo';
@@ -95,22 +94,6 @@ const PulseToolsCard: React.FC = () => {
     if (values.current.effect !== e.target.value) setEffect(e.target.value);
   }, [setEffect, values]);
 
-  const handleGo = () => {
-    if (!activeDevice) {
-      showToast('No connected device to pulse');
-      return;
-    }
-    emitPulse({
-      strength: 1,
-      min: 0,
-      max: 1,
-      tools: values.current,
-      device: activeDevice,
-      showToast,
-      durationMs: width,
-    });
-  };
-
   return (
     <Paper elevation={1} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }}>
       <Box>
@@ -175,7 +158,7 @@ const PulseToolsCard: React.FC = () => {
         </Box>
         <Box sx={{ color: 'text.secondary', fontSize: 14, mt: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <button onClick={handleGo} style={{ padding: '6px 16px', fontSize: 14, borderRadius: 4, border: 'none', background: '#1976d2', color: 'white', cursor: 'pointer' }}>
+            <button style={{ padding: '6px 16px', fontSize: 14, borderRadius: 4, border: 'none', background: '#1976d2', color: 'white', cursor: 'pointer' }}>
               Go
             </button>
             <span style={{ color: '#888', fontSize: 13 }}>(Send a test pulse to the active device)</span>

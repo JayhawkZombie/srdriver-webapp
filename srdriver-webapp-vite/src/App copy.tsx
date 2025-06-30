@@ -3,15 +3,11 @@ import {
   ThemeProvider,
   createTheme,
   CssBaseline,
-  FormControlLabel,
-  Switch
 } from '@mui/material';
 import Dashboard from './components/Dashboard';
 import { DeviceControllerProvider } from './controllers/DeviceControllerContext';
-import { PulseProvider } from './controllers/PulseContext';
 import { ToastProvider } from './controllers/ToastContext';
 import GlobalToast from './components/GlobalToast';
-import DevAppStateViewer from './components/DevAppStateViewer';
 import { ImpulseEventProvider } from './context/ImpulseEventContext';
 
 function App() {
@@ -36,12 +32,10 @@ function App() {
         <CssBaseline />
         <ImpulseEventProvider>
           <DeviceControllerProvider>
-            <PulseProvider>
-              <ToastProvider>
-                <GlobalToast />
-                <Dashboard mode={mode} onToggleMode={handleToggle} />
-              </ToastProvider>
-            </PulseProvider>
+            <ToastProvider>
+              <GlobalToast />
+              <Dashboard mode={mode} onToggleMode={handleToggle} />
+            </ToastProvider>
           </DeviceControllerProvider>
         </ImpulseEventProvider>
       </ThemeProvider>

@@ -6,18 +6,14 @@ import {
   Drawer,
   IconButton,
 } from '@mui/material';
-import DevicePanel from './panels/DevicePanel';
 import AudioChunkerDemo from './AudioChunkerDemo';
-import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { PulseControlsProvider } from '../controllers/PulseControlsContext';
 import { PulseToolsProvider } from '../controllers/PulseToolsContext';
-import DeviceSidebar from './DeviceSidebar';
 import DashboardHeader from './DashboardHeader';
-import { SingleDeviceProvider } from '../controllers/DeviceControllerContext';
 import LightsConnectionCard from './controls/LightsConnectionCard';
-import FirePatternOnImpulse from './interactions/FirePatternOnImpulse';
 import TestbedModal from './testbed/TestbedModal';
 import TestHarnessContent from './testbed/TestHarnessContent';
+import { useImpulseResponseHandlerToCommand } from "../hooks/useImpulseResponseHandlerToCommand";
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -25,15 +21,14 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
-  const { devices } = useDeviceControllerContext();
   const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false);
   const [testbedModalOpen, setTestbedModalOpen] = useState(false);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
-  const [activeDeviceId, setActiveDeviceId] = useState<string | null>(devices[0]?.id ?? null);
+
+  useImpulseResponseHandlerToCommand();
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 0, py: 0 }}>
-      <FirePatternOnImpulse />
       <Box sx={{ height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', mt: 0, pt: 0 }}>
         <DashboardHeader
           mode={mode}

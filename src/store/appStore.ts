@@ -152,6 +152,11 @@ export interface AppState {
   setActiveDeviceId: (id: string | null) => void;
   bleLookaheadMs: number;
   setBleLookaheadMs: (ms: number) => void;
+  // New: Impulse Response
+  impulseResponseAction: string;
+  setImpulseResponseAction: (action: string) => void;
+  impulseResponseArgs: string;
+  setImpulseResponseArgs: (args: string) => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -267,5 +272,10 @@ export const useAppStore = create<AppState>(
     setActiveDeviceId: (id) => set({ activeDeviceId: id }),
     bleLookaheadMs: 150,
     setBleLookaheadMs: (ms: number) => set({ bleLookaheadMs: ms }),
+    // New: Impulse Response
+    impulseResponseAction: 'fire_pattern',
+    setImpulseResponseAction: (action) => set({ impulseResponseAction: action }),
+    impulseResponseArgs: '17-(255,255,255)-(0,0,0)',
+    setImpulseResponseArgs: (args) => set({ impulseResponseArgs: args }),
   }))
 ); 

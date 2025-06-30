@@ -24,7 +24,6 @@ import BandSelector from './visuals/BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { useToastContext } from '../controllers/ToastContext';
 import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
-import { emitPulse } from '../hooks/useImpulseHandler';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import AudioChunkerDemoPlotArea from './visuals/AudioChunkerDemoPlotArea';
 // Import the visualization worker
@@ -159,16 +158,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     // Debounced impulse handler using new paradigm
     const debouncedPulse = useDebouncedCallback(
         (strength: number, min: number, max: number, bandName?: string, time?: number) => {
-            emitPulse({
-                strength,
-                min,
-                max,
-                bandName,
-                time,
-                tools: values.current,
-                device: activeDevice,
-                showToast,
-            });
+            // Placeholder for the removed emitPulse function
         },
         values.current.debounceMs
     );
@@ -616,7 +606,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                         {/* {/* <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {/* <PulseToolsCard /> */}
                             {/* <PulseControlsPanel /> */}
-                            <ImpulseResponseCard />
+                            {/* <ImpulseResponseCard /> */}
                         {/* </Box> */}  
                     </Box>
                     {/* Button to manually clear app state from IndexedDB */}
