@@ -1,4 +1,4 @@
-// audioWorker.ts - Web Worker for audio processing
+// audioWorker.ts - Web Worker for audio processing (Vite-compatible ES module)
 
 // Import types and (eventually) processing functions
 // import { decodeAudioFile, getMonoPCMData, chunkPCMData } from './audioChunker';
@@ -12,11 +12,13 @@ interface AudioProcessRequest {
   pcmBuffer: ArrayBuffer; // PCM data as ArrayBuffer
   windowSize: number;
   hopSize: number;
+  jobId?: string;
 }
 
 interface AudioProcessResult {
   summary: any; // TODO: Replace with proper type
   fftSequence: Float32Array[];
+  jobId?: string;
 }
 
 // If DedicatedWorkerGlobalScope is not defined, declare a minimal fallback type (for TypeScript in web workers)
@@ -48,32 +50,44 @@ function computeFFTMagnitude(chunk: Float32Array): Float32Array {
   for (let i = 0; i < magnitudes.length; i++) {
     const re = out[2 * i];
     const im = out[2 * i + 1];
-    magnitudes[i] = Math.sqrt(re * re + im * im);
+    // Normalize by window size (standard practice for audio analysis)
+    magnitudes[i] = Math.sqrt(re * re + im * im) / chunk.length;
   }
   return magnitudes;
 }
 
 // Listen for messages from the main thread
-self.onmessage = async (e: MessageEvent) => {
+globalThis.onmessage = async (e: MessageEvent) => {
   const data = e.data as AudioProcessRequest;
+  const jobId = data.jobId;
   const pcmData = new Float32Array(data.pcmBuffer);
   let numChunks = 0;
   let firstChunk: Float32Array | null = null;
   let fftSequence: Float32Array[] = [];
   const chunks = Array.from(chunkPCMData(pcmData, data.windowSize, data.hopSize));
   const totalChunks = chunks.length;
+  let lastReportedProcessed = 0;
+  console.time('worker-processing');
   for (let idx = 0; idx < totalChunks; idx++) {
     const chunk = chunks[idx];
     numChunks++;
     if (idx === 0) firstChunk = chunk;
     const magnitudes = computeFFTMagnitude(chunk);
     fftSequence.push(magnitudes);
-    // Progress reporting every 10 chunks or on last chunk
-    if ((idx % 10 === 0 || idx === totalChunks - 1) && totalChunks > 1) {
-      // @ts-ignore
-      self.postMessage({ type: 'progress', processed: idx + 1, total: totalChunks });
+    // Progress reporting every 500 chunks or on last chunk
+    if ((idx % 500 === 0 || idx === totalChunks - 1) && totalChunks > 1) {
+      const processed = idx + 1;
+      if (processed > lastReportedProcessed) {
+        lastReportedProcessed = processed;
+        globalThis.postMessage({ type: 'progress', processed, total: totalChunks, timestamp: Date.now(), jobId });
+      }
+    }
+    // Debug log every 1000 chunks
+    if (idx % 1000 === 0) {
+      console.log(`Worker processed ${idx} of ${totalChunks}`);
     }
   }
+  console.timeEnd('worker-processing');
   // Summary (minimal for now)
   const chunkDurationMs = 0; // Not available in worker
   const totalDurationMs = 0; // Not available in worker
@@ -95,9 +109,7 @@ self.onmessage = async (e: MessageEvent) => {
   };
   // Debug: log first 3 rows of fftSequence
   console.log('audioWorker.ts: fftSequence (first 3 rows)', fftSequence.slice(0, 3));
-  // @ts-ignore
-  self.postMessage({ type: 'done', summary, fftSequence } as AudioProcessResult);
+  globalThis.postMessage({ type: 'done', summary, fftSequence, jobId } as AudioProcessResult);
 };
 
-// No exports (web worker file)
-export {}; 
+// No exports (web worker file) 

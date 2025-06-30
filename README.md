@@ -1,41 +1,69 @@
-# Getting Started with it
+# React + TypeScript + Vite
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Available Scripts
+Currently, two official plugins are available:
 
-In the project directory, you can run:
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-### `npm start`
+## Expanding the ESLint configuration
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+```js
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-# How it works
+      // Remove tseslint.configs.recommended and replace with this
+      ...tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      ...tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      ...tseslint.configs.stylisticTypeChecked,
 
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
 
-This connects to the arduino using a UUID, and sometimes you may need to attempt to connect using a broader search as the name SRDriver does not always appear in the device list - it may appear as "Arduino".
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-Make sure your esp32 (or similar Arduino BLE device) is powered on, then load the page.
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
 
-You will see no devices
-<img width="527" alt="Screenshot 2025-06-24 at 7 11 45 AM" src="https://github.com/user-attachments/assets/1d3f5262-fa3e-45eb-8e79-d07500b42066" />
-
-So add one, then try to connect:
-
-<img width="758" alt="Screenshot 2025-06-24 at 7 12 42 AM" src="https://github.com/user-attachments/assets/d7e273eb-2e90-4822-a32e-b128c5a342b1" />
-
-Choose the device (you may have to hit cancel once):
-
-<img width="585" alt="Screenshot 2025-06-24 at 7 12 58 AM" src="https://github.com/user-attachments/assets/56bf7274-dd7d-4413-96f9-ebaa64c34c24" />
-
-Then enter the pin and hit Authenticate:
-
-<img width="969" alt="Screenshot 2025-06-24 at 7 14 03 AM" src="https://github.com/user-attachments/assets/6510b789-d985-456f-8a44-f9f728a5857a" />
-
-If it fails, refresh the page and try again.
-
-Once authenticated, the control should unlock and you should be able to use the controls.
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
