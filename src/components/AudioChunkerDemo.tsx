@@ -8,7 +8,8 @@ import {
     Alert,
     TextField,
     FormControlLabel,
-    Checkbox} from '@mui/material';
+    Checkbox,
+    Slider} from '@mui/material';
 import {
     decodeAudioFile,
     getMonoPCMData,
@@ -22,11 +23,9 @@ import GlobalControls from './GlobalControls';
 import DerivativeImpulseToggles from './controls/DerivativeImpulseToggles';
 import BandSelector from './visuals/BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
-import { useToastContext } from '../controllers/ToastContext';
 import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import AudioChunkerDemoPlotArea from './visuals/AudioChunkerDemoPlotArea';
-// Import the visualization worker
 // @ts-expect-error "needed import for visualizationWorker"
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
@@ -35,12 +34,9 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import Tooltip from '@mui/material/Tooltip';
 import { useAppStore } from '../store/appStore';
 import MenuItem from '@mui/material/MenuItem';
-import ImpulseResponseCard from './interactions/ImpulseResponseCard';
 import { useImpulseEvents } from '../context/ImpulseEventContext';
 import { clampDB } from './visuals/bandPlotUtils';
-
-const DEFAULT_WINDOW_SIZE = 1024;
-const DEFAULT_HOP_SIZE = 512;
+import CropLandscapeIcon from '@mui/icons-material/CropLandscape';
 
 // Context for active device selection
 interface ActiveDeviceContextType {
@@ -127,11 +123,9 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const connectedDevices = devices.filter(d => d.isConnected);
     const activeDeviceId = useAppStore(state => state.activeDeviceId);
     const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
-    const { showToast } = useToastContext();
     const { audioData, setAudioData } = useAppStore();
     const audioBufferRef = useRef<AudioBuffer | null>(null);
     const { values } = usePulseTools();
-    const activeDevice = devices.find(d => d.id === activeDeviceId);
     const impulseWindowSize = useAppStore(state => state.impulseWindowSize);
     const impulseSmoothing = useAppStore(state => state.impulseSmoothing);
     const impulseDetectionMode = useAppStore(state => state.impulseDetectionMode);
@@ -154,10 +148,11 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const bandDataArr = (analysis?.bandDataArr ?? []) as any[];
     const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
     const bleLookaheadMs = useAppStore(state => state.bleLookaheadMs);
+    const minMagnitudeThreshold = useAppStore(state => state.minMagnitudeThreshold);
 
     // Debounced impulse handler using new paradigm
     const debouncedPulse = useDebouncedCallback(
-        (strength: number, min: number, max: number, bandName?: string, time?: number) => {
+        (_strength: number, _min: number, _max: number, _bandName?: string, _time?: number) => {
             // Placeholder for the removed emitPulse function
         },
         values.current.debounceMs
@@ -267,7 +262,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                             setProcessingProgress(null);
                         };
                         visualizationWorkerRef.current.postMessage({
-                            fftSequence: (fftSequence ?? []).map(arr => Array.isArray(arr) ? arr : Array.from(arr)),
+                            fftSequence: (fftSequence ?? []).map((arr: number[] | Float32Array) => Array.isArray(arr) ? arr : Array.from(arr)),
                             bands: BAND_DEFINITIONS,
                             sampleRate: audioBuffer?.sampleRate || 44100,
                             hopSize: newSummary?.hopSize || 512,
@@ -276,6 +271,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                             impulseDetectionMode,
                             minDb,
                             minDbDelta,
+                            minMagnitudeThreshold,
                         });
                     } else {
                         // Fallback: just save fftSequence etc.
@@ -549,9 +545,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                                 />
                                 <Box sx={{ minWidth: 180, ml: 2 }}>
                                     <GlobalControls
-                                        windowSec={windowSec}
-                                        maxTime={audioData.analysis?.summary ? audioData.analysis.summary.totalDurationMs / 1000 : 60}
-                                        onWindowSecChange={setWindowSec}
                                         followCursor={followCursor}
                                         onFollowCursorChange={setFollowCursor}
                                         snapToWindow={snapToWindow}
@@ -573,13 +566,13 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                                     </Button>
                                 </Box>
                             )}
-                            {audioData.analysis?.summary && (
+                            {audioData.analysis && audioData.analysis.summary && (
                                 <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
                                     <Typography variant="body2" color="text.secondary">
                                         <strong>Chunks:</strong> {audioData.analysis.summary.numChunks}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        <strong>Chunk:</strong> {audioData.analysis.summary.chunkDurationMs?.toFixed(2)} ms
+                                        <strong>Chunk:</strong> {typeof audioData.analysis.summary.chunkDurationMs === 'number' ? audioData.analysis.summary.chunkDurationMs.toFixed(2) : ''} ms
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary">
                                         <strong>Total:</strong> {typeof audioData.analysis.summary.totalDurationMs === 'number' ? audioData.analysis.summary.totalDurationMs.toFixed(2) : ''} ms
@@ -587,6 +580,21 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                                 </Stack>
                             )}
                             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 120 }}>
+                                    <CropLandscapeIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
+                                    <Typography variant="caption" sx={{ mr: 1 }}>Window Size</Typography>
+                                    <Slider
+                                        min={2}
+                                        max={30}
+                                        step={1}
+                                        value={windowSec}
+                                        onChange={(_, v) => setWindowSec(Number(v))}
+                                        valueLabelDisplay="auto"
+                                        size="small"
+                                        sx={{ width: 80 }}
+                                    />
+                                    <Typography variant="caption" sx={{ ml: 1 }}>{windowSec}s</Typography>
+                                </Box>
                                 <DerivativeImpulseToggles />
                                 {audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && <BandSelector />}
                                 <FormControlLabel control={<Checkbox checked={showSustainedImpulses} onChange={e => setShowSustainedImpulses(e.target.checked)} />} label="Sustained" />

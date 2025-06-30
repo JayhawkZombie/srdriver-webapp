@@ -157,6 +157,8 @@ export interface AppState {
   setImpulseResponseAction: (action: string) => void;
   impulseResponseArgs: string;
   setImpulseResponseArgs: (args: string) => void;
+  minMagnitudeThreshold: number;
+  setMinMagnitudeThreshold: (n: number) => void;
 }
 
 const initialAudioData: AudioDataState = {
@@ -308,5 +310,7 @@ export const useAppStore = create<AppState>(
     setImpulseResponseAction: (action) => set({ impulseResponseAction: action }),
     impulseResponseArgs: '17-(255,255,255)-(0,0,0)',
     setImpulseResponseArgs: (args) => set({ impulseResponseArgs: args }),
+    minMagnitudeThreshold: 1e-6,
+    setMinMagnitudeThreshold: (n) => set({ minMagnitudeThreshold: n }),
   }))
 ); 

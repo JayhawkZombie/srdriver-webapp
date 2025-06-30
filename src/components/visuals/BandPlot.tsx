@@ -19,8 +19,6 @@ const BandPlot: React.FC<{
   const showSustainedImpulses = useAppStore(state => state.showSustainedImpulses);
   const onlySustained = useAppStore(state => state.onlySustained);
   const showDetectionFunction = useAppStore(state => state.showDetectionFunction);
-  // Debug log for toggle props
-  console.log('BandPlot toggles:', { showSustainedImpulses, onlySustained, showDetectionFunction });
 
   // Safely extract bandDataArr as BandData[] if possible, else use []
   const rawBandDataArr = useAppStore(state => state.audioData.analysis?.bandDataArr ?? []);
@@ -67,9 +65,6 @@ const BandPlot: React.FC<{
     });
     return arr[0];
   }, [bandDataArr, bandIdx, xRange, normalizedImpulseThreshold, playbackTime, isDark, hopSize, sampleRate, freqs, axisColor, gridColor, plotBg]);
-
-  // Debug log for sustainedImpulses
-  console.log('sustainedImpulses (first 20):', bandPlotData?.sustainedImpulses?.slice(0, 20));
 
   const isPlaying = useAppStore(state => state.isPlaying);
   // Smooth cursor animation
@@ -139,12 +134,6 @@ const BandPlot: React.FC<{
     ];
     // Overlay detection function as a trace with yaxis: 'y2'
     if (showDetectionFunction && detectionFunction && detectionTimes && detectionFunction.length > 0 && detectionTimes.length > 0) {
-      console.log('Detection Function trace:', {
-        showDetectionFunction,
-        detectionFunction: detectionFunction.slice(0, 10),
-        detectionTimes: detectionTimes.slice(0, 10),
-        length: detectionFunction.length
-      });
       baseTraces.push({
         x: detectionTimes,
         y: detectionFunction,

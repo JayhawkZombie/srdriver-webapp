@@ -22,6 +22,7 @@ interface VisualizationRequest {
   spectralFluxMinSeparation?: number;
   minDb?: number;
   minDbDelta?: number;
+  minMagnitudeThreshold?: number;
 }
 
 interface BandData {
@@ -57,6 +58,7 @@ globalThis.onmessage = (e: MessageEvent) => {
   const spectralFluxMinSeparation = data.spectralFluxMinSeparation || 3;
   const minDb = data.minDb ?? -60;
   const minDbDelta = data.minDbDelta ?? 3;
+  const minMagnitudeThreshold = data.minMagnitudeThreshold ?? 1e-6;
   const numBins = fftSequence[0]?.length || 0;
   // Compute frequency for each bin
   const freqs = Array.from({ length: numBins }, (_, i) => (i * sampleRate) / (2 * numBins));
@@ -103,8 +105,8 @@ globalThis.onmessage = (e: MessageEvent) => {
     }
     // Get raw magnitudes
     let magnitudes = fftSequence.map(row => row[binIdx] ?? 0);
-    // Only keep frames with magnitude > 1e-6 for impulse/derivative (avoid log(0) and noise)
-    const mask = magnitudes.map(m => m > 1e-6 ? 1 : 0);
+    // Only keep frames with magnitude > minMagnitudeThreshold for impulse/derivative (avoid log(0) and noise)
+    const mask = magnitudes.map(m => m > minMagnitudeThreshold ? 1 : 0);
     // Smoothing (moving average) if requested
     if (impulseSmoothing > 1) {
       magnitudes = movingAverage(magnitudes, impulseSmoothing);
