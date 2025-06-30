@@ -1,15 +1,13 @@
-import React, { useState, useRef } from 'react';
-import { Box, Typography, Slider, FormControl, InputLabel, Select, MenuItem, Stack, TextField, Button, Alert, Tooltip, IconButton } from '@mui/material';
-import { useDeviceById } from '../controllers/DeviceControllerContext';
+import React, { useState } from 'react';
+import { Box, Typography, Slider, FormControl, InputLabel, Select, MenuItem, Stack, TextField, Button, Alert, Tooltip, IconButton, Chip } from '@mui/material';
+import { useDeviceById } from '../../controllers/DeviceControllerContext';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 import SpeedOutlinedIcon from '@mui/icons-material/SpeedOutlined';
-import { useAppStore } from '../store/appStore';
-import { Device } from '../types/Device';
-import { DeviceUIState, AppState } from '../store/appStore';
+import { useAppStore } from '../../store/appStore';
+import type { DeviceUIState, AppState } from '../../store/appStore';
 import { useShallow } from 'zustand/react/shallow';
-import InputAdornment from '@mui/material/InputAdornment';
-import { useTheme } from '@mui/material/styles';
+import type { SelectChangeEvent } from '@mui/material/Select';
 
 const patternNames = [
   'Pattern 0',
@@ -27,15 +25,6 @@ interface DeviceControlsProps {
   deviceId: string;
   onUpdate: (update: any) => void;
   compact?: boolean;
-}
-
-// Simple debounce implementation
-function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
-  let timeout: ReturnType<typeof setTimeout>;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), delay);
-  };
 }
 
 // Reusable labeled slider with optional tooltip
@@ -89,26 +78,27 @@ function LabeledSlider({
 
 const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, compact = false }) => {
   const device = useDeviceById(deviceId);
-  const { brightness, speed, patternIndex } = useAppStore(
+  const { brightness, speed, patternIndex, bleRTT } = useAppStore(
     useShallow((state: AppState) => {
       const dev = state.devices[deviceId] as DeviceUIState | undefined;
       return {
         brightness: dev?.brightness ?? device?.brightness ?? 128,
         speed: dev?.speed ?? device?.speed ?? 1,
         patternIndex: dev?.patternIndex ?? device?.patternIndex ?? 0,
+        bleRTT: dev?.bleRTT,
       };
     })
   );
+  console.log('DeviceControls render', { deviceId, bleRTT });
   const setDeviceState = useAppStore((state) => state.setDeviceState);
-  const [pulseDuration, setPulseDuration] = useState(1000);
-  const [pulseTargetBrightness, setPulseTargetBrightness] = useState(255);
-  const [isPulsing, setIsPulsing] = useState(false);
+  const [pulseDuration, setPulseDuration] = useState<number>(1000);
+  const [pulseTargetBrightness, setPulseTargetBrightness] = useState<number>(255);
+  const [isPulsing, setIsPulsing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [firePatternIndex, setFirePatternIndex] = useState(0);
-  const [isFiringPattern, setIsFiringPattern] = useState(false);
-  const theme = useTheme();
+  const [firePatternIndex, setFirePatternIndex] = useState<number>(0);
+  const [isFiringPattern, setIsFiringPattern] = useState<boolean>(false);
 
-  const handleBrightnessChange = (event: React.SyntheticEvent | Event, value: number | number[]) => {
+  const handleBrightnessChange = (event: Event | React.SyntheticEvent<Element, Event>, value: number | number[]) => {
     if (!device || !device.controller) return;
     const brightnessValue = value as number;
     setDeviceState(deviceId, { brightness: brightnessValue });
@@ -116,7 +106,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
     device.controller.setBrightness(brightnessValue);
   };
 
-  const handleSpeedChange = (event: React.SyntheticEvent | Event, value: number | number[]) => {
+  const handleSpeedChange = (event: Event | React.SyntheticEvent<Element, Event>, value: number | number[]) => {
     if (!device || !device.controller) return;
     const speedValue = value as number;
     setDeviceState(deviceId, { speed: speedValue });
@@ -124,9 +114,9 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
     device.controller.setSpeed(speedValue);
   };
 
-  const handlePatternChange = (event: any) => {
+  const handlePatternChange = (event: SelectChangeEvent<number>) => {
     if (!device || !device.controller) return;
-    const patternIndexValue = event.target.value;
+    const patternIndexValue = Number(event.target.value);
     setDeviceState(deviceId, { patternIndex: patternIndexValue });
     onUpdate({ patternIndex: patternIndexValue });
     device.controller.setPattern(patternIndexValue);
@@ -137,8 +127,8 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
     setIsPulsing(true);
     try {
       await device.controller.pulseBrightness(pulseTargetBrightness, pulseDuration);
-    } catch (e: any) {
-      setError(e.message || 'Failed to pulse brightness');
+    } catch (e) {
+      setError((e as Error).message || 'Failed to pulse brightness');
     } finally {
       setIsPulsing(false);
     }
@@ -150,8 +140,8 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
     setError(null);
     try {
       await device.controller.firePattern(firePatternIndex);
-    } catch (e: any) {
-      setError(e.message || 'Failed to fire pattern');
+    } catch (e) {
+      setError((e as Error).message || 'Failed to fire pattern');
     } finally {
       setIsFiringPattern(false);
     }
@@ -159,8 +149,27 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({ deviceId, onUpdate, com
 
   if (!device || !device.isConnected || !device.controller) return null;
 
+  // Helper for RTT color
+  const getLatencyColor = (rtt?: number) => {
+    if (rtt === undefined) return 'default';
+    if (rtt < 50) return 'success';
+    if (rtt < 150) return 'warning';
+    return 'error';
+  };
+
   return (
     <Box sx={{ mt: compact ? 1 : 3, p: compact ? 0 : 1 }}>
+      {/* BLE RTT Indicator */}
+      {bleRTT !== undefined && (
+        <Tooltip title="Bluetooth round-trip latency (lower is better)">
+          <Chip
+            label={`BLE: ${bleRTT} ms`}
+            color={getLatencyColor(bleRTT)}
+            size="small"
+            sx={{ mb: 1, fontWeight: 500 }}
+          />
+        </Tooltip>
+      )}
       {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
       {compact ? (
         <Box sx={{

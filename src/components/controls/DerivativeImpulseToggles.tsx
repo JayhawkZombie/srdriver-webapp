@@ -1,6 +1,6 @@
 import React from 'react';
 import { FormGroup, FormControlLabel, Checkbox } from '@mui/material';
-import { useAppStore } from '../store/appStore';
+import { useAppStore } from '../../store/appStore';
 
 const DerivativeImpulseToggles: React.FC = () => {
   const showFirstDerivative = useAppStore(state => state.showFirstDerivative);

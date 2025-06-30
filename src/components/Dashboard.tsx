@@ -6,7 +6,7 @@ import {
   Drawer,
   IconButton,
 } from '@mui/material';
-import DevicePanel from './DevicePanel';
+import DevicePanel from './panels/DevicePanel';
 import AudioChunkerDemo from './AudioChunkerDemo';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { PulseControlsProvider } from '../controllers/PulseControlsContext';
@@ -14,8 +14,8 @@ import { PulseToolsProvider } from '../controllers/PulseToolsContext';
 import DeviceSidebar from './DeviceSidebar';
 import DashboardHeader from './DashboardHeader';
 import { SingleDeviceProvider } from '../controllers/DeviceControllerContext';
-import LightsConnectionCard from './LightsConnectionCard';
-import FirePatternOnImpulse from './FirePatternOnImpulse';
+import LightsConnectionCard from './controls/LightsConnectionCard';
+import FirePatternOnImpulse from './interactions/FirePatternOnImpulse';
 import TestbedModal from './testbed/TestbedModal';
 import TestHarnessContent from './testbed/TestHarnessContent';
 

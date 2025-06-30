@@ -198,10 +198,13 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
         setDevices(prev => prev.map(d =>
           d.id === deviceId ? { ...d, macOrId: realId } : d
         ));
+        device.controller.deviceId = realId;
       }
       setDevices(prev => prev.map(d =>
         d.id === deviceId ? { ...d, isConnected: true, isConnecting: false, error: null } : d
       ));
+      // Fire-and-forget BLE RTT measurement after connection
+      device.controller.pingForRTT?.();
     } catch (e: any) {
       setDevices(prev => prev.map(d =>
         d.id === deviceId ? { ...d, isConnected: false, isConnecting: false, error: e.message || 'Failed to connect' } : d

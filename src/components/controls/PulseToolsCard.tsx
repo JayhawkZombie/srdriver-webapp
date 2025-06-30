@@ -1,13 +1,13 @@
 import React, { useCallback } from 'react';
 import { Paper, Box, Slider, Typography, FormControl, InputLabel, Select, MenuItem, Tooltip, IconButton } from '@mui/material';
 import PulseControlsPanel from './PulseControlsPanel';
-import { usePulseTools } from '../controllers/PulseToolsContext';
-import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
-import { useToastContext } from '../controllers/ToastContext';
-import { emitPulse } from './useImpulseHandler';
-import { usePulseControls } from '../controllers/PulseControlsContext';
+import { usePulseTools } from '../../controllers/PulseToolsContext';
+import { useDeviceControllerContext } from '../../controllers/DeviceControllerContext';
+import { useToastContext } from '../../controllers/ToastContext';
+import { emitPulse } from '../../hooks/useImpulseHandler';
+import { usePulseControls } from '../../controllers/PulseControlsContext';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { useActiveDevice } from './AudioChunkerDemo';
+import { useActiveDevice } from '../AudioChunkerDemo';
 
 const effectOptions = [
   { label: 'None', value: '' },

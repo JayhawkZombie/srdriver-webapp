@@ -1,6 +1,5 @@
-import { 
-  ISRDriverController, 
-  RGBColor,
+import type { ISRDriverController, RGBColor } from '../types/srdriver';
+import {
   CONTROL_SERVICE_UUID,
   BRIGHTNESS_CHARACTERISTIC_UUID,
   SPEED_CHARACTERISTIC_UUID,
@@ -9,9 +8,9 @@ import {
   LOW_COLOR_CHARACTERISTIC_UUID,
   LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
   RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
-  COMMAND_CHARACTERISTIC_UUID,
-  DEVICE_NAME
+  COMMAND_CHARACTERISTIC_UUID
 } from '../types/srdriver';
+import { useAppStore } from '../store/appStore';
 
 export class WebSRDriverController implements ISRDriverController {
   private device: BluetoothDevice | null = null;
@@ -26,7 +25,14 @@ export class WebSRDriverController implements ISRDriverController {
   private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private _debounceBrightnessTimeout: ReturnType<typeof setTimeout> | null = null;
   private _lastBrightnessValue: number | null = null;
-  private _debouncers: Record<string, { timeout: ReturnType<typeof setTimeout> | null; lastValue: any }> = {};
+  private _debouncers: Record<string, { timeout: ReturnType<typeof setTimeout> | null; lastValue: unknown }> = {};
+  private _onPong?: (rtt: number) => void;
+  private _pendingPingTimestamp?: number;
+  public deviceId: string;
+
+  constructor(deviceId: string) {
+    this.deviceId = deviceId;
+  }
 
   // Callbacks
   onBrightnessChange?: (value: number) => void;
@@ -108,7 +114,7 @@ export class WebSRDriverController implements ISRDriverController {
           filters: [{ services: [CONTROL_SERVICE_UUID] }],
         });
         console.log('Found device with exact control service:', device.name);
-      } catch (error) {
+      } catch {
         console.log('Exact control service filter failed, trying namePrefix...');
         // Strategy 2: Try with namePrefix
         try {
@@ -117,17 +123,15 @@ export class WebSRDriverController implements ISRDriverController {
             optionalServices: [CONTROL_SERVICE_UUID]
           });
           console.log('Found device with name prefix:', device.name);
-        } catch (prefixError) {
+        } catch {
           console.log('Name prefix filter failed, trying all devices...');
           // Strategy 3: Try with service filter
           try {
             device = await navigator.bluetooth.requestDevice({
-              // filters: [{ services: [CONTROL_SERVICE_UUID] }],
               acceptAllDevices: true,
-              // optionalServices: [CONTROL_SERVICE_UUID]
             });
             console.log('Found device with service filter:', device.name);
-          } catch (serviceError) {
+          } catch {
             console.log('All discovery strategies failed');
             throw new Error('No compatible SRDriver device found. Please ensure the device is powered on and in range.');
           }
@@ -166,6 +170,7 @@ export class WebSRDriverController implements ISRDriverController {
       // --- Setup notifications for all characteristics ---
       // Helper to parse and call the right callback
       const parseAndNotify = (charName: string, value: DataView) => {
+        console.log(`[BLE] ${charName} value: ${JSON.stringify(value)}`);
         const decoder = new TextDecoder();
         const str = decoder.decode(value);
         switch (charName) {
@@ -198,6 +203,24 @@ export class WebSRDriverController implements ISRDriverController {
             if (this.onRightSeriesCoefficientsChange) this.onRightSeriesCoefficientsChange(coeffs as [number, number, number]);
             break;
           }
+          case 'command': {
+            console.log(`[BLE] command: ${str}`);
+            if (str.startsWith("pong:")) {
+              const pongTimestamp = parseInt(str.split(":")[1], 10);
+              if (this._pendingPingTimestamp && pongTimestamp === this._pendingPingTimestamp) {
+                const rtt = Date.now() - pongTimestamp;
+                console.log(`[BLE RTT] Pong received for device ${this.deviceId}: RTT = ${rtt} ms (pongTimestamp: ${pongTimestamp}, now: ${Date.now()})`);
+                // Update Zustand store with RTT for this device
+                useAppStore.getState().setDeviceState(this.deviceId, { bleRTT: rtt });
+                console.log(`[BLE RTT] Updated Zustand for device ${this.deviceId} with RTT: ${rtt} ms`);
+                this._onPong?.(rtt);
+                this._pendingPingTimestamp = undefined;
+              } else {
+                console.log(`[BLE RTT] Pong received but no matching pending ping for device ${this.deviceId}`);
+              }
+            }
+            break;
+          }
         }
       };
 
@@ -224,6 +247,7 @@ export class WebSRDriverController implements ISRDriverController {
       await setupNotification(this.lowColorCharacteristic, 'lowColor');
       await setupNotification(this.leftSeriesCoefficientsCharacteristic, 'leftSeriesCoefficients');
       await setupNotification(this.rightSeriesCoefficientsCharacteristic, 'rightSeriesCoefficients');
+      await setupNotification(this.commandCharacteristic, 'command');
       // Command characteristic does not need notification
 
       return true;
@@ -438,7 +462,7 @@ export class WebSRDriverController implements ISRDriverController {
   }
 
   async firePattern(patternIndex: number): Promise<void> {
-    const command = `fire_pattern:${patternIndex}`;
+    const command = `fire_pattern:${patternIndex}-(255,255,255)-(0,0,0)`;
     await this.sendCommand(command);
   }
 
@@ -464,7 +488,17 @@ export class WebSRDriverController implements ISRDriverController {
       clearTimeout(this._debouncers[key].timeout!);
     }
     this._debouncers[key].timeout = setTimeout(() => {
-      writeFn(this._debouncers[key].lastValue);
+      writeFn(this._debouncers[key].lastValue as T);
     }, delay);
+  }
+
+  public setOnPongCallback(cb: (rtt: number) => void) {
+    this._onPong = cb;
+  }
+
+  public async pingForRTT() {
+    const timestamp = Date.now();
+    this._pendingPingTimestamp = timestamp;
+    await this.sendCommand(`ping:${timestamp}`);
   }
 } 

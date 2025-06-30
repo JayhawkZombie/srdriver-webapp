@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useAppStore } from '../store/appStore';
+import { useAppStore } from '../../store/appStore';
 import BandPlot from './BandPlot';
 
 const AudioFrequencyVisualizer: React.FC = () => {

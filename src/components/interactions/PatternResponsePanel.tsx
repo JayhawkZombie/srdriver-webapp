@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Box, Typography, FormControl, InputLabel, Select, MenuItem, Button, Stack, Snackbar, Alert } from '@mui/material';
-import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
-import { useAppStore } from '../store/appStore';
-import type { Device } from '../types/Device';
+import { useDeviceControllerContext } from '../../controllers/DeviceControllerContext';
+import { useAppStore } from '../../store/appStore';
+import type { Device } from '../../types/Device';
 
 const PATTERN_COUNT = 18;
 

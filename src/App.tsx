@@ -10,7 +10,7 @@ import { PulseProvider } from './controllers/PulseContext';
 import { ToastProvider } from './controllers/ToastContext';
 import GlobalToast from './components/GlobalToast';
 import { ImpulseEventProvider } from './context/ImpulseEventContext';
-import FirePatternOnImpulse from './components/FirePatternOnImpulse';
+import FirePatternOnImpulse from './components/interactions/FirePatternOnImpulse';
 
 function App() {
   const getInitialMode = () => {

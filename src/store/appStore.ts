@@ -64,6 +64,7 @@ export interface DeviceUIState {
   brightness: number;
   speed: number;
   patternIndex: number;
+  bleRTT?: number; // BLE round-trip time in ms
 }
 
 export interface AppState {

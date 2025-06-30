@@ -19,26 +19,26 @@ import WaveSurfer from "wavesurfer.js";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import audioWorkerUrl from '../workers/audioWorker.ts?worker';
 import GlobalControls from './GlobalControls';
-import DerivativeImpulseToggles from './DerivativeImpulseToggles';
-import BandSelector from './BandSelector';
+import DerivativeImpulseToggles from './controls/DerivativeImpulseToggles';
+import BandSelector from './visuals/BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { useToastContext } from '../controllers/ToastContext';
 import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
-import { emitPulse } from './useImpulseHandler';
-import { useDebouncedCallback } from './useDebouncedCallback';
-import AudioChunkerDemoPlotArea from './AudioChunkerDemoPlotArea';
+import { emitPulse } from '../hooks/useImpulseHandler';
+import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
+import AudioChunkerDemoPlotArea from './visuals/AudioChunkerDemoPlotArea';
 // Import the visualization worker
 // @ts-expect-error "needed import for visualizationWorker"
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
-import FFTProcessingControls from './FFTProcessingControls';
+import FFTProcessingControls from './controls/FFTProcessingControls';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import Tooltip from '@mui/material/Tooltip';
 import { useAppStore } from '../store/appStore';
 import MenuItem from '@mui/material/MenuItem';
-import ImpulseResponseCard from './ImpulseResponseCard';
+import ImpulseResponseCard from './interactions/ImpulseResponseCard';
 import { useImpulseEvents } from '../context/ImpulseEventContext';
-import { clampDB } from './bandPlotUtils';
+import { clampDB } from './visuals/bandPlotUtils';
 
 const DEFAULT_WINDOW_SIZE = 1024;
 const DEFAULT_HOP_SIZE = 512;

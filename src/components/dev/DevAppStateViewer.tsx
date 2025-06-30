@@ -3,7 +3,7 @@ import { Box, IconButton, Drawer, Typography, Tooltip } from '@mui/material';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CloseIcon from '@mui/icons-material/Close';
-import { useAppStore } from '../store/appStore';
+import { useAppStore } from '../../store/appStore';
 
 const isDev = process.env.NODE_ENV === 'development';
 

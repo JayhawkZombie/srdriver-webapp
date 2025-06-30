@@ -1,12 +1,12 @@
 import React from "react";
 import { Box, Typography, Button } from "@mui/material";
 import FavoriteIcon from "@mui/icons-material/Favorite";
-import AnimatedStatusChip from "./AnimatedStatusChip";
+import AnimatedStatusChip from "../AnimatedStatusChip";
 import {
     useDeviceControllerContext,
     useHeartbeatStatus,
-} from "../controllers/DeviceControllerContext";
-import { Device } from "../types/Device";
+} from "../../controllers/DeviceControllerContext";
+import { Device } from "../../types/Device";
 
 const DeviceConnectionRow: React.FC<{
     device: Device;

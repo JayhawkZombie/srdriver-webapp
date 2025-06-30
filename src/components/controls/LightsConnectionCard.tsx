@@ -18,11 +18,11 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import CloseIcon from '@mui/icons-material/Close';
-import { useDeviceControllerContext } from "../controllers/DeviceControllerContext";
+import { useDeviceControllerContext } from "../../controllers/DeviceControllerContext";
 import DeviceControls from "./DeviceControls";
-import EditableNickname from "./EditableNickname";
-import { useAppStore } from "../store/appStore";
-import { SingleDeviceProvider } from "../controllers/DeviceControllerContext";
+import EditableNickname from "../EditableNickname";
+import { useAppStore } from "../../store/appStore";
+import { SingleDeviceProvider } from "../../controllers/DeviceControllerContext";
 
 interface Device {
     id: string;

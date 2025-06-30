@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import Plot from 'react-plotly.js';
-import { useAppStore } from '../store/appStore';
+import { useAppStore } from '../../store/appStore';
 import { getBandPlotData, type BandPlotData, clampDB, type BandData } from './bandPlotUtils';
 
 // Memoized BandPlot for a single band, optimized for Zustand and Plotly

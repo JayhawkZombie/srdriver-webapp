@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Slider, Stack, Tooltip, IconButton } from '@mui/material';
-import { usePulseControls } from '../controllers/PulseControlsContext';
+import { usePulseControls } from '../../controllers/PulseControlsContext';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 export interface PulseControlsPanelProps {

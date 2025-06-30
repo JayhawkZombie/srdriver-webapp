@@ -1,6 +1,6 @@
 import React from 'react';
 import { ToggleButton, ToggleButtonGroup } from '@mui/material';
-import { useAppStore } from '../store/appStore';
+import { useAppStore } from '../../store/appStore';
 
 const BAND_NAMES = ['Bass', 'Low Mid', 'Mid', 'Treble', 'High Treble'];
 
