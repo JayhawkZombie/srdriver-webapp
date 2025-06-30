@@ -461,8 +461,8 @@ export class WebSRDriverController implements ISRDriverController {
     await this.sendCommand(command);
   }
 
-  async firePattern(patternIndex: number): Promise<void> {
-    const command = `fire_pattern:${patternIndex}-(255,255,255)-(0,0,0)`;
+  async firePattern(patternIndex: number, patternArgument: string): Promise<void> {
+    const command = `fire_pattern:${patternIndex}-${patternArgument}`;
     await this.sendCommand(command);
   }
 

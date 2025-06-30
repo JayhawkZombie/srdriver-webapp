@@ -167,23 +167,54 @@ const initialAudioData: AudioDataState = {
 const initialDevicesMetadata: { [macOrId: string]: { nickname: string } } = {};
 const initialDevices: { [id: string]: DeviceUIState } = {};
 
+// Private helper for safe device state updates
+function safeUpdateDeviceState(prev: DeviceUIState, update: Partial<DeviceUIState>): DeviceUIState {
+  return {
+    ...prev,
+    ...Object.fromEntries(Object.entries(update).filter(([, v]) => v !== undefined)),
+  };
+}
+
+// Private helper for safe device metadata updates
+function safeUpdateDeviceMetadata(prev: { nickname: string } = { nickname: '' }, update: Partial<{ nickname: string }>): { nickname: string } {
+  return {
+    ...prev,
+    ...Object.fromEntries(Object.entries(update).filter(([, v]) => v !== undefined)),
+  };
+}
+
+// Helper to update a single device by ID
+function updateDeviceById(devices: { [id: string]: DeviceUIState }, id: string, update: Partial<DeviceUIState>): { [id: string]: DeviceUIState } {
+  return {
+    ...devices,
+    [id]: safeUpdateDeviceState(devices[id], update),
+  };
+}
+
+// Helper to update a single device's metadata by ID
+function updateDeviceMetadataById(devicesMetadata: { [id: string]: { nickname: string } }, id: string, update: Partial<{ nickname: string }>): { [id: string]: { nickname: string } } {
+  return {
+    ...devicesMetadata,
+    [id]: safeUpdateDeviceMetadata(devicesMetadata[id], update),
+  };
+}
+
 export const useAppStore = create<AppState>(
   persistWithIndexedDB<AppState>('app-state', (set, get) => ({
     audioData: initialAudioData,
-    setAudioData: (data: Partial<AudioDataState>) => set((state: AppState) => ({ audioData: { ...state.audioData, ...data } })),
+    setAudioData: (data: Partial<AudioDataState>) => set((state: AppState) => ({
+      audioData: {
+        ...state.audioData,
+        ...Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)),
+      },
+    })),
     devicesMetadata: initialDevicesMetadata,
     setDeviceNickname: (macOrId: string, nickname: string) => set((state: AppState) => ({
-      devicesMetadata: {
-        ...state.devicesMetadata,
-        [macOrId]: { nickname }
-      }
+      devicesMetadata: updateDeviceMetadataById(state.devicesMetadata, macOrId, { nickname }),
     })),
     devices: initialDevices,
     setDeviceState: (id: string, update: Partial<DeviceUIState>) => set((state: AppState) => ({
-      devices: {
-        ...state.devices,
-        [id]: { ...state.devices[id], ...update }
-      }
+      devices: updateDeviceById(state.devices, id, update),
     })),
     // UI controls and toggles
     selectedBand: 'Bass',

@@ -1,56 +1,29 @@
 import React from "react";
 import {
-    Paper,
     Typography,
     Box,
     Button,
     IconButton,
     Stack,
-    Tooltip,
-    Card,
-    CardContent,
     useTheme,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
-import LinkOffIcon from "@mui/icons-material/LinkOff";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
-import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
-import CloseIcon from '@mui/icons-material/Close';
 import { useDeviceControllerContext } from "../../controllers/DeviceControllerContext";
 import DeviceControls from "./DeviceControls";
-import EditableNickname from "../EditableNickname";
 import { useAppStore } from "../../store/appStore";
-import { SingleDeviceProvider } from "../../controllers/DeviceControllerContext";
-
-interface Device {
-    id: string;
-    name: string;
-    isConnected: boolean;
-    isConnecting: boolean;
-}
-
-interface LightsConnectionCardProps {
-    connectedDevices: Device[];
-    activeDeviceId: string | null;
-    setActiveDeviceId: (id: string) => void;
-}
+import ConnectionTools from './ConnectionTools';
 
 const LightsConnectionCard: React.FC = () => {
     const {
         devices,
         addDevice,
-        connectDevice,
-        disconnectDevice,
         updateDevice,
     } = useDeviceControllerContext();
     const theme = useTheme();
     const activeDeviceId = useAppStore(state => state.activeDeviceId);
     const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
     const activeDevice = devices.find((d) => d.id === activeDeviceId);
-    const devicesMetadata = useAppStore((state) => state.devicesMetadata);
-    const setDeviceNickname = useAppStore((state) => state.setDeviceNickname);
     const [visible, setVisible] = React.useState(true);
 
     // Auto-select the first connected device
@@ -67,33 +40,6 @@ const LightsConnectionCard: React.FC = () => {
 
     // Debug: log current activeDeviceId and selected device
     console.log('[LightsConnectionCard] activeDeviceId:', activeDeviceId, 'activeDevice:', activeDevice);
-
-    // Helper for status icon
-    const getStatusIcon = (device: Device) => {
-        if (device.isConnected)
-            return (
-                <Tooltip title="Connected">
-                    <CheckCircleIcon
-                        sx={{ color: "success.main", fontSize: 20 }}
-                    />
-                </Tooltip>
-            );
-        if (device.isConnecting)
-            return (
-                <Tooltip title="Connecting">
-                    <HourglassEmptyIcon
-                        sx={{ color: "warning.main", fontSize: 20 }}
-                    />
-                </Tooltip>
-            );
-        return (
-            <Tooltip title="Disconnected">
-                <RadioButtonUncheckedIcon
-                    sx={{ color: "text.disabled", fontSize: 20 }}
-                />
-            </Tooltip>
-        );
-    };
 
     if (!visible) {
         return (
@@ -210,57 +156,18 @@ const LightsConnectionCard: React.FC = () => {
                                             role="button"
                                             aria-disabled={!device.isConnected}
                                         >
-                                            <EditableNickname
-                                                macOrId={device.macOrId}
-                                                value={devicesMetadata[device.macOrId]?.nickname}
-                                                fallbackName={device.name}
-                                                onChange={(nickname) => setDeviceNickname(device.macOrId, nickname)}
-                                                size="small"
-                                            />
-                                            {getStatusIcon(device)}
-                                            {device.isConnected ? (
-                                                <Tooltip title="Disconnect">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="secondary"
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            disconnectDevice(device.id);
-                                                        }}
-                                                        disabled={device.isConnecting}
-                                                    >
-                                                        <LinkOffIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            ) : (
-                                                <Tooltip
-                                                    title={device.isConnecting ? "Connecting..." : "Connect"}
-                                                >
-                                                    <IconButton
-                                                        size="small"
-                                                        color="primary"
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            connectDevice(device.id);
-                                                        }}
-                                                        disabled={device.isConnecting}
-                                                    >
-                                                        <PowerSettingsNewIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            )}
+                                            <ConnectionTools deviceId={device.id} />
                                         </Box>
                                     );
                                 })}
                             </Stack>
                         </Box>
-                        {/* Device controls for the active device */}
                         {activeDevice && activeDevice.isConnected && (
                             <Box sx={{ mt: 1, mb: 1 }}>
                                 <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
                                     Device Controls
                                 </Typography>
-                                <DeviceControls deviceId={activeDevice.id} onUpdate={update => updateDevice(activeDevice.id, update)} compact={true} />
+                                <DeviceControls deviceId={activeDevice.id} onUpdate={update => updateDevice(activeDevice.id, update)} />
                             </Box>
                         )}
                     </Box>
