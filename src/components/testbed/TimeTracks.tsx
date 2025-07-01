@@ -1,39 +1,21 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Stage, Layer, Rect, Line, Text, Group } from 'react-konva';
-import type { KonvaEventObject } from 'konva/lib/Node';
-import { Devices, GraphicEq, Label } from '@mui/icons-material';
+import React, { useState } from 'react';
+import { Stage, Layer, Line } from 'react-konva';
 import ResponseRect from './ResponseRect';
+import TrackList from './TrackList';
+import UnderlayCanvas from './UnderlayCanvas';
+import TimelineGrid from './TimelineGrid';
+import { useTimelineState } from './useTimelineState';
+import { timeToX, xToTime, TRACK_HEIGHT, TRACK_GAP, TIMELINE_LEFT, TIMELINE_RIGHT_PAD, centerYToTrackIndex } from './timelineMath';
 
-// Timeline constants
-const TRACK_HEIGHT = 40;
-const TRACK_GAP = 10;
-const NUM_TRACKS = 4;
 const DURATION = 15; // seconds
-const DEFAULT_RESPONSE_DURATION = 1; // seconds
-const LABEL_WIDTH = 160; // even more space for icons, color, and name
+const LABEL_WIDTH = 160;
 
-// MUI-like colors
 const muiBg = '#21262c';
-const muiTrack = '#2d333b';
 const muiText = '#e3e6eb';
 const muiAccent = '#90caf9';
 const muiShadow = 'rgba(0,0,0,0.18)';
 
-// Dynamic xToTime based on current timeline width
-// (TIMELINE_WIDTH is now only used for legacy code, not for actual rendering)
-
-interface ResponseEvent {
-  start: number;
-  end: number;
-  track: number;
-}
-
-const TRACK_TYPES = [
-  { type: 'device', label: 'Device', color: '#ffb300', icon: Devices },
-  { type: 'frequency', label: 'Frequency', color: '#42a5f5', icon: GraphicEq },
-  { type: 'custom', label: 'Custom', color: '#ab47bc', icon: Label },
-] as const;
-type TrackType = typeof TRACK_TYPES[number]['type'];
+type TrackType = 'device' | 'frequency' | 'custom';
 
 const TEMPLATES: { name: string; tracks: { name: string; type: TrackType }[] }[] = [
   {
@@ -68,10 +50,7 @@ const TEMPLATES: { name: string; tracks: { name: string; type: TrackType }[] }[]
 const UNDERLAY_OPTIONS = ['None', 'Waveform', 'Frequency'] as const;
 type UnderlayType = typeof UNDERLAY_OPTIONS[number];
 
-interface Track {
-  name: string;
-  type: TrackType;
-}
+type Track = { name: string; type: TrackType };
 
 const defaultTracks: Track[] = [
   { name: 'Bass', type: 'frequency' },
@@ -81,167 +60,53 @@ const defaultTracks: Track[] = [
 ];
 
 const TimeTracks: React.FC = () => {
-  const [responses, setResponses] = useState<ResponseEvent[]>([]);
-  const [playhead, setPlayhead] = useState(0);
-  const [tracks, setTracks] = useState<Track[]>(defaultTracks);
-  const [editingTrack, setEditingTrack] = useState<number | null>(null);
-  const [editingValue, setEditingValue] = useState('');
-  const [editingType, setEditingType] = useState<TrackType | null>(null);
-  const [templateIdx, setTemplateIdx] = useState(0);
-  const animRef = useRef<number | null>(null);
-  const playingRef = useRef(false);
-  const [underlay, setUnderlay] = useState<UnderlayType>('None');
-  const timelineContainerRef = useRef<HTMLDivElement>(null);
-  const [timelineSize, setTimelineSize] = useState({ width: 800, height: 400 });
+  const [dragOverTrack, setDragOverTrack] = useState<number | null>(null);
+  const {
+    responses,
+    playhead,
+    tracks,
+    editingTrack, setEditingTrack,
+    editingValue, setEditingValue,
+    editingType, setEditingType,
+    templateIdx,
+    playingRef,
+    underlay, setUnderlay,
+    timelineContainerRef, timelineSize,
+    startPlayhead, stopPlayhead, resetPlayhead,
+    handleStageClick,
+    handleResize,
+    handleTrackNameChange,
+    handleTrackNameCommit,
+    handleTemplateSelect,
+    setResponses,
+  } = useTimelineState({ defaultTracks, duration: DURATION, trackHeight: TRACK_HEIGHT, trackGap: TRACK_GAP });
 
-  // Dynamically size timeline to fill parent
-  useEffect(() => {
-    const handleResize = () => {
-      if (timelineContainerRef.current) {
-        const rect = timelineContainerRef.current.getBoundingClientRect();
-        // Height is based on tracks, but can fill parent if taller
-        const neededHeight = 40 + tracks.length * (TRACK_HEIGHT + TRACK_GAP) + 20;
-        setTimelineSize({
-          width: Math.max(400, rect.width),
-          height: Math.max(neededHeight, Math.min(rect.height, window.innerHeight * 0.7)),
-        });
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [tracks.length]);
-
-  // Draw a mock waveform or frequency plot on a canvas
-  const underlayCanvasRef = useRef<HTMLCanvasElement>(null);
-  React.useEffect(() => {
-    const canvas = underlayCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (underlay === 'Waveform') {
-      // Draw a mock waveform (sine wave)
-      ctx.strokeStyle = '#90caf9';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let x = 0; x < canvas.width; x++) {
-        const t = x / canvas.width * 4 * Math.PI;
-        const y = canvas.height / 2 + Math.sin(t) * (canvas.height / 3);
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    } else if (underlay === 'Frequency') {
-      // Draw a mock frequency band plot (bars)
-      const bands = 8;
-      for (let i = 0; i < bands; i++) {
-        const barHeight = Math.abs(Math.sin(i + 1)) * (canvas.height * 0.7);
-        ctx.fillStyle = `rgba(144,202,249,${0.3 + 0.5 * (i % 2)})`;
-        ctx.fillRect(
-          (canvas.width / bands) * i + 4,
-          canvas.height - barHeight - 6,
-          (canvas.width / bands) - 8,
-          barHeight
+  // Drag-to-move handler (still local, but updates global state)
+  const handleResponseMove = (idx: number, newX: number, newY: number) => {
+    const newTrack = centerYToTrackIndex(newY, tracks.length);
+    setDragOverTrack(newTrack);
+    // Don't update state here, only onMoveEnd
+  };
+  const handleResponseMoveEnd = (idx: number, newX: number, newY: number) => {
+    const duration = responses[idx].end - responses[idx].start;
+    let newStart = xToTime({ x: newX, duration: DURATION, width: timelineSize.width });
+    newStart = Math.max(0, Math.min(DURATION - duration, newStart));
+    const newTrack = centerYToTrackIndex(newY, tracks.length);
+    setDragOverTrack(null);
+    if (typeof setResponses === 'function') {
+      setResponses((prev: typeof responses) => {
+        const updated = prev.map((resp, i) =>
+          i === idx
+            ? {
+                ...resp,
+                start: newStart,
+                end: newStart + duration,
+                track: newTrack,
+              }
+            : resp
         );
-      }
-    }
-  }, [underlay]);
-
-  // Start/stop playhead animation
-  const startPlayhead = () => {
-    if (playingRef.current) return;
-    playingRef.current = true;
-    const start = performance.now() - (playhead * 1000);
-    const animate = (now: number) => {
-      if (!playingRef.current) return;
-      const t = Math.min((now - start) / 1000, DURATION);
-      setPlayhead(t);
-      if (t < DURATION) {
-        animRef.current = requestAnimationFrame(animate);
-      } else {
-        playingRef.current = false;
-      }
-    };
-    animRef.current = requestAnimationFrame(animate);
-  };
-  const stopPlayhead = () => {
-    playingRef.current = false;
-    if (animRef.current) cancelAnimationFrame(animRef.current);
-  };
-  const resetPlayhead = () => {
-    stopPlayhead();
-    setPlayhead(0);
-  };
-
-  // Dynamic xToTime based on current timeline width
-  // (TIMELINE_WIDTH is now only used for legacy code, not for actual rendering)
-  const xToTimeLocal = (x: number) => ((x - 50) / (timelineSize.width - 60)) * DURATION;
-
-  // Handle click to add response
-  const handleStageClick = (e: KonvaEventObject<PointerEvent>) => {
-    if (editingTrack !== null) return;
-    const stage = e.target.getStage();
-    if (!stage) return;
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-    const { x, y } = pointer;
-    for (let i = 0; i < NUM_TRACKS; i++) {
-      const top = 40 + i * (TRACK_HEIGHT + TRACK_GAP);
-      if (y >= top && y <= top + TRACK_HEIGHT) {
-        const start = Math.max(0, Math.min(DURATION - DEFAULT_RESPONSE_DURATION, xToTimeLocal(x)));
-        const end = Math.min(DURATION, start + DEFAULT_RESPONSE_DURATION);
-        setResponses((prev) => [...prev, { start, end, track: i }]);
-        break;
-      }
-    }
-  };
-
-  // Handle drag of left/right handle
-  const handleResize = (idx: number, edge: 'left' | 'right', newTime: number) => {
-    setResponses((prev) => prev.map((resp, i) => {
-      if (i !== idx) return resp;
-      if (edge === 'left') {
-        // Clamp to not go past end, and not before 0
-        const newStart = Math.max(0, Math.min(resp.end - 0.1, newTime));
-        return { ...resp, start: newStart };
-      } else {
-        // Clamp to not go before start, and not after DURATION
-        const newEnd = Math.min(DURATION, Math.max(resp.start + 0.1, newTime));
-        return { ...resp, end: newEnd };
-      }
-    }));
-  };
-
-  // Handle track name input change
-  const handleTrackNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditingValue(e.target.value);
-  };
-
-  // Handle template selection
-  const handleTemplateSelect = (idx: number) => {
-    setTemplateIdx(idx);
-    setTracks(TEMPLATES[idx].tracks.map(t => ({ ...t })));
-    setEditingTrack(null);
-    setEditingValue('');
-    setEditingType(null);
-  };
-
-  // Handle track name/type input blur or enter
-  const handleTrackNameCommit = () => {
-    if (editingTrack !== null) {
-      setTracks((prev) => prev.map((track, i) =>
-        i === editingTrack
-          ? {
-              ...track,
-              name: editingValue.trim() || track.name,
-              type: editingType ?? track.type,
-            }
-          : track
-      ));
-      setEditingTrack(null);
-      setEditingValue('');
-      setEditingType(null);
+        return updated;
+      });
     }
   };
 
@@ -277,7 +142,7 @@ const TimeTracks: React.FC = () => {
         {TEMPLATES.map((tpl, idx) => (
           <button
             key={tpl.name}
-            onClick={() => handleTemplateSelect(idx)}
+            onClick={() => handleTemplateSelect(idx, TEMPLATES)}
             style={{
               marginRight: 6,
               borderRadius: 6,
@@ -332,83 +197,20 @@ const TimeTracks: React.FC = () => {
       >
         {/* Track labels column */}
         <div style={{ width: LABEL_WIDTH, minWidth: LABEL_WIDTH, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: 40, height: '100%' }}>
-          {tracks.map((track, i) => (
-            editingTrack === i ? (
-              <div key={i} style={{ width: LABEL_WIDTH - 10, marginBottom: TRACK_GAP, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <input
-                  type="text"
-                  value={editingValue}
-                  autoFocus
-                  onChange={handleTrackNameChange}
-                  onBlur={handleTrackNameCommit}
-                  onKeyDown={e => { if (e.key === 'Enter') handleTrackNameCommit(); }}
-                  style={{
-                    width: LABEL_WIDTH - 38,
-                    height: 28,
-                    fontSize: 15,
-                    borderRadius: 6,
-                    border: `1px solid ${muiAccent}`,
-                    background: muiTrack,
-                    color: muiText,
-                    paddingLeft: 4,
-                    outline: 'none',
-                    fontWeight: 600,
-                    textAlign: 'right',
-                  }}
-                />
-                <select
-                  value={editingType ?? track.type}
-                  onChange={e => setEditingType(e.target.value as TrackType)}
-                  style={{
-                    height: 28,
-                    borderRadius: 6,
-                    border: `1px solid ${muiAccent}`,
-                    background: muiTrack,
-                    color: muiText,
-                    fontWeight: 600,
-                    outline: 'none',
-                    padding: '0 4px',
-                  }}
-                >
-                  {TRACK_TYPES.map(tt => (
-                    <option key={tt.type} value={tt.type}>{tt.label}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div
-                key={i}
-                style={{
-                  width: LABEL_WIDTH - 10,
-                  height: TRACK_HEIGHT,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  color: TRACK_TYPES.find(tt => tt.type === track.type)?.color || muiAccent,
-                  fontWeight: 700,
-                  fontSize: 15,
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  marginBottom: TRACK_GAP,
-                  gap: 4,
-                }}
-                onClick={() => {
-                  setEditingTrack(i);
-                  setEditingValue(track.name);
-                  setEditingType(track.type);
-                }}
-                tabIndex={0}
-                role="button"
-                aria-label={`Rename track ${track.name}`}
-              >
-                {(() => {
-                  const Icon = TRACK_TYPES.find(tt => tt.type === track.type)?.icon;
-                  return Icon ? <Icon style={{ fontSize: 18, marginRight: 2, verticalAlign: 'middle' }} /> : null;
-                })()}
-                {track.name}
-              </div>
-            )
-          ))}
+          <TrackList
+            tracks={tracks}
+            editingTrack={editingTrack}
+            editingValue={editingValue}
+            editingType={editingType}
+            onEdit={i => {
+              setEditingTrack(i);
+              setEditingValue(tracks[i].name);
+              setEditingType(tracks[i].type);
+            }}
+            onEditCommit={handleTrackNameCommit}
+            onEditChange={handleTrackNameChange}
+            onTypeChange={e => setEditingType(e.target.value as TrackType)}
+          />
         </div>
         {/* Timeline Stage with underlay canvas absolutely positioned */}
         <div style={{
@@ -422,25 +224,13 @@ const TimeTracks: React.FC = () => {
           flexDirection: 'column',
         }}>
           {/* Underlay canvas */}
-          {underlay !== 'None' && (
-            <canvas
-              ref={underlayCanvasRef}
-              width={timelineSize.width - 60}
+          <div style={{ position: 'absolute', left: TIMELINE_LEFT, top: 40, width: `calc(100% - ${TIMELINE_LEFT + TIMELINE_RIGHT_PAD}px)`, height: timelineSize.height - 40, pointerEvents: 'none' }}>
+            <UnderlayCanvas
+              type={underlay}
+              width={timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD}
               height={timelineSize.height - 40}
-              style={{
-                position: 'absolute',
-                left: 50,
-                top: 40,
-                width: `calc(100% - 60px)`,
-                height: timelineSize.height - 40,
-                zIndex: 0,
-                opacity: 0.35,
-                pointerEvents: 'none',
-                borderRadius: 8,
-                overflow: 'hidden',
-              }}
             />
-          )}
+          </div>
           <Stage
             width={timelineSize.width}
             height={timelineSize.height}
@@ -448,72 +238,68 @@ const TimeTracks: React.FC = () => {
             onClick={handleStageClick}
           >
             <Layer>
-              {/* Draw timeline axis */}
-              <Line points={[50, 30, timelineSize.width - 10, 30]} stroke={muiText} strokeWidth={2} />
-              {/* Draw time ticks */}
-              {Array.from({ length: DURATION + 1 }).map((_, i) => {
-                const tickX = 50 + ((timelineSize.width - 60) * (i / DURATION));
-                return (
-                  <Group key={i}>
-                    <Line points={[tickX, 25, tickX, 35]} stroke={muiText} strokeWidth={1} />
-                    <Text x={tickX - 8} y={10} text={i.toString()} fontSize={12} fill={muiText} />
-                  </Group>
-                );
-              })}
-              {/* Draw tracks */}
-              {tracks.map((track, i) => {
-                const y = 40 + i * (TRACK_HEIGHT + TRACK_GAP);
-                return (
-                  <Group key={track.name + i}>
-                    <Rect x={50} y={y} width={timelineSize.width - 60} height={TRACK_HEIGHT} fill={'rgba(45,51,59,0.25)'} cornerRadius={8} shadowBlur={4} shadowColor={muiShadow} />
-                  </Group>
-                );
-              })}
+              <TimelineGrid
+                width={timelineSize.width}
+                tracks={tracks}
+                duration={DURATION}
+                muiText={muiText}
+                muiShadow={muiShadow}
+                dragOverTrack={dragOverTrack}
+              />
               {/* Draw responses */}
-              {responses.map((resp, idx) => {
-                const y = 40 + resp.track * (TRACK_HEIGHT + TRACK_GAP);
-                const timeToXLocal = (time: number) => (time / DURATION) * (timelineSize.width - 60) + 50;
-                const x1 = timeToXLocal(resp.start);
-                const x2 = timeToXLocal(resp.end);
-                return (
-                  <ResponseRect
-                    key={idx}
-                    x1={x1}
-                    x2={x2}
-                    y={y + 8}
-                    height={TRACK_HEIGHT - 16}
-                    fill={muiAccent}
-                    shadowColor={muiShadow}
-                    shadowBlur={4}
-                    cornerRadius={4}
-                    onResizeLeft={newStart => {
-                      if (Math.abs(newStart - resp.start) > 1e-4 && newStart < resp.end - 0.1 && newStart >= 0) {
-                        handleResize(idx, 'left', newStart);
-                      }
-                    }}
-                    onResizeRight={newEnd => {
-                      if (Math.abs(newEnd - resp.end) > 1e-4 && newEnd > resp.start + 0.1 && newEnd <= DURATION) {
-                        handleResize(idx, 'right', newEnd);
-                      }
-                    }}
-                    onResizeLeftEnd={e => {
-                      e.target.position({ x: x1 - 5, y: y + 8 });
-                    }}
-                    onResizeRightEnd={e => {
-                      e.target.position({ x: x2 - 5, y: y + 8 });
-                    }}
-                    xToTime={xToTimeLocal}
-                    minX={50}
-                    maxX={timelineSize.width - 10}
-                  />
+              {(() => {
+                const validResponses = responses.filter(
+                  resp => Number.isFinite(resp.start) && Number.isFinite(resp.end) && resp.end > resp.start && Number.isFinite(resp.track) && resp.track >= 0 && resp.track < tracks.length
                 );
-              })}
+                if (validResponses.length !== responses.length) {
+                  console.warn('Filtered out invalid responses:', responses.filter(r => !validResponses.includes(r)));
+                }
+                return validResponses.map((resp, idx) => {
+                  const y = 40 + resp.track * (TRACK_HEIGHT + TRACK_GAP);
+                  const x1 = timeToX({ time: resp.start, duration: DURATION, width: timelineSize.width });
+                  const x2 = timeToX({ time: resp.end, duration: DURATION, width: timelineSize.width });
+                  return (
+                    <ResponseRect
+                      key={idx}
+                      x1={x1}
+                      x2={x2}
+                      y={y + 8}
+                      height={TRACK_HEIGHT - 16}
+                      fill={muiAccent}
+                      shadowColor={muiShadow}
+                      shadowBlur={4}
+                      cornerRadius={4}
+                      onResizeLeft={newStart => {
+                        if (Math.abs(newStart - resp.start) > 1e-4 && newStart < resp.end - 0.1 && newStart >= 0) {
+                          handleResize(idx, 'left', newStart);
+                        }
+                      }}
+                      onResizeRight={newEnd => {
+                        if (Math.abs(newEnd - resp.end) > 1e-4 && newEnd > resp.start + 0.1 && newEnd <= DURATION) {
+                          handleResize(idx, 'right', newEnd);
+                        }
+                      }}
+                      onResizeLeftEnd={e => {
+                        e.target.position({ x: x1 - 5, y: y + 8 });
+                      }}
+                      onResizeRightEnd={e => {
+                        e.target.position({ x: x2 - 5, y: y + 8 });
+                      }}
+                      xToTime={x => xToTime({ x, duration: DURATION, width: timelineSize.width })}
+                      minX={TIMELINE_LEFT}
+                      maxX={timelineSize.width - TIMELINE_RIGHT_PAD}
+                      onMove={(newX, newY) => handleResponseMove(idx, newX, newY)}
+                      onMoveEnd={(newX, newY) => handleResponseMoveEnd(idx, newX, newY)}
+                    />
+                  );
+                });
+              })()}
               {/* Draw playhead */}
               <Line
                 points={[
-                  50 + ((timelineSize.width - 60) * (playhead / DURATION)),
+                  timeToX({ time: playhead, duration: DURATION, width: timelineSize.width }),
                   30,
-                  50 + ((timelineSize.width - 60) * (playhead / DURATION)),
+                  timeToX({ time: playhead, duration: DURATION, width: timelineSize.width }),
                   timelineSize.height - 10,
                 ]}
                 stroke="#ff5252"
