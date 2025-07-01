@@ -108,8 +108,6 @@ export interface AppState {
   setAudioUrl: (u: string | undefined) => void;
   isPlaying: boolean;
   setIsPlaying: (b: boolean) => void;
-  playbackTime: number;
-  setPlaybackTime: (n: number) => void;
   loading: boolean;
   setLoading: (b: boolean) => void;
   processingProgress: { processed: number; total: number } | null;
@@ -252,8 +250,6 @@ export const useAppStore = create<AppState>(
     setAudioUrl: (u) => set({ audioUrl: u }),
     isPlaying: false,
     setIsPlaying: (b) => set({ isPlaying: b }),
-    playbackTime: 0,
-    setPlaybackTime: (n) => set({ playbackTime: n }),
     loading: false,
     setLoading: (b) => set({ loading: b }),
     processingProgress: null,

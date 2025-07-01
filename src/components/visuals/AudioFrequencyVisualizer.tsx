@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useAppStore } from '../../store/appStore';
 import BandPlot from './BandPlot';
+import { usePlayback } from '../spectrogram-timeline/SpectrogramTimelineProvider';
 
 const AudioFrequencyVisualizer: React.FC = () => {
   const theme = useTheme();
@@ -13,7 +14,6 @@ const AudioFrequencyVisualizer: React.FC = () => {
 
   // Read from global state
   const hopSize = useAppStore(state => state.hopSize);
-  const playbackTime = useAppStore(state => state.playbackTime);
   const windowSec = useAppStore(state => state.windowSec);
   const selectedBand = useAppStore(state => state.selectedBand);
   const analysis = useAppStore(state => state.audioData.analysis);
@@ -21,10 +21,13 @@ const AudioFrequencyVisualizer: React.FC = () => {
   const fftSequence = analysis?.fftSequence ?? [];
   const sampleRate = analysis?.audioBuffer?.sampleRate ?? 44100;
 
+  const playbackContext = usePlayback();
+  const {playbackTime = 0} = playbackContext;
+
   // Compute xRange for paged windowing
   const times = useMemo(() => Array.from({ length: fftSequence.length }, (_, i) => (i * hopSize) / sampleRate), [fftSequence.length, hopSize, sampleRate]);
   const maxTime = times.length > 0 ? times[times.length - 1] : 0;
-  const windowIdx = Math.floor(playbackTime / windowSec);
+  const windowIdx = Math.floor(playbackContext.playbackTime / windowSec); // ???????
   let left = windowIdx * windowSec;
   let right = (windowIdx + 1) * windowSec;
   if (right > maxTime) {

@@ -1,11 +1,10 @@
-import React, { useState, useRef, useEffect, createContext, useContext } from "react";
+import React, { useRef, useEffect, createContext, useContext } from "react";
 import {
     Box,
     Paper,
     Typography,
     Button,
     Stack,
-    Alert,
     TextField,
     FormControlLabel,
     Checkbox,
@@ -23,8 +22,7 @@ import GlobalControls from './GlobalControls';
 import DerivativeImpulseToggles from './controls/DerivativeImpulseToggles';
 import BandSelector from './visuals/BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
-import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
-import AudioChunkerDemoPlotArea from './visuals/AudioChunkerDemoPlotArea';
+import { PulseToolsProvider } from '../controllers/PulseToolsContext';
 // @ts-expect-error "needed import for visualizationWorker"
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import visualizationWorkerUrl from '../controllers/visualizationWorker.ts?worker';
@@ -33,9 +31,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import Tooltip from '@mui/material/Tooltip';
 import { useAppStore } from '../store/appStore';
 import MenuItem from '@mui/material/MenuItem';
-import { useImpulseEvents } from '../context/ImpulseEventContext';
-import { clampDB } from './visuals/bandPlotUtils';
 import CropLandscapeIcon from '@mui/icons-material/CropLandscape';
+import SpectrogramTimeline from "./spectrogram-timeline/SpectrogramTimeline";
 
 // Context for active device selection
 interface ActiveDeviceContextType {
@@ -85,7 +82,13 @@ type ProcessingSettings = {
     selectedEngine: string;
 };
 
-const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
+// Type for worker with progress refs
+type WorkerWithProgressRefs = Worker & {
+  currentJobIdRef: { current: string };
+  highestProgressRef: { current: number };
+};
+
+const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = () => {
     const file = useAppStore(state => state.file);
     const setFile = useAppStore(state => state.setFile);
     const windowSize = useAppStore(state => state.windowSize);
@@ -98,8 +101,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const setAudioUrl = useAppStore(state => state.setAudioUrl);
     const isPlaying = useAppStore(state => state.isPlaying);
     const setIsPlaying = useAppStore(state => state.setIsPlaying);
-    const playbackTime = useAppStore(state => state.playbackTime);
-    const setPlaybackTime = useAppStore(state => state.setPlaybackTime);
     const hasProcessedOnce = useAppStore(state => state.hasProcessedOnce);
     const setHasProcessedOnce = useAppStore(state => state.setHasProcessedOnce);
     const isProcessingStale = useAppStore(state => state.isProcessingStale);
@@ -113,7 +114,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const waveformRef = useRef<HTMLDivElement | null>(null);
     const wavesurferRef = useRef<WaveSurfer | null>(null);
-    const [clearMsg, setClearMsg] = useState<string | null>(null);
     const windowSec = useAppStore(state => state.windowSec);
     const setWindowSec = useAppStore(state => state.setWindowSec);
     const selectedBand = useAppStore(state => state.selectedBand);
@@ -124,7 +124,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
     const { audioData, setAudioData } = useAppStore();
     const audioBufferRef = useRef<AudioBuffer | null>(null);
-    const { values } = usePulseTools();
     const impulseWindowSize = useAppStore(state => state.impulseWindowSize);
     const impulseSmoothing = useAppStore(state => state.impulseSmoothing);
     const impulseDetectionMode = useAppStore(state => state.impulseDetectionMode);
@@ -136,18 +135,11 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const setShowSustainedImpulses = useAppStore(state => state.setShowSustainedImpulses);
     const onlySustained = useAppStore(state => state.onlySustained);
     const setOnlySustained = useAppStore(state => state.setOnlySustained);
-    const [processingProgress, setProcessingProgress] = useState<{ processed: number; total: number } | null>(null);
+    const processingProgress = useAppStore(state => state.processingProgress);
+    const setProcessingProgress = useAppStore(state => state.setProcessingProgress);
     const minDb = useAppStore(state => state.minDb);
     const minDbDelta = useAppStore(state => state.minDbDelta);
     const lastProcessedSettings = useRef<ProcessingSettings | null>(null);
-    const { emit } = useImpulseEvents();
-    const lastPlaybackTimeRef = useRef<number>(-Infinity);
-    const emittedImpulseKeysRef = useRef<Set<string>>(new Set());
-    const analysis = audioData.analysis;
-    const bandDataArr = (analysis?.bandDataArr ?? []) as any[];
-    const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
-    const bleLookaheadMs = useAppStore(state => state.bleLookaheadMs);
-    const minMagnitudeThreshold = useAppStore(state => state.minMagnitudeThreshold);
 
     // Visualization worker ref
     const audioWorkerRef = useRef<Worker | null>(null);
@@ -208,9 +200,9 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
 
     // Set up the worker and cleanup
     useEffect(() => {
-        // @ts-ignore
+        // @ts-expect-error
         audioWorkerRef.current = new Worker(new URL('../workers/audioWorker.ts', import.meta.url), { type: 'module' });
-        // @ts-ignore
+        // @ts-expect-error
         visualizationWorkerRef.current = new Worker(new URL('../controllers/visualizationWorker.ts', import.meta.url), { type: 'module' });
         // Latch progress to highest value ever received, and filter by jobId
         const highestProgressRef = { current: 0 };
@@ -262,7 +254,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                             impulseDetectionMode,
                             minDb,
                             minDbDelta,
-                            minMagnitudeThreshold,
                         });
                     } else {
                         // Fallback: just save fftSequence etc.
@@ -280,10 +271,8 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
             }
         };
         // Expose jobId ref for handleProcess
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (audioWorkerRef.current as any).currentJobIdRef = currentJobIdRef;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (audioWorkerRef.current as any).highestProgressRef = highestProgressRef;
+        (audioWorkerRef.current as WorkerWithProgressRefs).currentJobIdRef = currentJobIdRef;
+        (audioWorkerRef.current as WorkerWithProgressRefs).highestProgressRef = highestProgressRef;
         return () => {
             audioWorkerRef.current?.terminate();
             visualizationWorkerRef.current?.terminate();
@@ -301,7 +290,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
             // Generate a unique jobId for this processing run
             const jobId = Date.now().toString() + Math.random().toString(36).slice(2);
             // Save jobId to ref for filtering
-            if (audioWorkerRef.current && (audioWorkerRef.current as any).currentJobIdRef && (audioWorkerRef.current as any).highestProgressRef) {
+            if (audioWorkerRef.current && (audioWorkerRef.current as WorkerWithProgressRefs).currentJobIdRef && (audioWorkerRef.current as WorkerWithProgressRefs).highestProgressRef) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (audioWorkerRef.current as any).currentJobIdRef.current = jobId;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -339,7 +328,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                 hopSize,
                 selectedEngine,
             };
-        } catch (err) {
+        } catch {
             alert("Error decoding audio file.");
             setLoading(false);
             setProcessingProgress(null);
@@ -361,13 +350,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
         });
         wavesurferRef.current.load(audioUrl);
         wavesurferRef.current.on('finish', () => setIsPlaying(false));
-        // Listen to playback position
-        wavesurferRef.current.on('audioprocess', (time: number) => {
-            setPlaybackTime(time);
-        });
-        wavesurferRef.current.on('interaction', () => {
-            setPlaybackTime(wavesurferRef.current?.getCurrentTime() || 0);
-        });
         return () => {
             wavesurferRef.current?.destroy();
         };
@@ -404,58 +386,8 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
         setAudioData({ analysis: null, metadata: null });
         setFile(null);
         setAudioUrl(undefined);
-        setClearMsg('Cleared audio data from app state');
-        setTimeout(() => setClearMsg(null), 2000);
+        setProcessingProgress(null);
     };
-
-    useEffect(() => {
-        if (!analysis || !analysis.summary || !analysis.audioBuffer) {
-            return;
-        }
-        const bandData = bandDataArr.find(b => b.band?.name === selectedBand);
-        if (!bandData) {
-            return;
-        }
-        const showImpulses = useAppStore.getState().showImpulses;
-        const onlySustained = useAppStore.getState().onlySustained;
-        if (!showImpulses) {
-            return;
-        }
-        let impulseTimes: number[] = [];
-        let impulseStrengths: number[] = [];
-        const times = Array.from({ length: bandData.magnitudes.length }, (_, i) => (i * (analysis.summary.hopSize as number)) / (analysis.audioBuffer!.sampleRate));
-        if (onlySustained && bandData.sustainedImpulses) {
-            const magnitudes = bandData.magnitudes;
-            const sustained = bandData.sustainedImpulses;
-            const indices = sustained.map((v: number, i: number) => v > 0 ? i : -1).filter((i: number) => i >= 0);
-            impulseTimes = indices.map((i: number) => times[i]);
-            impulseStrengths = indices.map((i: number) => clampDB(magnitudes[i]));
-        } else if (bandData.normalizedImpulseStrengths && bandData.magnitudes) {
-            const impulseStrengthsArr = bandData.normalizedImpulseStrengths;
-            const indices = impulseStrengthsArr.map((v: number, i: number) => v > normalizedImpulseThreshold ? i : -1).filter((i: number) => i >= 0);
-            impulseTimes = indices.map((i: number) => times[i]);
-            impulseStrengths = indices.map((i: number) => clampDB(bandData.magnitudes[i]));
-        }
-        const minStrength = Math.min(...impulseStrengths);
-        const maxStrength = Math.max(...impulseStrengths);
-        const prev = lastPlaybackTimeRef.current;
-        const curr = playbackTime + (bleLookaheadMs / 1000);
-        impulseTimes.forEach((time, idx) => {
-            const key = `${bandData.band.name}|${time}`;
-            const crossed = ((time > prev && time <= curr) || (time > curr && time <= prev));
-            if (
-                !emittedImpulseKeysRef.current.has(key) &&
-                crossed
-            ) {
-                emit({ strength: impulseStrengths[idx], min: minStrength, max: maxStrength, bandName: bandData.band.name, time });
-                emittedImpulseKeysRef.current.add(key);
-            }
-        });
-        if (curr < prev) {
-            emittedImpulseKeysRef.current.clear();
-        }
-        lastPlaybackTimeRef.current = curr;
-    }, [playbackTime, analysis, selectedBand, bleLookaheadMs]);
 
     return (
         <ActiveDeviceContext.Provider value={{ activeDeviceId, setActiveDeviceId }}>
@@ -559,15 +491,21 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                             )}
                             {audioData.analysis && audioData.analysis.summary && (
                                 <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1, mb: 1 }}>
-                                    <Typography variant="body2" color="text.secondary">
-                                        <strong>Chunks:</strong> {audioData.analysis.summary.numChunks}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        <strong>Chunk:</strong> {typeof audioData.analysis.summary.chunkDurationMs === 'number' ? audioData.analysis.summary.chunkDurationMs.toFixed(2) : ''} ms
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        <strong>Total:</strong> {typeof audioData.analysis.summary.totalDurationMs === 'number' ? audioData.analysis.summary.totalDurationMs.toFixed(2) : ''} ms
-                                    </Typography>
+                                    {typeof audioData.analysis.summary.numChunks === 'number' && (
+                                        <Typography variant="body2" color="text.secondary">
+                                            <strong>Chunks:</strong> {audioData.analysis.summary.numChunks}
+                                        </Typography>
+                                    )}
+                                    {typeof audioData.analysis.summary.chunkDurationMs === 'number' && (
+                                        <Typography variant="body2" color="text.secondary">
+                                            <strong>Chunk:</strong> {audioData.analysis.summary.chunkDurationMs.toFixed(2)} ms
+                                        </Typography>
+                                    )}
+                                    {typeof audioData.analysis.summary.totalDurationMs === 'number' && (
+                                        <Typography variant="body2" color="text.secondary">
+                                            <strong>Total:</strong> {audioData.analysis.summary.totalDurationMs.toFixed(2)} ms
+                                        </Typography>
+                                    )}
                                 </Stack>
                             )}
                             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
@@ -592,13 +530,15 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                                 <FormControlLabel control={<Checkbox checked={onlySustained} onChange={e => setOnlySustained(e.target.checked)} />} label="Only Sustained" />
                             </Stack>
                             {/* Main plot area: show plot, skeletons, or loading spinner in the same space */}
-                            <AudioChunkerDemoPlotArea
+                            {/* <AudioChunkerDemoPlotArea
                               file={file}
                               loading={loading}
                               processingProgress={processingProgress}
                               audioData={audioData}
                               onImpulse={onImpulse}
-                            />
+                            /> */}
+                            {/* <TimelineVisualizerEntry /> */}
+                            <SpectrogramTimeline />
                         </Box>
                         {/* Right: Visualizer → Lights Connection Placeholder */}
                         {/* {/* <Box sx={{ flex: 1, minWidth: 220, maxWidth: 420, width: '100%', ml: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -611,7 +551,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                     <Button variant="outlined" color="error" size="small" onClick={handleClearAppState} sx={{ mb: 1 }}>
                         Clear Audio Data
                     </Button>
-                    {clearMsg && <Alert severity="info" sx={{ mb: 1 }}>{clearMsg}</Alert>}
                 </Paper>
             </PulseToolsProvider>
         </ActiveDeviceContext.Provider>

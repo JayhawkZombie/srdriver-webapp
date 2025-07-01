@@ -146,12 +146,13 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
   const devicesMetadata = useAppStore(state => state.devicesMetadata);
   const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
 
+  
   const addDevice = useCallback(() => {
     const uniqueId = `device-${Date.now()}`;
     const newDevice: Device = {
       id: uniqueId,
       name: `SRDriver ${devices.length + 1}`,
-      controller: new WebSRDriverController(),
+      controller: new WebSRDriverController(uniqueId),
       isConnected: false,
       isConnecting: false,
       error: null,

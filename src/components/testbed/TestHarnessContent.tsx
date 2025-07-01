@@ -1,9 +1,13 @@
 import React from 'react';
-import TimeTracks from './TimeTracks';
+import CompactMUIControls from './CompactMUIControls';
+import CompactBlueprintJSControls from './CompactBlueprintJSControls';
 
 const TestHarnessContent: React.FC = () => {
   return (
-    <TimeTracks />
+    <div style={{ display: 'flex', gap: 32, justifyContent: 'center', alignItems: 'flex-start', padding: 32, background: '#181818', minHeight: '100vh' }}>
+      <CompactMUIControls />
+      <CompactBlueprintJSControls />
+    </div>
   );
 };
 

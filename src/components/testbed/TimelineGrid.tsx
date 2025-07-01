@@ -1,5 +1,6 @@
 import React from 'react';
 import { Line, Rect, Text, Group } from 'react-konva';
+import { TRACK_HEIGHT, trackIndexToRectY } from './timelineMath';
 
 interface Track {
   name: string;
@@ -15,9 +16,6 @@ interface TimelineGridProps {
   muiShadow: string;
   dragOverTrack?: number | null;
 }
-
-const TRACK_HEIGHT = 40;
-const TRACK_GAP = 10;
 
 const TimelineGrid: React.FC<TimelineGridProps> = ({ width, tracks, duration, muiText, muiShadow, dragOverTrack }) => {
   return (
@@ -36,7 +34,7 @@ const TimelineGrid: React.FC<TimelineGridProps> = ({ width, tracks, duration, mu
       })}
       {/* Track backgrounds */}
       {tracks.map((track, i) => {
-        const y = 40 + i * (TRACK_HEIGHT + TRACK_GAP);
+        const y = trackIndexToRectY(i) - 8; // Subtract RESPONSE_RECT_Y_OFFSET to align with full track background
         const isDragOver = typeof dragOverTrack === 'number' && dragOverTrack === i;
         return (
           <Rect

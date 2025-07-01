@@ -6,6 +6,8 @@ import UnderlayCanvas from './UnderlayCanvas';
 import TimelineGrid from './TimelineGrid';
 import { useTimelineState } from './useTimelineState';
 import { timeToX, xToTime, TRACK_HEIGHT, TRACK_GAP, TIMELINE_LEFT, TIMELINE_RIGHT_PAD, centerYToTrackIndex, trackIndexToRectY } from './timelineMath';
+import BandOverlayCanvas from './BandOverlayCanvas';
+import { useAppStore } from '../../store/appStore';
 
 const DURATION = 15; // seconds
 const LABEL_WIDTH = 160;
@@ -59,7 +61,15 @@ const defaultTracks: Track[] = [
   { name: 'Lights', type: 'device' },
 ];
 
-const TimeTracks: React.FC = () => {
+interface TimeTracksProps {
+  audioBuffer: AudioBuffer | null;
+}
+
+const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
+  console.log('TimeTracks props:', { audioBuffer });
+  const bandDataArr = useAppStore(state => state.audioData?.analysis?.bandDataArr || []);
+  const bandNames = bandDataArr.map(b => b.band?.name || 'Band');
+  const [selectedBandIdx, setSelectedBandIdx] = useState(0);
   const [dragOverTrack, setDragOverTrack] = useState<number | null>(null);
   const {
     responses,
@@ -113,12 +123,8 @@ const TimeTracks: React.FC = () => {
   return (
     <div style={{
       position: 'relative',
-      // left: '50%',
-      // top: '3vh',
-      // transform: 'translateX(-50%)',
       width: 'auto',
-      // minHeight: '90vh',
-      height: "auto",
+      height: 'auto',
       maxHeight: '94vh',
       overflow: 'auto',
       background: muiBg,
@@ -131,7 +137,32 @@ const TimeTracks: React.FC = () => {
       alignItems: 'center',
       justifyContent: 'flex-start',
     }}>
-      <h3 style={{ color: muiAccent, marginTop: 0 }}>Timeline Testbed (react-konva demo)</h3>
+      <h3 style={{ color: muiAccent, marginTop: 0 }}>Timeline</h3>
+      {/* Band selector toggle */}
+      {bandNames.length > 0 && (
+        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontWeight: 600, color: muiAccent }}>Band Overlay:</span>
+          {bandNames.map((name, idx) => (
+            <button
+              key={name}
+              onClick={() => setSelectedBandIdx(idx)}
+              style={{
+                marginRight: 6,
+                borderRadius: 6,
+                background: selectedBandIdx === idx ? muiAccent : '#b0bec5',
+                color: selectedBandIdx === idx ? muiBg : muiText,
+                border: 'none',
+                padding: '4px 14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: selectedBandIdx === idx ? `2px solid ${muiAccent}` : 'none',
+              }}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{ marginBottom: 16 }}>
         <button onClick={startPlayhead} disabled={playingRef.current} style={{ marginRight: 8, borderRadius: 6, background: muiAccent, color: muiBg, border: 'none', padding: '6px 16px', fontWeight: 600 }}>Play</button>
         <button onClick={stopPlayhead} disabled={!playingRef.current} style={{ marginRight: 8, borderRadius: 6, background: '#b0bec5', color: muiBg, border: 'none', padding: '6px 16px', fontWeight: 600 }}>Pause</button>
@@ -230,7 +261,18 @@ const TimeTracks: React.FC = () => {
               type={underlay}
               width={timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD}
               height={timelineSize.height - 40}
+              audioData={audioBuffer ? audioBuffer.getChannelData(0) : undefined}
             />
+            {/* Band overlay canvas */}
+            {bandDataArr[selectedBandIdx]?.magnitudes && (
+              <BandOverlayCanvas
+                magnitudes={bandDataArr[selectedBandIdx].magnitudes}
+                playhead={playhead}
+                duration={DURATION}
+                width={timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD}
+                height={timelineSize.height - 40}
+              />
+            )}
           </div>
           <Stage
             width={timelineSize.width}
