@@ -24,7 +24,6 @@ import DerivativeImpulseToggles from './controls/DerivativeImpulseToggles';
 import BandSelector from './visuals/BandSelector';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 import { PulseToolsProvider, usePulseTools } from '../controllers/PulseToolsContext';
-import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
 import AudioChunkerDemoPlotArea from './visuals/AudioChunkerDemoPlotArea';
 // @ts-expect-error "needed import for visualizationWorker"
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -149,14 +148,6 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
     const normalizedImpulseThreshold = useAppStore(state => state.normalizedImpulseThreshold);
     const bleLookaheadMs = useAppStore(state => state.bleLookaheadMs);
     const minMagnitudeThreshold = useAppStore(state => state.minMagnitudeThreshold);
-
-    // Debounced impulse handler using new paradigm
-    const debouncedPulse = useDebouncedCallback(
-        (_strength: number, _min: number, _max: number, _bandName?: string, _time?: number) => {
-            // Placeholder for the removed emitPulse function
-        },
-        values.current.debounceMs
-    );
 
     // Visualization worker ref
     const audioWorkerRef = useRef<Worker | null>(null);
@@ -606,8 +597,7 @@ const AudioChunkerDemo: React.FC<AudioChunkerDemoProps> = ({ onImpulse }) => {
                               loading={loading}
                               processingProgress={processingProgress}
                               audioData={audioData}
-                              debouncedPulse={debouncedPulse}
-                              onImpulse={onImpulse || debouncedPulse}
+                              onImpulse={onImpulse}
                             />
                         </Box>
                         {/* Right: Visualizer → Lights Connection Placeholder */}

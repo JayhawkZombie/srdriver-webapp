@@ -15,8 +15,7 @@ export function useImpulseResponseHandlerToCommand() {
     const { devices } = useDeviceControllerContext();
 
     useEffect(() => {
-        const unsubscribe = subscribe((event) => {
-            console.log('[ImpulseHandler] Event:', event, { activeDeviceId, impulseResponseAction, impulseResponseArgs });
+        const unsubscribe = subscribe(() => {
             const device = devices.find(
                 (d) => d.id === activeDeviceId && d.isConnected
             );
@@ -25,7 +24,7 @@ export function useImpulseResponseHandlerToCommand() {
                     `${impulseResponseAction}:${impulseResponseArgs}`
                 );
             } else {
-                console.warn('[ImpulseHandler] No connected device or activeDeviceId. Impulse event received but no command sent.', { activeDeviceId, devices });
+                // emit toast
             }
         });
         return unsubscribe;

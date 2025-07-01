@@ -6,9 +6,8 @@ interface AudioChunkerDemoPlotAreaProps {
   file: File | null;
   loading: boolean;
   processingProgress: { processed: number; total: number } | null;
-  audioData: any;
-  debouncedPulse: (...args: any[]) => void;
-  onImpulse?: (strength: number, min: number, max: number, bandName?: string, time?: number) => void;
+  audioData: unknown;
+  onImpulse?: ((...args: unknown[]) => void);
 }
 
 const AudioChunkerDemoPlotArea: React.FC<AudioChunkerDemoPlotAreaProps> = ({
@@ -16,10 +15,9 @@ const AudioChunkerDemoPlotArea: React.FC<AudioChunkerDemoPlotAreaProps> = ({
   loading,
   processingProgress,
   audioData,
-  debouncedPulse,
-  onImpulse,
 }) => {
-  const hasAnalysis = audioData.analysis?.fftSequence && audioData.analysis.fftSequence.length > 0 && audioData.analysis.audioBuffer;
+  const data = audioData as { analysis?: { fftSequence?: unknown[]; audioBuffer?: AudioBuffer } };
+  const hasAnalysis = data.analysis?.fftSequence && data.analysis.fftSequence.length > 0 && data.analysis.audioBuffer;
   const showPlot = !loading && hasAnalysis;
 
   return (
