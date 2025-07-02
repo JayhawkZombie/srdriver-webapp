@@ -11,7 +11,7 @@ const CONTAINER_WIDTH = LABELS_WIDTH + TRACKS_WIDTH;
 const TIMELINE_HEIGHT = 300;
 
 const TOTAL_DURATION = 15; // total timeline duration in seconds
-const WINDOW_DURATION = 5; // how much time is visible at once
+// windowDuration is now state, easy to move to a hook later
 
 const TRACK_HEIGHT = 60;
 const TRACK_GAP = 8;
@@ -37,6 +37,8 @@ export default function ResponseTimeline() {
   const [playhead, setPlayhead] = React.useState(0);
   // windowStart: leftmost visible time
   const [windowStart, setWindowStart] = React.useState(0);
+  // windowDuration: how much time is visible horizontally
+  const [windowDuration, setWindowDuration] = React.useState(5);
 
   // Animate playhead
   React.useEffect(() => {
@@ -55,11 +57,11 @@ export default function ResponseTimeline() {
   // Auto-pan window so playhead stays centered, except at start/end
   React.useEffect(() => {
     // Center the playhead unless at start or end
-    let newWindowStart = playhead - WINDOW_DURATION / 2;
+    let newWindowStart = playhead - windowDuration / 2;
     if (newWindowStart < 0) newWindowStart = 0;
-    if (newWindowStart > TOTAL_DURATION - WINDOW_DURATION) newWindowStart = TOTAL_DURATION - WINDOW_DURATION;
+    if (newWindowStart > TOTAL_DURATION - windowDuration) newWindowStart = TOTAL_DURATION - windowDuration;
     setWindowStart(newWindowStart);
-  }, [playhead]);
+  }, [playhead, windowDuration]);
 
   // Playhead X: always at center unless clamped
   let playheadX = TRACKS_WIDTH / 2;
@@ -68,20 +70,20 @@ export default function ResponseTimeline() {
     playheadX = timeToXWindow({
       time: playhead,
       windowStart: 0,
-      windowDuration: WINDOW_DURATION,
+      windowDuration,
       width: TRACKS_WIDTH,
     });
-  } else if (windowStart === TOTAL_DURATION - WINDOW_DURATION) {
+  } else if (windowStart === TOTAL_DURATION - windowDuration) {
     // At end, playhead is at its true X
     playheadX = timeToXWindow({
       time: playhead,
       windowStart,
-      windowDuration: WINDOW_DURATION,
+      windowDuration,
       width: TRACKS_WIDTH,
     });
   }
 
-  const windowEnd = windowStart + WINDOW_DURATION;
+  const windowEnd = windowStart + windowDuration;
 
   // Ticks/grid lines
   const majorTickEvery = 1; // seconds
@@ -89,9 +91,14 @@ export default function ResponseTimeline() {
   const ticks = [];
   for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowEnd; t += minorTickEvery) {
     const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
-    const x = timeToXWindow({ time: t, windowStart, windowDuration: WINDOW_DURATION, width: TRACKS_WIDTH });
+    const x = timeToXWindow({ time: t, windowStart, windowDuration, width: TRACKS_WIDTH });
     ticks.push({ t, x, isMajor });
   }
+
+  // Handler for window size change (easy to move to a hook later)
+  const handleWindowDurationChange = (v: number) => {
+    setWindowDuration(Math.max(1, Math.min(TOTAL_DURATION, v)));
+  };
 
   return (
     <div style={{ width: CONTAINER_WIDTH, margin: "40px auto", background: "#222", borderRadius: 12, padding: 24 }}>
@@ -152,6 +159,30 @@ export default function ResponseTimeline() {
       {/* Debug info */}
       <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 12, textAlign: "center" }}>
         windowStart: {windowStart.toFixed(2)} | windowEnd: {windowEnd.toFixed(2)} | playhead: {playhead.toFixed(2)}
+      </div>
+      {/* Window size control */}
+      <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 16, textAlign: "center" }}>
+        <label>
+          Window size (seconds):
+          <input
+            type="range"
+            min={1}
+            max={TOTAL_DURATION}
+            step={0.1}
+            value={windowDuration}
+            onChange={e => handleWindowDurationChange(Number(e.target.value))}
+            style={{ margin: "0 12px", verticalAlign: "middle" }}
+          />
+          <input
+            type="number"
+            min={1}
+            max={TOTAL_DURATION}
+            step={0.1}
+            value={windowDuration}
+            onChange={e => handleWindowDurationChange(Number(e.target.value))}
+            style={{ width: 60, marginLeft: 8 }}
+          />
+        </label>
       </div>
     </div>
   );
