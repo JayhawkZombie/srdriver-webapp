@@ -86,7 +86,6 @@ interface TimeTracksProps {
 }
 
 const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
-    console.log("TimeTracks props:", { audioBuffer });
     const bandDataArr = useAppStore(
         (state) => (state.audioData?.analysis?.bandDataArr as BandData[]) || []
     );
@@ -245,7 +244,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 playhead >= resp.start
             ) {
                 triggeredRectsRef.current.add(idx);
-                console.log(`Playback reached start of response rect #${idx} (start=${resp.start})`);
+                console.log(`Playback reached start of response rect #${idx} (start=${resp.start})`, playhead);
                 // TODO: Replace with your trigger action
             }
         });
