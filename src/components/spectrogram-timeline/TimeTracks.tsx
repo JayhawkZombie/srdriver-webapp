@@ -223,10 +223,27 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
 
     // --- Trigger on playback time reaching response rect start ---
     const triggeredRectsRef = useRef<Set<number>>(new Set());
+    // State for debug info
+    const [debugInfo, setDebugInfo] = useState("");
+    // State for visual marker at trigger X
+    const [triggerX, setTriggerX] = useState<number | null>(null);
+    // Ref for frame count
+    const frameCountRef = useRef(0);
+    // Ref to store previous playheadX for pixel-perfect trigger
+    const prevPlayheadXRef = useRef<number | null>(null);
+    // Ref to store previous playhead time for frame delta debug
+    const prevPlayheadTimeRef = useRef<number | null>(null);
+    // State for mouse click debug
+    const [clickDebug, setClickDebug] = useState("");
     useEffect(() => {
+        frameCountRef.current += 1;
         if (!isPlaying) {
-            // Reset triggers when playback stops or resets
             triggeredRectsRef.current.clear();
+            setDebugInfo("");
+            prevPlayheadXRef.current = null;
+            prevPlayheadTimeRef.current = null;
+            setTriggerX(null);
+            setClickDebug("");
             return;
         }
         const validResponses = responses.filter(
@@ -238,17 +255,123 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 resp.track >= 0 &&
                 resp.track < tracks.length
         );
-        validResponses.forEach((resp, idx) => {
+        // Only show debug for the first rect (if any)
+        if (validResponses.length > 0) {
+            const resp = validResponses[0];
+            const playheadX = timeToXWindow({
+                time: playhead,
+                windowStart,
+                windowDuration,
+                width: timelineTracksOnlyWidth,
+            });
+            const rectX = timeToXWindow({
+                time: resp.start,
+                windowStart,
+                windowDuration,
+                width: timelineTracksOnlyWidth,
+            });
+            const triggered = triggeredRectsRef.current.has(0);
+            const prevPlayheadX = prevPlayheadXRef.current;
+            const prevPlayheadTime = prevPlayheadTimeRef.current;
+            const frameDeltaX = prevPlayheadX !== null ? playheadX - prevPlayheadX : 0;
+            const frameDeltaTime = prevPlayheadTime !== null ? playhead - prevPlayheadTime : 0;
+            // Pixel-perfect trigger: did playheadX cross rectX this frame?
+            let didTrigger = false;
+            // Calculate the trigger condition for debug
+            let triggerCondition = false;
             if (
-                !triggeredRectsRef.current.has(idx) &&
-                playhead >= resp.start
+                prevPlayheadX !== null &&
+                ((prevPlayheadX < rectX && playheadX >= rectX) || (prevPlayheadX > rectX && playheadX <= rectX))
             ) {
-                triggeredRectsRef.current.add(idx);
-                console.log(`Playback reached start of response rect #${idx} (start=${resp.start})`, playhead);
-                // TODO: Replace with your trigger action
+                triggerCondition = true;
             }
+            // Also trigger if this is the first frame and playheadX is already past rectX
+            let firstFrameTrigger = false;
+            if (prevPlayheadX === null && playheadX >= rectX) {
+                firstFrameTrigger = true;
+            }
+            if (
+                !triggered &&
+                (
+                    (prevPlayheadX !== null &&
+                        ((prevPlayheadX < rectX && playheadX >= rectX) ||
+                            (prevPlayheadX > rectX && playheadX <= rectX))) ||
+                    (prevPlayheadX === null && playheadX >= rectX)
+                )
+            ) {
+                triggeredRectsRef.current.add(0);
+                didTrigger = true;
+                setTriggerX(rectX);
+                console.log(`TRIGGER FRAME: #${frameCountRef.current} playhead=${playhead}, playheadX=${playheadX}, rectX=${rectX}`);
+            }
+            prevPlayheadXRef.current = playheadX;
+            prevPlayheadTimeRef.current = playhead;
+            setDebugInfo(
+                `playhead: ${playhead.toFixed(3)}, prevPlayheadX: ${prevPlayheadX !== null ? prevPlayheadX.toFixed(2) : 'null'}, playheadX: ${playheadX.toFixed(2)}, rectStart: ${resp.start.toFixed(3)}, rectX: ${rectX.toFixed(2)}, triggered: ${triggered || didTrigger}\n` +
+                `triggerCondition: ${triggerCondition} (prevPlayheadX: ${prevPlayheadX !== null ? prevPlayheadX.toFixed(2) : 'null'} ${prevPlayheadX !== null && prevPlayheadX < rectX ? '<' : '>'} rectX: ${rectX.toFixed(2)} && playheadX: ${playheadX.toFixed(2)} ${(prevPlayheadX !== null && prevPlayheadX < rectX) ? '>=' : '<='} rectX: ${rectX.toFixed(2)})\n` +
+                `firstFrameTrigger: ${firstFrameTrigger} (prevPlayheadX === null && playheadX >= rectX)\n` +
+                `frameDeltaX: ${frameDeltaX.toFixed(2)}, frameDeltaTime: ${frameDeltaTime.toFixed(4)}s\n` +
+                `frameCount: ${frameCountRef.current}`
+            );
+        } else {
+            setDebugInfo("");
+            setTriggerX(null);
+        }
+        // ... rest of trigger logic for other rects if needed ...
+    }, [playhead, isPlaying, responses, tracks.length, windowStart, windowDuration, timelineTracksOnlyWidth]);
+
+    useEffect(() => {
+        // On mount, log bounding rects and offsets for alignment debugging
+        setTimeout(() => {
+          if (timelineTrackLabelsRef.current) {
+            const rect = timelineTrackLabelsRef.current.getBoundingClientRect();
+            console.log('timelineTrackLabelsRef bounding rect:', rect);
+          }
+          if (tracksAreaRef.current) {
+            const rect = tracksAreaRef.current.getBoundingClientRect();
+            console.log('tracksAreaRef bounding rect:', rect);
+          }
+          if (timelineContainerRef.current) {
+            const rect = timelineContainerRef.current.getBoundingClientRect();
+            console.log('timelineContainerRef bounding rect:', rect);
+          }
+        }, 1000); // Wait for layout
+    }, []);
+
+    const handleStageClickWithDebug = (
+        e: import("konva/lib/Node").KonvaEventObject<PointerEvent>,
+        timelineTrackLabelsRef: React.RefObject<HTMLDivElement>,
+        windowStart: number,
+        windowDuration: number,
+        timelineTracksOnlyWidth: number,
+        tracksAreaRef: React.RefObject<HTMLDivElement>
+    ) => {
+        // Use Konva's pointer position (stage-relative X)
+        const stage = e.target.getStage();
+        const pointer = stage?.getPointerPosition();
+        let timelineX = pointer ? pointer.x : 0;
+        // Clamp to [0, timelineTracksOnlyWidth]
+        timelineX = Math.max(0, Math.min(timelineTracksOnlyWidth, timelineX));
+        // Convert to time
+        const clickTime = xToTimeWindow({
+            x: timelineX,
+            windowStart,
+            windowDuration,
+            width: timelineTracksOnlyWidth,
         });
-    }, [playhead, isPlaying, responses, tracks.length]);
+        setClickDebug(
+            `konvaPointerX: ${pointer?.x}, timelineX: ${timelineX}, clickTime: ${clickTime.toFixed(3)}`
+        );
+        // Call the original handler
+        handleStageClick(
+            e,
+            timelineTrackLabelsRef,
+            windowStart,
+            windowDuration,
+            timelineTracksOnlyWidth,
+            tracksAreaRef
+        );
+    };
 
   return (
         <div
@@ -512,61 +635,45 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
         }}
                     >
           {/* Underlay canvas */}
-                        <div
-                            style={{
-                                position: "absolute",
-                                left: TIMELINE_LEFT,
-                                top: 40,
-                                width: `calc(100% - ${
-                                    TIMELINE_LEFT + TIMELINE_RIGHT_PAD
-                                }px)`,
-                                height: timelineSize.height - 40,
-                                pointerEvents: "none",
-                            }}
-                        >
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 40,
+              width: timelineTracksOnlyWidth,
+              height: timelineSize.height - 40,
+              pointerEvents: "none",
+            }}
+          >
             <UnderlayCanvas
               type={underlay}
-                                width={
-                                    timelineSize.width -
-                                    TIMELINE_LEFT -
-                                    TIMELINE_RIGHT_PAD
-                                }
+              width={timelineTracksOnlyWidth}
               height={timelineSize.height - 40}
-                                audioData={
-                                    audioBuffer
-                                        ? audioBuffer.getChannelData(0)
-                                        : undefined
-                                }
+              audioData={audioBuffer ? audioBuffer.getChannelData(0) : undefined}
             />
             {/* Band overlay canvas */}
             {bandDataArr[selectedBandIdx]?.magnitudes && (
               <BandOverlayCanvas
-                                    magnitudes={
-                                        bandDataArr[selectedBandIdx].magnitudes
-                                    }
+                magnitudes={bandDataArr[selectedBandIdx].magnitudes}
                 playhead={playhead}
-                                    duration={audioBuffer?.duration || DEFAULT_DURATION}
-                                    width={
-                                        timelineSize.width -
-                                        TIMELINE_LEFT -
-                                        TIMELINE_RIGHT_PAD
-                                    }
+                duration={audioBuffer?.duration || DEFAULT_DURATION}
+                width={timelineTracksOnlyWidth}
                 height={timelineSize.height - 40}
               />
             )}
           </div>
           <Stage
-            width={timelineSize.width}
+            width={timelineTracksOnlyWidth}
             height={timelineSize.height}
             style={{
                 background: "none",
                 borderRadius: 10,
-                width: "100%",
+                width: timelineTracksOnlyWidth,
                 height: "100%",
                 position: "relative",
                 zIndex: 1,
             }}
-            onClick={e => handleStageClick(
+            onClick={e => handleStageClickWithDebug(
                 e as unknown as import("konva/lib/Node").KonvaEventObject<PointerEvent>,
                 timelineTrackLabelsRef,
                 windowStart,
@@ -726,6 +833,34 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 strokeWidth={2}
                 dash={[8, 6]}
               />
+              {/* Debug: Draw a line at playhead region start (X=0) */}
+              <Line
+                points={[0, 30, 0, timelineSize.height - 10]}
+                stroke="#ffeb3b"
+                strokeWidth={2}
+                dash={[4, 2]}
+              />
+              {/* Debug: Draw a line at playhead region end (X=timelineTracksOnlyWidth) */}
+              <Line
+                points={[timelineTracksOnlyWidth, 30, timelineTracksOnlyWidth, timelineSize.height - 10]}
+                stroke="#00bcd4"
+                strokeWidth={2}
+                dash={[4, 2]}
+              />
+              {/* Draw trigger marker (where we think the trigger should have fired) */}
+              {triggerX !== null && (
+                <Line
+                  points={[
+                    triggerX,
+                    30,
+                    triggerX,
+                    timelineSize.height - 10,
+                  ]}
+                  stroke="#00e676"
+                  strokeWidth={2}
+                  dash={[2, 2]}
+                />
+              )}
             </Layer>
           </Stage>
         </div>
@@ -741,7 +876,13 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                     Use the Underlay toggle above to preview how a waveform or
                     frequency plot would look beneath your timeline.
                 </p>
-      </div>
+                <div style={{ color: "#ff5722", fontSize: 14, marginTop: 8, fontFamily: "monospace" }}>
+                    {clickDebug}
+                </div>
+                <div style={{ color: "#ffb300", fontSize: 14, marginTop: 8, fontFamily: "monospace" }}>
+                    {debugInfo}
+                </div>
+            </div>
     </div>
   );
 };
