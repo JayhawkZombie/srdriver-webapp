@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Stage, Layer, Line, Text } from "react-konva";
 import ResponseRect from "./ResponseRect";
 import TrackList from "./TrackList";
@@ -181,20 +181,6 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
     }
   };
 
-    const timelineTrackListWidth = useMemo(() => {
-        if (timlineTrackListRef.current) {
-            return timlineTrackListRef.current.clientWidth;
-        }
-        return 0;
-    }, [timlineTrackListRef]);
-
-    const timelineTrackLabelsWidth = useMemo(() => {
-        if (timelineTrackLabelsRef.current) {
-            return timelineTrackLabelsRef.current.clientWidth;
-        }
-        return 0;
-    }, [timelineTrackLabelsRef]);
-
     // Auto-scroll timeline horizontally to keep playhead in view
     useEffect(() => {
         if (!timlineTrackListRef.current) return;
@@ -229,6 +215,40 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
     const localPlayhead = playhead - windowStart;
     const windowWidth = timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD;
     const playheadX = (localPlayhead / windowDuration) * windowWidth + TIMELINE_LEFT;
+
+    // Get the actual label width from the ref, fallback to 160 if not available
+    const labelWidth = timelineTrackLabelsRef.current?.clientWidth || 160;
+    // Calculate the width of the tracks area (excluding labels and pads)
+    const timelineTracksOnlyWidth = timelineSize.width - labelWidth - TIMELINE_LEFT - TIMELINE_RIGHT_PAD;
+
+    // --- Trigger on playback time reaching response rect start ---
+    const triggeredRectsRef = useRef<Set<number>>(new Set());
+    useEffect(() => {
+        if (!isPlaying) {
+            // Reset triggers when playback stops or resets
+            triggeredRectsRef.current.clear();
+            return;
+        }
+        const validResponses = responses.filter(
+            (resp) =>
+                Number.isFinite(resp.start) &&
+                Number.isFinite(resp.end) &&
+                resp.end > resp.start &&
+                Number.isFinite(resp.track) &&
+                resp.track >= 0 &&
+                resp.track < tracks.length
+        );
+        validResponses.forEach((resp, idx) => {
+            if (
+                !triggeredRectsRef.current.has(idx) &&
+                playhead >= resp.start
+            ) {
+                triggeredRectsRef.current.add(idx);
+                console.log(`Playback reached start of response rect #${idx} (start=${resp.start})`);
+                // TODO: Replace with your trigger action
+            }
+        });
+    }, [playhead, isPlaying, responses, tracks.length]);
 
   return (
         <div
@@ -418,9 +438,8 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                     <div
                         style={{
                             position: "relative",
-                            width:
-                                timelineTrackListWidth - TIMELINE_RIGHT_PAD - TIMELINE_LEFT,
-                            transform: `translateX(${TIMELINE_LEFT + timelineTrackLabelsWidth}px)`,
+                            width: timelineTracksOnlyWidth,
+                            transform: `translateX(${TIMELINE_LEFT + labelWidth}px)`,
                         }}
                     >
                         <WaveSurferSpectrogram
@@ -430,7 +449,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                             onSeek={handleSeek}
                             onPlayPause={handlePlayPause}
                             duration={audioBuffer.duration}
-                            width={timelineTrackListWidth - TIMELINE_RIGHT_PAD - TIMELINE_LEFT}
+                            width={timelineTracksOnlyWidth}
                         />
                     </div>
                 )}
@@ -539,15 +558,15 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
           <Stage
             width={timelineSize.width}
             height={timelineSize.height}
-                            style={{
-                                background: "none",
-                                borderRadius: 10,
-                                width: "100%",
-                                height: "100%",
-                                position: "relative",
-                                zIndex: 1,
-                            }}
-            onClick={handleStageClick}
+            style={{
+                background: "none",
+                borderRadius: 10,
+                width: "100%",
+                height: "100%",
+                position: "relative",
+                zIndex: 1,
+            }}
+            onClick={e => handleStageClick(e as unknown as import("konva/lib/Node").KonvaEventObject<PointerEvent>, timelineTrackLabelsRef)}
           >
             <Layer>
               <Text
@@ -566,6 +585,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
               />
               {/* Draw responses */}
               {(() => {
+                console.log("responses", responses);
                 const validResponses = responses.filter(
                                         (resp) =>
                                             Number.isFinite(resp.start) &&

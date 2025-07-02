@@ -294,18 +294,6 @@ const TimeTracks: React.FC = () => {
                   );
                 });
               })()}
-              {/* Draw playhead */}
-              <Line
-                points={[
-                  timeToX({ time: playhead, duration: DURATION, width: timelineSize.width }),
-                  30,
-                  timeToX({ time: playhead, duration: DURATION, width: timelineSize.width }),
-                  timelineSize.height - 10,
-                ]}
-                stroke="#ff5252"
-                strokeWidth={2}
-                dash={[8, 6]}
-              />
             </Layer>
           </Stage>
         </div>
