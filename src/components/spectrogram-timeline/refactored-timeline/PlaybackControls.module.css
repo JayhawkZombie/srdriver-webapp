@@ -1,0 +1,24 @@
+.playbackControls {
+  background: #222;
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: #fff;
+  width: fit-content;
+  min-width: 320px;
+}
+.controlsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.time {
+  font-family: monospace;
+  font-size: 15px;
+  color: #bbb;
+  margin-left: 8px;
+  min-width: 56px;
+  text-align: right;
+}
+.children {
+  margin-top: 8px;
+} 
