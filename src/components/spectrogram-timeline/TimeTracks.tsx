@@ -216,10 +216,27 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
     const windowWidth = timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD;
     const playheadX = (localPlayhead / windowDuration) * windowWidth + TIMELINE_LEFT;
 
-    // Get the actual label width from the ref, fallback to 160 if not available
+    // --- Timeline layout constants ---
     const labelWidth = timelineTrackLabelsRef.current?.clientWidth || 160;
-    // Calculate the width of the tracks area (excluding labels and pads)
-    const timelineTracksOnlyWidth = timelineSize.width - labelWidth - TIMELINE_LEFT - TIMELINE_RIGHT_PAD;
+    const timelineFullWidth = timelineSize.width; // Full width including labels and pads
+    const tracksAreaOffsetX = TIMELINE_LEFT + labelWidth; // Where tracks area starts (after labels)
+    const tracksAreaWidth = timelineFullWidth - labelWidth - TIMELINE_LEFT - TIMELINE_RIGHT_PAD; // Drawable area for timeline elements
+
+    // --- State for real DOM left/right X of tracks area for debug lines ---
+    const [tracksAreaDomLeft, setTracksAreaDomLeft] = useState<number | null>(null);
+    const [tracksAreaDomRight, setTracksAreaDomRight] = useState<number | null>(null);
+    useEffect(() => {
+        const updateDomBounds = () => {
+            if (tracksAreaRef.current) {
+                const rect = tracksAreaRef.current.getBoundingClientRect();
+                setTracksAreaDomLeft(rect.left);
+                setTracksAreaDomRight(rect.right);
+            }
+        };
+        updateDomBounds();
+        window.addEventListener('resize', updateDomBounds);
+        return () => window.removeEventListener('resize', updateDomBounds);
+    }, [tracksAreaRef]);
 
     // --- Trigger on playback time reaching response rect start ---
     const triggeredRectsRef = useRef<Set<number>>(new Set());
@@ -262,13 +279,13 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 time: playhead,
                 windowStart,
                 windowDuration,
-                width: timelineTracksOnlyWidth,
+                width: tracksAreaWidth,
             });
             const rectX = timeToXWindow({
                 time: resp.start,
                 windowStart,
                 windowDuration,
-                width: timelineTracksOnlyWidth,
+                width: tracksAreaWidth,
             });
             const triggered = triggeredRectsRef.current.has(0);
             const prevPlayheadX = prevPlayheadXRef.current;
@@ -301,7 +318,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
             ) {
                 triggeredRectsRef.current.add(0);
                 didTrigger = true;
-                setTriggerX(rectX);
+                setTriggerX(rectX + tracksAreaOffsetX);
                 console.log(`TRIGGER FRAME: #${frameCountRef.current} playhead=${playhead}, playheadX=${playheadX}, rectX=${rectX}`);
             }
             prevPlayheadXRef.current = playheadX;
@@ -318,7 +335,15 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
             setTriggerX(null);
         }
         // ... rest of trigger logic for other rects if needed ...
-    }, [playhead, isPlaying, responses, tracks.length, windowStart, windowDuration, timelineTracksOnlyWidth]);
+    }, [playhead, isPlaying, responses, tracks.length, windowStart, windowDuration, tracksAreaWidth, tracksAreaOffsetX]);
+
+    // Add debug for playhead/rect X delta
+    useEffect(() => {
+        if (typeof playheadX !== 'undefined' && typeof labelWidth !== 'undefined') {
+            const delta = (playheadX + TIMELINE_LEFT) - (TIMELINE_LEFT);
+            console.log(`DEBUG: playheadX+TIMELINE_LEFT=${playheadX + TIMELINE_LEFT}, TIMELINE_LEFT=${TIMELINE_LEFT}, delta=${delta}, labelWidth=${labelWidth}`);
+        }
+    }, [playheadX, labelWidth]);
 
     useEffect(() => {
         // On mount, log bounding rects and offsets for alignment debugging
@@ -556,13 +581,13 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                     justifyContent: "flex-start",
                 }}
             >
-                {/* WaveSurfer Spectrogram will go here, aligned with timeline */}
+                {/* Spectrogram/underlay in its own row, not squished */}
                 {audioBuffer && (
                     <div
                         style={{
                             position: "relative",
-                            width: timelineTracksOnlyWidth,
-                            transform: `translateX(${TIMELINE_LEFT + labelWidth}px)`,
+                            width: timelineFullWidth,
+                            transform: `translateX(0px)`,
                         }}
                     >
                         <WaveSurferSpectrogram
@@ -572,29 +597,29 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                             onSeek={handleSeek}
                             onPlayPause={handlePlayPause}
                             duration={audioBuffer.duration}
-                            width={timelineTracksOnlyWidth}
+                            width={timelineFullWidth}
                         />
                     </div>
                 )}
-      <div
-        ref={timelineContainerRef}
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "flex-start",
-          width: "100%",
-          height: timelineSize.height,
-          background: muiBg,
-          borderRadius: 16,
-          boxShadow: `0 2px 24px ${muiShadow}`,
-        }}
-      >
-        {/* Track labels column */}
+                <div
+                    ref={timelineContainerRef}
+                    style={{
+                        display: "flex",
+                        flexDirection: "row",
+                        alignItems: "flex-start",
+                        width: "100%",
+                        height: timelineSize.height,
+                        background: muiBg,
+                        borderRadius: 16,
+                        boxShadow: `0 2px 24px ${muiShadow}`,
+                    }}
+                >
+                    {/* Track labels column */}
                     <div
                         ref={timelineTrackLabelsRef}
                         style={{
-                            width: LABEL_WIDTH,
-                            minWidth: LABEL_WIDTH,
+                            width: labelWidth,
+                            minWidth: labelWidth,
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "flex-start",
@@ -603,103 +628,104 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                             height: "100%",
                         }}
                     >
-          <TrackList
-            tracks={tracks}
-            editingTrack={editingTrack}
-            editingValue={editingValue}
-            editingType={editingType}
+                        <TrackList
+                            tracks={tracks}
+                            editingTrack={editingTrack}
+                            editingValue={editingValue}
+                            editingType={editingType}
                             onEdit={(i) => {
-              setEditingTrack(i);
-              setEditingValue(tracks[i].name);
-              setEditingType(tracks[i].type);
-            }}
-            onEditCommit={handleTrackNameCommit}
-            onEditChange={handleTrackNameChange}
+                                setEditingTrack(i);
+                                setEditingValue(tracks[i].name);
+                                setEditingType(tracks[i].type);
+                            }}
+                            onEditCommit={handleTrackNameCommit}
+                            onEditChange={handleTrackNameChange}
                             onTypeChange={(e) =>
                                 setEditingType(e.target.value as TrackType)
                             }
-          />
-        </div>
-        {/* Timeline Stage with underlay canvas absolutely positioned */}
+                        />
+                    </div>
+                    {/* Timeline Stage and underlay absolutely positioned at left: tracksAreaOffsetX */}
                     <div
                         ref={tracksAreaRef}
                         style={{
-          flex: 1,
-          minWidth: 400,
-          position: "relative",
-          overflow: "hidden",
-          height: "100%",
-          maxWidth: "100%",
-          display: "flex",
-          flexDirection: "column",
-        }}
+                            flex: 1,
+                            minWidth: 400,
+                            position: "relative",
+                            overflow: "hidden",
+                            height: "100%",
+                            maxWidth: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                        }}
                     >
-          {/* Underlay canvas */}
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 40,
-              width: timelineTracksOnlyWidth,
-              height: timelineSize.height - 40,
-              pointerEvents: "none",
-            }}
-          >
-            <UnderlayCanvas
-              type={underlay}
-              width={timelineTracksOnlyWidth}
-              height={timelineSize.height - 40}
-              audioData={audioBuffer ? audioBuffer.getChannelData(0) : undefined}
-            />
-            {/* Band overlay canvas */}
-            {bandDataArr[selectedBandIdx]?.magnitudes && (
-              <BandOverlayCanvas
-                magnitudes={bandDataArr[selectedBandIdx].magnitudes}
-                playhead={playhead}
-                duration={audioBuffer?.duration || DEFAULT_DURATION}
-                width={timelineTracksOnlyWidth}
-                height={timelineSize.height - 40}
-              />
-            )}
-          </div>
-          <Stage
-            width={timelineTracksOnlyWidth}
-            height={timelineSize.height}
-            style={{
-                background: "none",
-                borderRadius: 10,
-                width: timelineTracksOnlyWidth,
-                height: "100%",
-                position: "relative",
-                zIndex: 1,
-            }}
-            onClick={e => handleStageClickWithDebug(
-                e as unknown as import("konva/lib/Node").KonvaEventObject<PointerEvent>,
-                timelineTrackLabelsRef,
-                windowStart,
-                windowDuration,
-                timelineTracksOnlyWidth,
-                tracksAreaRef
-            )}
-          >
-            <Layer>
-              <Text
-                x={TIMELINE_LEFT + 10}
-                y={10}
-                text={`playhead: ${playhead.toFixed(2)}, windowStart: ${windowStart.toFixed(2)}, windowDuration: ${windowDuration.toFixed(2)}, playheadX: ${playheadX.toFixed(2)}`}
-              />
-              <TimelineGrid
-                width={timelineTracksOnlyWidth}
-                tracks={tracks}
-                muiText={muiText}
-                muiShadow={muiShadow}
-                dragOverTrack={dragOverTrack}
-                windowStart={windowStart}
-                windowDuration={windowDuration}
-              />
-              {/* Draw responses */}
-              {(() => {
-                const validResponses = responses.filter(
+                        {/* Underlay canvas */}
+                        <div
+                            style={{
+                                position: "absolute",
+                                left: tracksAreaOffsetX,
+                                top: 40,
+                                width: tracksAreaWidth,
+                                height: timelineSize.height - 40,
+                                pointerEvents: "none",
+                            }}
+                        >
+                            <UnderlayCanvas
+                                type={underlay}
+                                width={tracksAreaWidth}
+                                height={timelineSize.height - 40}
+                                audioData={audioBuffer ? audioBuffer.getChannelData(0) : undefined}
+                            />
+                            {bandDataArr[selectedBandIdx]?.magnitudes && (
+                                <BandOverlayCanvas
+                                    magnitudes={bandDataArr[selectedBandIdx].magnitudes}
+                                    playhead={playhead}
+                                    duration={audioBuffer?.duration || DEFAULT_DURATION}
+                                    width={tracksAreaWidth}
+                                    height={timelineSize.height - 40}
+                                />
+                            )}
+                        </div>
+                        <Stage
+                            width={tracksAreaWidth}
+                            height={timelineSize.height}
+                            style={{
+                                position: "absolute",
+                                left: tracksAreaOffsetX,
+                                top: 0,
+                                width: tracksAreaWidth,
+                                height: timelineSize.height,
+                                background: "none",
+                                borderRadius: 10,
+                                zIndex: 1,
+                            }}
+                            onClick={e => handleStageClickWithDebug(
+                                e as unknown as import("konva/lib/Node").KonvaEventObject<PointerEvent>,
+                                timelineTrackLabelsRef,
+                                windowStart,
+                                windowDuration,
+                                tracksAreaWidth,
+                                tracksAreaRef
+                            )}
+                        >
+                            <Layer>
+                                <Text
+                                    x={10}
+                                    y={10}
+                                    text={`playhead: ${playhead.toFixed(2)}, windowStart: ${windowStart.toFixed(2)}, windowDuration: ${windowDuration.toFixed(2)}, playheadX: ${playheadX.toFixed(2)}`}
+                                />
+                                <TimelineGrid
+                                    width={tracksAreaWidth}
+                                    tracks={tracks}
+                                    muiText={muiText}
+                                    muiShadow={muiShadow}
+                                    dragOverTrack={dragOverTrack}
+                                    windowStart={windowStart}
+                                    windowDuration={windowDuration}
+                                />
+                                {/* Draw responses */}
+                                {(() => {
+                                    const validResponses = responses.filter(
                                         (resp) =>
                                             Number.isFinite(resp.start) &&
                                             Number.isFinite(resp.end) &&
@@ -708,163 +734,124 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                             resp.track >= 0 &&
                                             resp.track < tracks.length
                                     );
-                                    if (
-                                        validResponses.length !==
-                                        responses.length
-                                    ) {
+                                    if (validResponses.length !== responses.length) {
                                         console.warn(
                                             "Filtered out invalid responses:",
-                                            responses.filter(
-                                                (r) =>
-                                                    !validResponses.includes(r)
-                                            )
+                                            responses.filter((r) => !validResponses.includes(r))
                                         );
-                }
-                return validResponses.map((resp, idx) => {
-                  const y = trackIndexToRectY(resp.track);
-                  const x1 = timeToXWindow({
-                    time: resp.start,
-                    windowStart,
-                    windowDuration,
-                    width: timelineTracksOnlyWidth,
-                  });
-                  const x2 = timeToXWindow({
-                    time: resp.end,
-                    windowStart,
-                    windowDuration,
-                    width: timelineTracksOnlyWidth,
-                  });
-                  return (
-                    <ResponseRect
-                      key={idx}
-                      x1={x1}
-                      x2={x2}
-                      y={y}
-                      fill={muiAccent}
-                      shadowColor={muiShadow}
-                      shadowBlur={4}
-                      cornerRadius={4}
+                                    }
+                                    return validResponses.map((resp, idx) => {
+                                        const y = trackIndexToRectY(resp.track);
+                                        const x1 = timeToXWindow({
+                                            time: resp.start,
+                                            windowStart,
+                                            windowDuration,
+                                            width: tracksAreaWidth,
+                                        });
+                                        const x2 = timeToXWindow({
+                                            time: resp.end,
+                                            windowStart,
+                                            windowDuration,
+                                            width: tracksAreaWidth,
+                                        });
+                                        return (
+                                            <ResponseRect
+                                                key={idx}
+                                                x1={x1}
+                                                x2={x2}
+                                                y={y}
+                                                fill={muiAccent}
+                                                shadowColor={muiShadow}
+                                                shadowBlur={4}
+                                                cornerRadius={4}
                                                 onResizeLeft={(newStart) => {
                                                     if (
-                                                        Math.abs(
-                                                            newStart -
-                                                                resp.start
-                                                        ) > 1e-4 &&
-                                                        newStart <
-                                                            resp.end - 0.1 &&
+                                                        Math.abs(newStart - resp.start) > 1e-4 &&
+                                                        newStart < resp.end - 0.1 &&
                                                         newStart >= windowStart
                                                     ) {
-                                                        handleResize(
-                                                            idx,
-                                                            "left",
-                                                            newStart
-                                                        );
+                                                        handleResize(idx, "left", newStart);
                                                     }
                                                 }}
                                                 onResizeRight={(newEnd) => {
                                                     if (
-                                                        Math.abs(
-                                                            newEnd - resp.end
-                                                        ) > 1e-4 &&
-                                                        newEnd >
-                                                            resp.start + 0.1 &&
-                                                        newEnd <=
-                                                            windowStart +
-                                                                windowDuration
+                                                        Math.abs(newEnd - resp.end) > 1e-4 &&
+                                                        newEnd > resp.start + 0.1 &&
+                                                        newEnd <= windowStart + windowDuration
                                                     ) {
-                                                        handleResize(
-                                                            idx,
-                                                            "right",
-                                                            newEnd
-                                                        );
+                                                        handleResize(idx, "right", newEnd);
                                                     }
                                                 }}
                                                 onResizeLeftEnd={(e) => {
-                                                    e.target.position({
-                                                        x: x1 - 5,
-                                                        y: y,
-                                                    });
+                                                    e.target.position({ x: x1 - 5, y: y });
                                                 }}
                                                 onResizeRightEnd={(e) => {
-                                                    e.target.position({
-                                                        x: x2 - 5,
-                                                        y: y,
-                                                    });
+                                                    e.target.position({ x: x2 - 5, y: y });
                                                 }}
                                                 xToTime={(x) =>
                                                     xToTimeWindow({
                                                         x,
                                                         windowStart,
                                                         windowDuration,
-                                                        width: timelineTracksOnlyWidth,
+                                                        width: tracksAreaWidth,
                                                     })
                                                 }
-                      minX={TIMELINE_LEFT}
-                                                maxX={
-                                                    timelineTracksOnlyWidth
-                                                }
+                                                minX={0}
+                                                maxX={tracksAreaWidth}
                                                 onMove={(newX, newY) =>
-                                                    handleResponseMove(
-                                                        idx,
-                                                        newX,
-                                                        newY
-                                                    )
+                                                    handleResponseMove(idx, newX, newY)
                                                 }
                                                 onMoveEnd={(newX, newY) =>
-                                                    handleResponseMoveEnd(
-                                                        idx,
-                                                        newX,
-                                                        newY
-                                                    )
+                                                    handleResponseMoveEnd(idx, newX, newY)
                                                 }
-                    />
-                  );
-                });
-              })()}
-              {/* Draw playhead */}
-              <Line
-                points={[
-                    playheadX,
-                    30,
-                    playheadX,
-                    timelineSize.height - 10,
-                ]}
-                stroke="#ff5252"
-                strokeWidth={2}
-                dash={[8, 6]}
-              />
-              {/* Debug: Draw a line at playhead region start (X=0) */}
-              <Line
-                points={[0, 30, 0, timelineSize.height - 10]}
-                stroke="#ffeb3b"
-                strokeWidth={2}
-                dash={[4, 2]}
-              />
-              {/* Debug: Draw a line at playhead region end (X=timelineTracksOnlyWidth) */}
-              <Line
-                points={[timelineTracksOnlyWidth, 30, timelineTracksOnlyWidth, timelineSize.height - 10]}
-                stroke="#00bcd4"
-                strokeWidth={2}
-                dash={[4, 2]}
-              />
-              {/* Draw trigger marker (where we think the trigger should have fired) */}
-              {triggerX !== null && (
-                <Line
-                  points={[
-                    triggerX,
-                    30,
-                    triggerX,
-                    timelineSize.height - 10,
-                  ]}
-                  stroke="#00e676"
-                  strokeWidth={2}
-                  dash={[2, 2]}
-                />
-              )}
-            </Layer>
-          </Stage>
-        </div>
-      </div>
+                                            />
+                                        );
+                                    });
+                                })()}
+                                {/* Draw playhead */}
+                                <Line
+                                    points={[
+                                        playheadX,
+                                        30,
+                                        playheadX,
+                                        timelineSize.height - 10,
+                                    ]}
+                                    stroke="#ff5252"
+                                    strokeWidth={2}
+                                    dash={[8, 6]}
+                                />
+                                {/* Debug: Draw a line at playhead region start (X=0) */}
+                                <Line
+                                    points={[0, 30, 0, timelineSize.height - 10]}
+                                    stroke="#ffeb3b"
+                                    strokeWidth={2}
+                                    dash={[4, 2]}
+                                />
+                                {/* Debug: Draw a line at playhead region end (X=tracksAreaWidth) */}
+                                <Line
+                                    points={[tracksAreaWidth, 30, tracksAreaWidth, timelineSize.height - 10]}
+                                    stroke="#00bcd4"
+                                    strokeWidth={2}
+                                    dash={[4, 2]}
+                                />
+                                {/* Draw trigger marker (where we think the trigger should have fired) */}
+                                {triggerX !== null && (
+                                    <Line
+                                        points={[
+                                            triggerX,
+                                            30,
+                                            triggerX,
+                                            timelineSize.height - 10,
+                                        ]}
+                                        stroke="#00e676"
+                                        strokeWidth={2}
+                                        dash={[2, 2]}
+                                    />
+                                )}
+                            </Layer>
+                        </Stage>
+                    </div>
+                </div>
             </Box>
             <div style={{ color: "#b0bec5", marginTop: 12, fontSize: 15 }}>
                 <p>

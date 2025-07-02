@@ -1,0 +1,1 @@
+// This should contain the logic for a single track on the timeline.

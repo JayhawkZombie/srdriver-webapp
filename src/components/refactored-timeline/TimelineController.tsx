@@ -1,0 +1,2 @@
+// This should contain the logic for the timeline controller, which is the component that controls the timeline.
+// This will wrap the timeline component with the tracks, but keep it isolated from the rest of the overall spectrogram and such.
