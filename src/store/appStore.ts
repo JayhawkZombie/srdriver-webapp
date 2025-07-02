@@ -47,6 +47,7 @@ export interface AudioDataMetadata {
 
 export interface AudioDataAnalysis {
   fftSequence: (Float32Array | number[])[];
+  normalizedFftSequence?: number[][];
   summary: Record<string, unknown> | null;
   audioBuffer: AudioBuffer | null;
   bandDataArr?: Array<Record<string, unknown>>;

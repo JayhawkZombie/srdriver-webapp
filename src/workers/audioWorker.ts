@@ -18,6 +18,7 @@ interface AudioProcessRequest {
 interface AudioProcessResult {
   summary: any; // TODO: Replace with proper type
   fftSequence: Float32Array[];
+  normalizedFftSequence: Float32Array[];
   jobId?: string;
 }
 
@@ -109,7 +110,16 @@ globalThis.onmessage = async (e: MessageEvent) => {
   };
   // Debug: log first 3 rows of fftSequence
   console.log('audioWorker.ts: fftSequence (first 3 rows)', fftSequence.slice(0, 3));
-  globalThis.postMessage({ type: 'done', summary, fftSequence, jobId } as AudioProcessResult);
+
+  // Compute normalizedFftSequence: log-magnitude normalization to [0,1]
+  const normalizedFftSequence = fftSequence.map(frame => {
+    return Array.from(frame).map(mag => {
+      const logMag = Math.log10(Math.max(1e-8, mag)) + 8; // log scale, shift to [0,8]
+      return Math.max(0, Math.min(1, logMag / 8));
+    });
+  });
+
+  globalThis.postMessage({ type: 'done', summary, fftSequence, normalizedFftSequence, jobId } as AudioProcessResult);
 };
 
 // No exports (web worker file) 

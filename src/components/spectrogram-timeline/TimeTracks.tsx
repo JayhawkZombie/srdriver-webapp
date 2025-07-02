@@ -7,7 +7,9 @@ import TimelineGrid from './TimelineGrid';
 import { useTimelineState } from './useTimelineState';
 import { timeToX, xToTime, TRACK_HEIGHT, TRACK_GAP, TIMELINE_LEFT, TIMELINE_RIGHT_PAD, centerYToTrackIndex, trackIndexToRectY } from './timelineMath';
 import BandOverlayCanvas from './BandOverlayCanvas';
+import WaveSurferSpectrogram from "./WaveSurferSpectrogram";
 import { useAppStore } from '../../store/appStore';
+import { Box, Button } from '@mui/material';
 
 const DURATION = 15; // seconds
 const LABEL_WIDTH = 160;
@@ -54,6 +56,8 @@ type UnderlayType = typeof UNDERLAY_OPTIONS[number];
 
 type Track = { name: string; type: TrackType };
 
+type BandData = { band?: { name?: string }, magnitudes?: number[] };
+
 const defaultTracks: Track[] = [
   { name: 'Bass', type: 'frequency' },
   { name: 'Snare', type: 'frequency' },
@@ -67,22 +71,23 @@ interface TimeTracksProps {
 
 const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
   console.log('TimeTracks props:', { audioBuffer });
-  const bandDataArr = useAppStore(state => state.audioData?.analysis?.bandDataArr || []);
+  const bandDataArr = useAppStore(state => state.audioData?.analysis?.bandDataArr as BandData[] || []);
   const bandNames = bandDataArr.map(b => b.band?.name || 'Band');
   const [selectedBandIdx, setSelectedBandIdx] = useState(0);
   const [dragOverTrack, setDragOverTrack] = useState<number | null>(null);
   const {
     responses,
     playhead,
+    setPlayhead,
+    startPlayhead,
+    stopPlayhead,
     tracks,
     editingTrack, setEditingTrack,
     editingValue, setEditingValue,
     editingType, setEditingType,
     templateIdx,
-    playingRef,
     underlay, setUnderlay,
     timelineContainerRef, timelineSize,
-    startPlayhead, stopPlayhead, resetPlayhead,
     handleStageClick,
     handleResize,
     handleTrackNameChange,
@@ -90,6 +95,24 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
     handleTemplateSelect,
     setResponses,
   } = useTimelineState({ defaultTracks, duration: DURATION, trackHeight: TRACK_HEIGHT, trackGap: TRACK_GAP });
+
+    const [isPlaying, setIsPlaying] = React.useState(false);
+    // Play/pause handlers
+    const handlePlayPause = (playing: boolean) => {
+        setIsPlaying(playing);
+        if (playing) startPlayhead();
+        else stopPlayhead();
+    };
+    // Seek handler
+    const handleSeek = (time: number) => {
+        setPlayhead(time);
+    };
+    // Reset handler
+    const handleReset = () => {
+        setIsPlaying(false);
+        stopPlayhead();
+        setPlayhead(0);
+    };
 
   // Drag-to-move handler (still local, but updates global state)
   const handleResponseMove = (idx: number, newX: number, newY: number) => {
@@ -121,242 +144,453 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
   };
 
   return (
-    <div style={{
-      position: 'relative',
-      width: 'auto',
-      height: 'auto',
-      maxHeight: '94vh',
-      overflow: 'auto',
-      background: muiBg,
-      borderRadius: 18,
-      boxShadow: `0 4px 48px ${muiShadow}`,
-      padding: 56,
-      color: muiText,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-    }}>
-      <h3 style={{ color: muiAccent, marginTop: 0 }}>Timeline</h3>
-      {/* Band selector toggle */}
-      {bandNames.length > 0 && (
-        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontWeight: 600, color: muiAccent }}>Band Overlay:</span>
-          {bandNames.map((name, idx) => (
-            <button
-              key={name}
-              onClick={() => setSelectedBandIdx(idx)}
-              style={{
-                marginRight: 6,
-                borderRadius: 6,
-                background: selectedBandIdx === idx ? muiAccent : '#b0bec5',
-                color: selectedBandIdx === idx ? muiBg : muiText,
-                border: 'none',
-                padding: '4px 14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                outline: selectedBandIdx === idx ? `2px solid ${muiAccent}` : 'none',
-              }}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
-      )}
-      <div style={{ marginBottom: 16 }}>
-        <button onClick={startPlayhead} disabled={playingRef.current} style={{ marginRight: 8, borderRadius: 6, background: muiAccent, color: muiBg, border: 'none', padding: '6px 16px', fontWeight: 600 }}>Play</button>
-        <button onClick={stopPlayhead} disabled={!playingRef.current} style={{ marginRight: 8, borderRadius: 6, background: '#b0bec5', color: muiBg, border: 'none', padding: '6px 16px', fontWeight: 600 }}>Pause</button>
-        <button onClick={resetPlayhead} style={{ borderRadius: 6, background: '#b0bec5', color: muiBg, border: 'none', padding: '6px 16px', fontWeight: 600 }}>Reset</button>
-      </div>
-      {/* Template selector */}
-      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontWeight: 600, color: muiAccent }}>Template:</span>
-        {TEMPLATES.map((tpl, idx) => (
-          <button
-            key={tpl.name}
-            onClick={() => handleTemplateSelect(idx, TEMPLATES)}
-            style={{
-              marginRight: 6,
-              borderRadius: 6,
-              background: templateIdx === idx ? muiAccent : '#b0bec5',
-              color: templateIdx === idx ? muiBg : muiText,
-              border: 'none',
-              padding: '4px 14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              outline: templateIdx === idx ? `2px solid ${muiAccent}` : 'none',
-            }}
-          >
-            {tpl.name}
-          </button>
-        ))}
-      </div>
-      {/* Underlay toggle */}
-      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontWeight: 600, color: muiAccent }}>Underlay:</span>
-        {UNDERLAY_OPTIONS.map((opt: UnderlayType) => (
-          <button
-            key={opt}
-            onClick={() => setUnderlay(opt)}
-            style={{
-              marginRight: 6,
-              borderRadius: 6,
-              background: underlay === opt ? muiAccent : '#b0bec5',
-              color: underlay === opt ? muiBg : muiText,
-              border: 'none',
-              padding: '4px 14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              outline: underlay === opt ? `2px solid ${muiAccent}` : 'none',
-            }}
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
       <div
-        ref={timelineContainerRef}
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          width: '100%',
-          height: timelineSize.height,
-          background: muiBg,
-          borderRadius: 16,
-          boxShadow: `0 2px 24px ${muiShadow}`,
-        }}
+          style={{
+              position: "relative",
+              width: "auto",
+              height: "auto",
+              maxHeight: "94vh",
+              overflow: "auto",
+              background: muiBg,
+              borderRadius: 18,
+              boxShadow: `0 4px 48px ${muiShadow}`,
+              padding: 56,
+              color: muiText,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "flex-start",
+          }}
       >
-        {/* Track labels column */}
-        <div style={{ width: LABEL_WIDTH, minWidth: LABEL_WIDTH, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-end', paddingTop: 40, height: '100%' }}>
-          <TrackList
-            tracks={tracks}
-            editingTrack={editingTrack}
-            editingValue={editingValue}
-            editingType={editingType}
-            onEdit={i => {
-              setEditingTrack(i);
-              setEditingValue(tracks[i].name);
-              setEditingType(tracks[i].type);
-            }}
-            onEditCommit={handleTrackNameCommit}
-            onEditChange={handleTrackNameChange}
-            onTypeChange={e => setEditingType(e.target.value as TrackType)}
-          />
-        </div>
-        {/* Timeline Stage with underlay canvas absolutely positioned */}
-        <div style={{
-          flex: 1,
-          minWidth: 400,
-          position: 'relative',
-          overflow: 'hidden',
-          height: '100%',
-          maxWidth: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          {/* Underlay canvas */}
-          <div style={{ position: 'absolute', left: TIMELINE_LEFT, top: 40, width: `calc(100% - ${TIMELINE_LEFT + TIMELINE_RIGHT_PAD}px)`, height: timelineSize.height - 40, pointerEvents: 'none' }}>
-            <UnderlayCanvas
-              type={underlay}
-              width={timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD}
-              height={timelineSize.height - 40}
-              audioData={audioBuffer ? audioBuffer.getChannelData(0) : undefined}
-            />
-            {/* Band overlay canvas */}
-            {bandDataArr[selectedBandIdx]?.magnitudes && (
-              <BandOverlayCanvas
-                magnitudes={bandDataArr[selectedBandIdx].magnitudes}
-                playhead={playhead}
-                duration={DURATION}
-                width={timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD}
-                height={timelineSize.height - 40}
-              />
-            )}
-          </div>
-          <Stage
-            width={timelineSize.width}
-            height={timelineSize.height}
-            style={{ background: 'none', borderRadius: 10, width: '100%', height: '100%', position: 'relative', zIndex: 1 }}
-            onClick={handleStageClick}
+          <h3 style={{ color: muiAccent, marginTop: 0 }}>Timeline</h3>
+          {/* Band selector toggle */}
+          {bandNames.length > 0 && (
+              <div
+                  style={{
+                      marginBottom: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                  }}
+              >
+                  <span style={{ fontWeight: 600, color: muiAccent }}>
+                      Band Overlay:
+                  </span>
+                  {bandNames.map((name, idx) => (
+                      <button
+                          key={name}
+                          onClick={() => setSelectedBandIdx(idx)}
+                          style={{
+                              marginRight: 6,
+                              borderRadius: 6,
+                              background:
+                                  selectedBandIdx === idx
+                                      ? muiAccent
+                                      : "#b0bec5",
+                              color: selectedBandIdx === idx ? muiBg : muiText,
+                              border: "none",
+                              padding: "4px 14px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              outline:
+                                  selectedBandIdx === idx
+                                      ? `2px solid ${muiAccent}`
+                                      : "none",
+                          }}
+                      >
+                          {name}
+                      </button>
+                  ))}
+              </div>
+          )}
+          {/* Template selector */}
+          <div
+              style={{
+                  marginBottom: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+              }}
           >
-            <Layer>
-              <TimelineGrid
-                width={timelineSize.width}
-                tracks={tracks}
-                duration={DURATION}
-                muiText={muiText}
-                muiShadow={muiShadow}
-                dragOverTrack={dragOverTrack}
+              <span style={{ fontWeight: 600, color: muiAccent }}>
+                  Template:
+              </span>
+              {TEMPLATES.map((tpl, idx) => (
+                  <button
+                      key={tpl.name}
+                      onClick={() => handleTemplateSelect(idx, TEMPLATES)}
+                      style={{
+                          marginRight: 6,
+                          borderRadius: 6,
+                          background:
+                              templateIdx === idx ? muiAccent : "#b0bec5",
+                          color: templateIdx === idx ? muiBg : muiText,
+                          border: "none",
+                          padding: "4px 14px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          outline:
+                              templateIdx === idx
+                                  ? `2px solid ${muiAccent}`
+                                  : "none",
+                      }}
+                  >
+                      {tpl.name}
+                  </button>
+              ))}
+          </div>
+          {/* Underlay toggle */}
+          <div
+              style={{
+                  marginBottom: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+              }}
+          >
+              <span style={{ fontWeight: 600, color: muiAccent }}>
+                  Underlay:
+              </span>
+              {UNDERLAY_OPTIONS.map((opt: UnderlayType) => (
+                  <button
+                      key={opt}
+                      onClick={() => setUnderlay(opt)}
+                      style={{
+                          marginRight: 6,
+                          borderRadius: 6,
+                          background: underlay === opt ? muiAccent : "#b0bec5",
+                          color: underlay === opt ? muiBg : muiText,
+                          border: "none",
+                          padding: "4px 14px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          outline:
+                              underlay === opt
+                                  ? `2px solid ${muiAccent}`
+                                  : "none",
+                      }}
+                  >
+                      {opt}
+                  </button>
+              ))}
+          </div>
+          {/* Playback controls */}
+          <Box
+              sx={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 2,
+                  mb: 1,
+              }}
+          >
+              <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setIsPlaying(true)}
+                  disabled={isPlaying}
+                  sx={{ minWidth: 80 }}
+              >
+                  Play
+              </Button>
+              <Button
+                  variant="contained"
+                  color="secondary"
+                  onClick={() => setIsPlaying(false)}
+                  disabled={!isPlaying}
+                  sx={{ minWidth: 80 }}
+              >
+                  Pause
+              </Button>
+              <Button
+                  variant="outlined"
+                  onClick={handleReset}
+                  sx={{ minWidth: 80 }}
+              >
+                  Reset
+              </Button>
+          </Box>
+          {/* WaveSurfer Spectrogram will go here */}
+          {audioBuffer && (
+              <WaveSurferSpectrogram
+                  audioBuffer={audioBuffer}
+                  isPlaying={isPlaying}
+                  playhead={playhead}
+                  onSeek={handleSeek}
+                  onPlayPause={handlePlayPause}
+                  duration={audioBuffer.duration}
               />
-              {/* Draw responses */}
-              {(() => {
-                const validResponses = responses.filter(
-                  resp => Number.isFinite(resp.start) && Number.isFinite(resp.end) && resp.end > resp.start && Number.isFinite(resp.track) && resp.track >= 0 && resp.track < tracks.length
-                );
-                if (validResponses.length !== responses.length) {
-                  console.warn('Filtered out invalid responses:', responses.filter(r => !validResponses.includes(r)));
-                }
-                return validResponses.map((resp, idx) => {
-                  const y = trackIndexToRectY(resp.track);
-                  const x1 = timeToX({ time: resp.start, duration: DURATION, width: timelineSize.width });
-                  const x2 = timeToX({ time: resp.end, duration: DURATION, width: timelineSize.width });
-                  return (
-                    <ResponseRect
-                      key={idx}
-                      x1={x1}
-                      x2={x2}
-                      y={y}
-                      fill={muiAccent}
-                      shadowColor={muiShadow}
-                      shadowBlur={4}
-                      cornerRadius={4}
-                      onResizeLeft={newStart => {
-                        if (Math.abs(newStart - resp.start) > 1e-4 && newStart < resp.end - 0.1 && newStart >= 0) {
-                          handleResize(idx, 'left', newStart);
-                        }
+          )}
+          <div
+              ref={timelineContainerRef}
+              style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                  width: "100%",
+                  height: timelineSize.height,
+                  background: muiBg,
+                  borderRadius: 16,
+                  boxShadow: `0 2px 24px ${muiShadow}`,
+              }}
+          >
+              {/* Track labels column */}
+              <div
+                  style={{
+                      width: LABEL_WIDTH,
+                      minWidth: LABEL_WIDTH,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "flex-start",
+                      alignItems: "flex-end",
+                      paddingTop: 40,
+                      height: "100%",
+                  }}
+              >
+                  <TrackList
+                      tracks={tracks}
+                      editingTrack={editingTrack}
+                      editingValue={editingValue}
+                      editingType={editingType}
+                      onEdit={(i) => {
+                          setEditingTrack(i);
+                          setEditingValue(tracks[i].name);
+                          setEditingType(tracks[i].type);
                       }}
-                      onResizeRight={newEnd => {
-                        if (Math.abs(newEnd - resp.end) > 1e-4 && newEnd > resp.start + 0.1 && newEnd <= DURATION) {
-                          handleResize(idx, 'right', newEnd);
-                        }
+                      onEditCommit={handleTrackNameCommit}
+                      onEditChange={handleTrackNameChange}
+                      onTypeChange={(e) =>
+                          setEditingType(e.target.value as TrackType)
+                      }
+                  />
+              </div>
+              {/* Timeline Stage with underlay canvas absolutely positioned */}
+              <div
+                  style={{
+                      flex: 1,
+                      minWidth: 400,
+                      position: "relative",
+                      overflow: "hidden",
+                      height: "100%",
+                      maxWidth: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                  }}
+              >
+                  {/* Underlay canvas */}
+                  <div
+                      style={{
+                          position: "absolute",
+                          left: TIMELINE_LEFT,
+                          top: 40,
+                          width: `calc(100% - ${
+                              TIMELINE_LEFT + TIMELINE_RIGHT_PAD
+                          }px)`,
+                          height: timelineSize.height - 40,
+                          pointerEvents: "none",
                       }}
-                      onResizeLeftEnd={e => {
-                        e.target.position({ x: x1 - 5, y: y });
+                  >
+                      <UnderlayCanvas
+                          type={underlay}
+                          width={
+                              timelineSize.width -
+                              TIMELINE_LEFT -
+                              TIMELINE_RIGHT_PAD
+                          }
+                          height={timelineSize.height - 40}
+                          audioData={
+                              audioBuffer
+                                  ? audioBuffer.getChannelData(0)
+                                  : undefined
+                          }
+                      />
+                      {/* Band overlay canvas */}
+                      {bandDataArr[selectedBandIdx]?.magnitudes && (
+                          <BandOverlayCanvas
+                              magnitudes={
+                                  bandDataArr[selectedBandIdx].magnitudes
+                              }
+                              playhead={playhead}
+                              duration={DURATION}
+                              width={
+                                  timelineSize.width -
+                                  TIMELINE_LEFT -
+                                  TIMELINE_RIGHT_PAD
+                              }
+                              height={timelineSize.height - 40}
+                          />
+                      )}
+                  </div>
+                  <Stage
+                      width={timelineSize.width}
+                      height={timelineSize.height}
+                      style={{
+                          background: "none",
+                          borderRadius: 10,
+                          width: "100%",
+                          height: "100%",
+                          position: "relative",
+                          zIndex: 1,
                       }}
-                      onResizeRightEnd={e => {
-                        e.target.position({ x: x2 - 5, y: y });
-                      }}
-                      xToTime={x => xToTime({ x, duration: DURATION, width: timelineSize.width })}
-                      minX={TIMELINE_LEFT}
-                      maxX={timelineSize.width - TIMELINE_RIGHT_PAD}
-                      onMove={(newX, newY) => handleResponseMove(idx, newX, newY)}
-                      onMoveEnd={(newX, newY) => handleResponseMoveEnd(idx, newX, newY)}
-                    />
-                  );
-                });
-              })()}
-              {/* Draw playhead */}
-              <Line
-                points={[
-                  timeToX({ time: playhead, duration: DURATION, width: timelineSize.width }),
-                  30,
-                  timeToX({ time: playhead, duration: DURATION, width: timelineSize.width }),
-                  timelineSize.height - 10,
-                ]}
-                stroke="#ff5252"
-                strokeWidth={2}
-                dash={[8, 6]}
-              />
-            </Layer>
-          </Stage>
-        </div>
+                      onClick={handleStageClick}
+                  >
+                      <Layer>
+                          <TimelineGrid
+                              width={timelineSize.width}
+                              tracks={tracks}
+                              duration={DURATION}
+                              muiText={muiText}
+                              muiShadow={muiShadow}
+                              dragOverTrack={dragOverTrack}
+                          />
+                          {/* Draw responses */}
+                          {(() => {
+                              const validResponses = responses.filter(
+                                  (resp) =>
+                                      Number.isFinite(resp.start) &&
+                                      Number.isFinite(resp.end) &&
+                                      resp.end > resp.start &&
+                                      Number.isFinite(resp.track) &&
+                                      resp.track >= 0 &&
+                                      resp.track < tracks.length
+                              );
+                              if (validResponses.length !== responses.length) {
+                                  console.warn(
+                                      "Filtered out invalid responses:",
+                                      responses.filter(
+                                          (r) => !validResponses.includes(r)
+                                      )
+                                  );
+                              }
+                              return validResponses.map((resp, idx) => {
+                                  const y = trackIndexToRectY(resp.track);
+                                  const x1 = timeToX({
+                                      time: resp.start,
+                                      duration: DURATION,
+                                      width: timelineSize.width,
+                                  });
+                                  const x2 = timeToX({
+                                      time: resp.end,
+                                      duration: DURATION,
+                                      width: timelineSize.width,
+                                  });
+                                  return (
+                                      <ResponseRect
+                                          key={idx}
+                                          x1={x1}
+                                          x2={x2}
+                                          y={y}
+                                          fill={muiAccent}
+                                          shadowColor={muiShadow}
+                                          shadowBlur={4}
+                                          cornerRadius={4}
+                                          onResizeLeft={(newStart) => {
+                                              if (
+                                                  Math.abs(
+                                                      newStart - resp.start
+                                                  ) > 1e-4 &&
+                                                  newStart < resp.end - 0.1 &&
+                                                  newStart >= 0
+                                              ) {
+                                                  handleResize(
+                                                      idx,
+                                                      "left",
+                                                      newStart
+                                                  );
+                                              }
+                                          }}
+                                          onResizeRight={(newEnd) => {
+                                              if (
+                                                  Math.abs(newEnd - resp.end) >
+                                                      1e-4 &&
+                                                  newEnd > resp.start + 0.1 &&
+                                                  newEnd <= DURATION
+                                              ) {
+                                                  handleResize(
+                                                      idx,
+                                                      "right",
+                                                      newEnd
+                                                  );
+                                              }
+                                          }}
+                                          onResizeLeftEnd={(e) => {
+                                              e.target.position({
+                                                  x: x1 - 5,
+                                                  y: y,
+                                              });
+                                          }}
+                                          onResizeRightEnd={(e) => {
+                                              e.target.position({
+                                                  x: x2 - 5,
+                                                  y: y,
+                                              });
+                                          }}
+                                          xToTime={(x) =>
+                                              xToTime({
+                                                  x,
+                                                  duration: DURATION,
+                                                  width: timelineSize.width,
+                                              })
+                                          }
+                                          minX={TIMELINE_LEFT}
+                                          maxX={
+                                              timelineSize.width -
+                                              TIMELINE_RIGHT_PAD
+                                          }
+                                          onMove={(newX, newY) =>
+                                              handleResponseMove(
+                                                  idx,
+                                                  newX,
+                                                  newY
+                                              )
+                                          }
+                                          onMoveEnd={(newX, newY) =>
+                                              handleResponseMoveEnd(
+                                                  idx,
+                                                  newX,
+                                                  newY
+                                              )
+                                          }
+                                      />
+                                  );
+                              });
+                          })()}
+                          {/* Draw playhead */}
+                          <Line
+                              points={[
+                                  timeToX({
+                                      time: playhead,
+                                      duration: DURATION,
+                                      width: timelineSize.width,
+                                  }),
+                                  30,
+                                  timeToX({
+                                      time: playhead,
+                                      duration: DURATION,
+                                      width: timelineSize.width,
+                                  }),
+                                  timelineSize.height - 10,
+                              ]}
+                              stroke="#ff5252"
+                              strokeWidth={2}
+                              dash={[8, 6]}
+                          />
+                      </Layer>
+                  </Stage>
+              </div>
+          </div>
+          <div style={{ color: "#b0bec5", marginTop: 12, fontSize: 15 }}>
+              <p>
+                  Click on a track name to rename it. Click on a track to add a
+                  response at that time. Use Play/Pause/Reset to control the
+                  playhead.
+              </p>
+              <p>
+                  Use the Underlay toggle above to preview how a waveform or
+                  frequency plot would look beneath your timeline.
+              </p>
+          </div>
       </div>
-      <div style={{ color: '#b0bec5', marginTop: 12, fontSize: 15 }}>
-        <p>Click on a track name to rename it. Click on a track to add a response at that time. Use Play/Pause/Reset to control the playhead.</p>
-        <p>Use the Underlay toggle above to preview how a waveform or frequency plot would look beneath your timeline.</p>
-      </div>
-    </div>
   );
 };
 
