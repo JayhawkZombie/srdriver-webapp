@@ -1,8 +1,11 @@
 import React from "react";
-import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
-// Minimal timeToXWindow function
+import { Stage, Layer, Line, Rect, Text as KonvaText, Circle } from "react-konva";
+// Paired helpers for timeline math
 function timeToXWindow({ time, windowStart, windowDuration, width }: { time: number, windowStart: number, windowDuration: number, width: number }) {
   return ((time - windowStart) / windowDuration) * width;
+}
+function xToTime({ x, windowStart, windowDuration, width }: { x: number, windowStart: number, windowDuration: number, width: number }) {
+  return windowStart + (x / width) * windowDuration;
 }
 
 const LABELS_WIDTH = 200;
@@ -39,6 +42,8 @@ export default function ResponseTimeline() {
   const [windowStart, setWindowStart] = React.useState(0);
   // windowDuration: how much time is visible horizontally
   const [windowDuration, setWindowDuration] = React.useState(5);
+  // Dots placed by clicking (array of time values)
+  const [dots, setDots] = React.useState<number[]>([]);
 
   // Animate playhead
   React.useEffect(() => {
@@ -95,6 +100,23 @@ export default function ResponseTimeline() {
     ticks.push({ t, x, isMajor });
   }
 
+  // Click handler for tracks area
+  function handleTracksClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+    const bounding = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - bounding.left;
+    // Clamp to tracks area
+    if (x < 0 || x > TRACKS_WIDTH) return;
+    // Convert X to time using shared helper
+    const time = xToTime({ x, windowStart, windowDuration, width: TRACKS_WIDTH });
+    // Clamp to timeline duration
+    if (time < 0 || time > TOTAL_DURATION) return;
+    setDots(prev => [...prev, time]);
+  }
+
+  // Dots are drawn in Track 2 (middle track)
+  const track2Y = TRACKS_TOP_OFFSET + 1 * (TRACK_HEIGHT + TRACK_GAP);
+  const dotY = track2Y + TRACK_HEIGHT / 2;
+
   // Handler for window size change (easy to move to a hook later)
   const handleWindowDurationChange = (v: number) => {
     setWindowDuration(Math.max(1, Math.min(TOTAL_DURATION, v)));
@@ -106,7 +128,10 @@ export default function ResponseTimeline() {
         {/* Labels column (empty for now) */}
         <div style={{ width: LABELS_WIDTH, minWidth: LABELS_WIDTH }} />
         {/* Tracks area */}
-        <div style={{ position: "relative", width: TRACKS_WIDTH, height: TIMELINE_HEIGHT, background: "#181c22", borderRadius: 8 }}>
+        <div
+          style={{ position: "relative", width: TRACKS_WIDTH, height: TIMELINE_HEIGHT, background: "#181c22", borderRadius: 8 }}
+          onClick={handleTracksClick}
+        >
           <Stage width={TRACKS_WIDTH} height={TIMELINE_HEIGHT} style={{ position: "absolute", left: 0, top: 0 }}>
             {/* Grid/ticks layer */}
             <Layer>
@@ -145,6 +170,11 @@ export default function ResponseTimeline() {
                   label={`Track ${i + 1}`}
                 />
               ))}
+              {/* Dots in Track 2 */}
+              {dots.map((t, i) => {
+                const x = timeToXWindow({ time: t, windowStart, windowDuration, width: TRACKS_WIDTH });
+                return <Circle key={i} x={x} y={dotY} radius={10} fill="#ffeb3b" stroke="#333" strokeWidth={2} />;
+              })}
               {/* Playhead (red dashed line) */}
               <Line
                 points={[playheadX, TRACKS_TOP_OFFSET, playheadX, TRACKS_TOP_OFFSET + TRACKS_TOTAL_HEIGHT]}
@@ -159,6 +189,10 @@ export default function ResponseTimeline() {
       {/* Debug info */}
       <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 12, textAlign: "center" }}>
         windowStart: {windowStart.toFixed(2)} | windowEnd: {windowEnd.toFixed(2)} | playhead: {playhead.toFixed(2)}
+      </div>
+      {/* Dots debug info */}
+      <div style={{ color: "#fffde7", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
+        Dots: [{dots.map(t => t.toFixed(2)).join(", ")}]
       </div>
       {/* Window size control */}
       <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 16, textAlign: "center" }}>
@@ -184,6 +218,7 @@ export default function ResponseTimeline() {
           />
         </label>
       </div>
+      {/* Add more debug info here if needed */}
     </div>
   );
 } 
