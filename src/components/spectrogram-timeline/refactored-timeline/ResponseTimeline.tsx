@@ -1,5 +1,5 @@
 import React from "react";
-import { Stage, Layer, Line, Rect, Text as KonvaText, Circle } from "react-konva";
+import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
 // Paired helpers for timeline math
 function timeToXWindow({ time, windowStart, windowDuration, width }: { time: number, windowStart: number, windowDuration: number, width: number }) {
   return ((time - windowStart) / windowDuration) * width;
@@ -14,7 +14,8 @@ const CONTAINER_WIDTH = LABELS_WIDTH + TRACKS_WIDTH;
 const TIMELINE_HEIGHT = 300;
 
 const TOTAL_DURATION = 15; // total timeline duration in seconds
-// windowDuration is now state, easy to move to a hook later
+const MIN_RESPONSE_DURATION = 0.5;
+const MAX_RESPONSE_DURATION = 3.0;
 
 const TRACK_HEIGHT = 60;
 const TRACK_GAP = 8;
@@ -22,6 +23,15 @@ const NUM_TRACKS = 3;
 // Single source of truth for vertical offset to first track
 const TRACKS_TOP_OFFSET = 32; // px from top of timeline to first track
 const TRACKS_TOTAL_HEIGHT = NUM_TRACKS * TRACK_HEIGHT + (NUM_TRACKS - 1) * TRACK_GAP;
+
+// TimelineResponse type
+interface TimelineResponse {
+  id: string;
+  timestamp: number;
+  duration: number;
+  trackIndex: number;
+  data: Record<string, any>;
+}
 
 // Minimal Track component
 function Track({ y, height, label }: { y: number; height: number; label: string }) {
@@ -42,8 +52,8 @@ export default function ResponseTimeline() {
   const [windowStart, setWindowStart] = React.useState(0);
   // windowDuration: how much time is visible horizontally
   const [windowDuration, setWindowDuration] = React.useState(5);
-  // Dots placed by clicking (array of time values)
-  const [dots, setDots] = React.useState<number[]>([]);
+  // Responses (rects)
+  const [responses, setResponses] = React.useState<TimelineResponse[]>([]);
 
   // Animate playhead
   React.useEffect(() => {
@@ -110,17 +120,31 @@ export default function ResponseTimeline() {
     const time = xToTime({ x, windowStart, windowDuration, width: TRACKS_WIDTH });
     // Clamp to timeline duration
     if (time < 0 || time > TOTAL_DURATION) return;
-    setDots(prev => [...prev, time]);
+    // For now, always add to track 1 (index 1)
+    const trackIndex = 1;
+    // Pick a random duration between 0.5s and 3s
+    const duration = Math.random() * (MAX_RESPONSE_DURATION - MIN_RESPONSE_DURATION) + MIN_RESPONSE_DURATION;
+    setResponses(prev => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        timestamp: time,
+        duration,
+        trackIndex,
+        data: {},
+      },
+    ]);
   }
-
-  // Dots are drawn in Track 2 (middle track)
-  const track2Y = TRACKS_TOP_OFFSET + 1 * (TRACK_HEIGHT + TRACK_GAP);
-  const dotY = track2Y + TRACK_HEIGHT / 2;
 
   // Handler for window size change (easy to move to a hook later)
   const handleWindowDurationChange = (v: number) => {
     setWindowDuration(Math.max(1, Math.min(TOTAL_DURATION, v)));
   };
+
+  // Find active rects (playhead is over them)
+  const activeRectIds = responses.filter(
+    r => playhead >= r.timestamp && playhead <= r.timestamp + r.duration
+  ).map(r => r.id);
 
   return (
     <div style={{ width: CONTAINER_WIDTH, margin: "40px auto", background: "#222", borderRadius: 12, padding: 24 }}>
@@ -170,10 +194,27 @@ export default function ResponseTimeline() {
                   label={`Track ${i + 1}`}
                 />
               ))}
-              {/* Dots in Track 2 */}
-              {dots.map((t, i) => {
-                const x = timeToXWindow({ time: t, windowStart, windowDuration, width: TRACKS_WIDTH });
-                return <Circle key={i} x={x} y={dotY} radius={10} fill="#ffeb3b" stroke="#333" strokeWidth={2} />;
+              {/* Render responses as rectangles in their track, with duration label */}
+              {responses.map((resp) => {
+                const x = timeToXWindow({ time: resp.timestamp, windowStart, windowDuration, width: TRACKS_WIDTH });
+                const y = TRACKS_TOP_OFFSET + resp.trackIndex * (TRACK_HEIGHT + TRACK_GAP) + TRACK_HEIGHT / 2;
+                const rectWidth = (resp.duration / windowDuration) * TRACKS_WIDTH;
+                const isActive = activeRectIds.includes(resp.id);
+                return (
+                  <React.Fragment key={resp.id}>
+                    <Rect
+                      x={x}
+                      y={y - 14}
+                      width={rectWidth}
+                      height={28}
+                      fill={isActive ? "#ff9800" : "#ffeb3b"}
+                      stroke={isActive ? "#ff1744" : "#333"}
+                      strokeWidth={2}
+                      cornerRadius={6}
+                    />
+                    <KonvaText x={x + rectWidth + 6} y={y - 8} text={`dur: ${resp.duration.toFixed(2)}`} fontSize={12} fill="#fffde7" />
+                  </React.Fragment>
+                );
               })}
               {/* Playhead (red dashed line) */}
               <Line
@@ -190,9 +231,15 @@ export default function ResponseTimeline() {
       <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 12, textAlign: "center" }}>
         windowStart: {windowStart.toFixed(2)} | windowEnd: {windowEnd.toFixed(2)} | playhead: {playhead.toFixed(2)}
       </div>
-      {/* Dots debug info */}
+      {/* Responses debug info */}
       <div style={{ color: "#fffde7", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
-        Dots: [{dots.map(t => t.toFixed(2)).join(", ")}]
+        Responses: [
+        {responses.map(r => `{"id":${JSON.stringify(r.id)},"t":${r.timestamp.toFixed(2)},"d":${r.duration.toFixed(2)},"track":${r.trackIndex}}`).join(", ")}
+        ]
+      </div>
+      {/* Active rects debug info */}
+      <div style={{ color: "#ff9800", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
+        Active rects: [{activeRectIds.join(", ")}]
       </div>
       {/* Window size control */}
       <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 16, textAlign: "center" }}>
