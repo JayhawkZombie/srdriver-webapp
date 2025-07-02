@@ -417,6 +417,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                             onSeek={handleSeek}
                             onPlayPause={handlePlayPause}
                             duration={audioBuffer.duration}
+                            width={timelineTrackListWidth - TIMELINE_RIGHT_PAD - TIMELINE_LEFT}
                         />
                     </div>
                 )}

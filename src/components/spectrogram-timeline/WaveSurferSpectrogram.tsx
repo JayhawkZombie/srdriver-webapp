@@ -8,6 +8,7 @@ interface WaveSurferSpectrogramProps {
   onSeek: (time: number) => void;
   onPlayPause: (playing: boolean) => void;
   duration: number;
+  width?: number; // NEW: width in px
 }
 
 // Utility: Convert AudioBuffer to WAV Blob
@@ -63,6 +64,7 @@ const WaveSurferSpectrogram: React.FC<WaveSurferSpectrogramProps> = ({
   onSeek,
   onPlayPause,
   duration,
+  width, // NEW
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
@@ -80,6 +82,7 @@ const WaveSurferSpectrogram: React.FC<WaveSurferSpectrogramProps> = ({
       interact: true,
       backend: 'WebAudio',
       normalize: true,
+      ...(width ? { width } : {}),
     });
     wavesurferRef.current = ws;
     // Convert AudioBuffer to WAV Blob and load
@@ -98,7 +101,7 @@ const WaveSurferSpectrogram: React.FC<WaveSurferSpectrogramProps> = ({
       ws.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioBuffer]);
+  }, [audioBuffer, width]);
 
   // Sync playhead externally
   useEffect(() => {
@@ -123,8 +126,8 @@ const WaveSurferSpectrogram: React.FC<WaveSurferSpectrogramProps> = ({
   }, [isPlaying]);
 
   return (
-    <div style={{ width: '100%', marginBottom: 12 }}>
-      <div ref={containerRef} style={{ width: '100%', height: 128, borderRadius: 12, background: '#181c20' }} />
+    <div style={{ width: width ? width : '100%', marginBottom: 12 }}>
+      <div ref={containerRef} style={{ width: width ? width : '100%', height: 128, borderRadius: 12, background: '#181c20' }} />
     </div>
   );
 };
