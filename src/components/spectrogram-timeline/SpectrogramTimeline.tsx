@@ -10,28 +10,6 @@ const SpectrogramTimeline: React.FC = () => {
   const audioBuffer = useAppStore(state => state.audioData?.analysis?.audioBuffer);
   const fftSequence = useAppStore(state => state.audioData?.analysis?.normalizedFftSequence || state.audioData?.analysis?.fftSequence);
   const loading = useAppStore(state => state.loading);
-  // Use timeline state for playhead and playback
-  // const { playhead, setPlayhead, startPlayhead, stopPlayhead } = useTimelineState({
-  //   defaultTracks: [ { name: 'Bass', type: 'frequency' }, { name: 'Snare', type: 'frequency' }, { name: 'FX', type: 'custom' }, { name: 'Lights', type: 'device' } ],
-  //   duration: audioBuffer ? audioBuffer.duration : 15
-  // });
-  // const [isPlaying, setIsPlaying] = React.useState(false);
-  // // Play/pause handlers
-  // const handlePlayPause = (playing: boolean) => {
-  //   setIsPlaying(playing);
-  //   if (playing) startPlayhead();
-  //   else stopPlayhead();
-  // };
-  // // Seek handler
-  // const handleSeek = (time: number) => {
-  //   setPlayhead(time);
-  // };
-  // // Reset handler
-  // const handleReset = () => {
-  //   setIsPlaying(false);
-  //   stopPlayhead();
-  //   setPlayhead(0);
-  // };
 
   if (!audioBuffer || !fftSequence || fftSequence.length === 0) {
     return (
