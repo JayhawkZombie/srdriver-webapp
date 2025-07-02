@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
-import { Stage, Layer, Line } from "react-konva";
+import { Stage, Layer, Line, Text } from "react-konva";
 import ResponseRect from "./ResponseRect";
 import TrackList from "./TrackList";
 import UnderlayCanvas from "./UnderlayCanvas";
@@ -212,10 +212,23 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
         }
     }, [playhead, timlineTrackListRef, audioBuffer]);
 
-    // Compute windowStart: start at playhead, clamp so window fits in audio
+    // Compute windowStart: keep playhead centered in window except near start/end
     const audioDuration = audioBuffer?.duration || DEFAULT_DURATION;
-    let windowStart = Math.min(playhead, Math.max(0, audioDuration - windowDuration));
+    const minWindowStart = 0;
+    const maxWindowStart = audioDuration - windowDuration;
+    let windowStart = Math.max(
+      minWindowStart,
+      Math.min(
+        playhead - windowDuration / 2,
+        maxWindowStart
+      )
+    );
     windowStart = Math.max(0, windowStart);
+
+    // Compute local playhead position relative to the visible window
+    const localPlayhead = playhead - windowStart;
+    const windowWidth = timelineSize.width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD;
+    const playheadX = (localPlayhead / windowDuration) * windowWidth + TIMELINE_LEFT;
 
   return (
         <div
@@ -537,6 +550,11 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
             onClick={handleStageClick}
           >
             <Layer>
+              <Text
+                x={TIMELINE_LEFT + 10}
+                y={10}
+                text={`playhead: ${playhead.toFixed(2)}, windowStart: ${windowStart.toFixed(2)}, windowDuration: ${windowDuration.toFixed(2)}, playheadX: ${playheadX.toFixed(2)}`}
+              />
               <TimelineGrid
                 width={timelineSize.width}
                 tracks={tracks}
@@ -674,24 +692,10 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
               {/* Draw playhead */}
               <Line
                 points={[
-                                        (playhead <= windowStart + 1e-6)
-                                            ? TIMELINE_LEFT
-                                            : timeToXWindow({
-                                                time: playhead,
-                                                windowStart,
-                                                windowDuration,
-                                                width: timelineSize.width,
-                                            }),
-                                        30,
-                                        (playhead <= windowStart + 1e-6)
-                                            ? TIMELINE_LEFT
-                                            : timeToXWindow({
-                                                time: playhead,
-                                                windowStart,
-                                                windowDuration,
-                                                width: timelineSize.width,
-                                            }),
-                  timelineSize.height - 10,
+                    playheadX,
+                    30,
+                    playheadX,
+                    timelineSize.height - 10,
                 ]}
                 stroke="#ff5252"
                 strokeWidth={2}
