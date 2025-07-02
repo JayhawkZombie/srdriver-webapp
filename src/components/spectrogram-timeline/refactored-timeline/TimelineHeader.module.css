@@ -1,0 +1,22 @@
+.timelineHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 24px;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.spectrogramPlaceholder {
+  background: #222;
+  color: #aaa;
+  border-radius: 4px;
+  padding: 16px 32px;
+  min-width: 240px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-style: italic;
+} 
