@@ -1,12 +1,32 @@
 import React from 'react';
 
-const TimelineControls: React.FC = () => {
+interface TimelineControlsProps {
+  windowDuration: number;
+  setWindowDuration: (val: number) => void;
+  audioDuration: number;
+}
+
+const TimelineControls: React.FC<TimelineControlsProps> = ({
+  windowDuration,
+  setWindowDuration,
+  audioDuration,
+}) => {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '12px 0' }}>
-      <button style={{ padding: '4px 12px', borderRadius: 4 }}>Play</button>
-      <button style={{ padding: '4px 12px', borderRadius: 4 }}>Pause</button>
-      <input type="range" min={0} max={100} style={{ width: 200 }} />
-      <span style={{ color: '#aaa', marginLeft: 8 }}>(Window position)</span>
+      <span style={{ color: '#aaa' }}>Window Size:</span>
+      <input
+        type="range"
+        min={1}
+        max={audioDuration}
+        step={0.1}
+        value={windowDuration}
+        onChange={e => setWindowDuration(Number(e.target.value))}
+        style={{ width: 240 }}
+        disabled={audioDuration <= 1}
+      />
+      <span style={{ color: '#aaa', marginLeft: 8 }}>
+        {windowDuration.toFixed(2)}s
+      </span>
     </div>
   );
 };

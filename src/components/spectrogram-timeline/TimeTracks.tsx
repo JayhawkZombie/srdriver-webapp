@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { Stage, Layer, Line } from "react-konva";
 import ResponseRect from "./ResponseRect";
 import TrackList from "./TrackList";
@@ -14,13 +14,17 @@ import {
     TIMELINE_RIGHT_PAD,
     centerYToTrackIndex,
     trackIndexToRectY,
+    timeToXWindow,
+    xToTimeWindow,
 } from "./timelineMath";
 import BandOverlayCanvas from "./BandOverlayCanvas";
 import WaveSurferSpectrogram from "./WaveSurferSpectrogram";
 import { useAppStore } from "../../store/appStore";
 import { Box, Button } from "@mui/material";
+import TimelineControls from "./TimelineControls";
 
-const DURATION = 15; // seconds
+// Use actual audio duration if available
+const DEFAULT_DURATION = 15;
 const LABEL_WIDTH = 160;
 
 const muiBg = "#21262c";
@@ -36,31 +40,31 @@ const TEMPLATES: {
 }[] = [
     {
         name: "Music-Driven",
-        tracks: [
+    tracks: [
             { name: "Bass", type: "frequency" },
             { name: "Snare", type: "frequency" },
             { name: "FX", type: "frequency" },
             { name: "Lights", type: "device" },
-        ],
-    },
-    {
+    ],
+  },
+  {
         name: "Device-Driven",
-        tracks: [
+    tracks: [
             { name: "Front Wash", type: "device" },
             { name: "Lasers", type: "device" },
             { name: "Strobes", type: "device" },
             { name: "FX", type: "custom" },
-        ],
-    },
-    {
+    ],
+  },
+  {
         name: "Hybrid",
-        tracks: [
+    tracks: [
             { name: "Bass", type: "frequency" },
             { name: "Snare", type: "frequency" },
             { name: "Front Wash", type: "device" },
             { name: "FX", type: "custom" },
-        ],
-    },
+    ],
+  },
 ];
 
 const UNDERLAY_OPTIONS = ["None", "Waveform", "Frequency"] as const;
@@ -78,7 +82,7 @@ const defaultTracks: Track[] = [
 ];
 
 interface TimeTracksProps {
-    audioBuffer: AudioBuffer | null;
+  audioBuffer: AudioBuffer | null;
 }
 
 const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
@@ -87,35 +91,37 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
         (state) => (state.audioData?.analysis?.bandDataArr as BandData[]) || []
     );
     const bandNames = bandDataArr.map((b) => b.band?.name || "Band");
-    const [selectedBandIdx, setSelectedBandIdx] = useState(0);
-    const [dragOverTrack, setDragOverTrack] = useState<number | null>(null);
-    const {
-        responses,
-        playhead,
-        setPlayhead,
+  const [selectedBandIdx, setSelectedBandIdx] = useState(0);
+  const [dragOverTrack, setDragOverTrack] = useState<number | null>(null);
+  const {
+    responses,
+    playhead,
+    setPlayhead,
         startPlayhead,
         stopPlayhead,
-        tracks,
+    tracks,
         editingTrack,
         setEditingTrack,
         editingValue,
         setEditingValue,
         editingType,
         setEditingType,
-        templateIdx,
+    templateIdx,
         underlay,
         setUnderlay,
         timelineContainerRef,
         timelineSize,
-        handleStageClick,
-        handleResize,
-        handleTrackNameChange,
-        handleTrackNameCommit,
-        handleTemplateSelect,
-        setResponses,
+    handleStageClick,
+    handleResize,
+    handleTrackNameChange,
+    handleTrackNameCommit,
+    handleTemplateSelect,
+    setResponses,
+        windowDuration,
+        setWindowDuration,
     } = useTimelineState({
         defaultTracks,
-        duration: DURATION,
+        duration: audioBuffer?.duration || DEFAULT_DURATION,
         trackHeight: TRACK_HEIGHT,
         trackGap: TRACK_GAP,
     });
@@ -135,44 +141,45 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
         setPlayhead(time);
     };
     // Reset handler
-    const handleReset = () => {
+  const handleReset = () => {
         setIsPlaying(false);
         stopPlayhead();
-        setPlayhead(0);
-    };
+    setPlayhead(0);
+  };
 
-    // Drag-to-move handler (still local, but updates global state)
-    const handleResponseMove = (idx: number, newX: number, newY: number) => {
-        const newTrack = centerYToTrackIndex(newY, tracks.length);
-        setDragOverTrack(newTrack);
-        // Don't update state here, only onMoveEnd
-    };
-    const handleResponseMoveEnd = (idx: number, newX: number, newY: number) => {
-        const duration = responses[idx].end - responses[idx].start;
+  // Drag-to-move handler (still local, but updates global state)
+  const handleResponseMove = (idx: number, newX: number, newY: number) => {
+    const newTrack = centerYToTrackIndex(newY, tracks.length);
+    setDragOverTrack(newTrack);
+    // Don't update state here, only onMoveEnd
+  };
+  const handleResponseMoveEnd = (idx: number, newX: number, newY: number) => {
+    const duration = responses[idx].end - responses[idx].start;
+        const totalDuration = audioBuffer?.duration || DEFAULT_DURATION;
         let newStart = xToTime({
             x: newX,
-            duration: DURATION,
+            duration: totalDuration,
             width: timelineSize.width,
         });
-        newStart = Math.max(0, Math.min(DURATION - duration, newStart));
-        const newTrack = centerYToTrackIndex(newY, tracks.length);
-        setDragOverTrack(null);
+        newStart = Math.max(0, Math.min(totalDuration - duration, newStart));
+    const newTrack = centerYToTrackIndex(newY, tracks.length);
+    setDragOverTrack(null);
         if (typeof setResponses === "function") {
-            setResponses((prev: typeof responses) => {
-                const updated = prev.map((resp, i) =>
-                    i === idx
-                        ? {
-                              ...resp,
-                              start: newStart,
-                              end: newStart + duration,
-                              track: newTrack,
-                          }
-                        : resp
-                );
-                return updated;
-            });
-        }
-    };
+      setResponses((prev: typeof responses) => {
+        const updated = prev.map((resp, i) =>
+          i === idx
+            ? {
+                ...resp,
+                start: newStart,
+                end: newStart + duration,
+                track: newTrack,
+              }
+            : resp
+        );
+        return updated;
+      });
+    }
+  };
 
     const timelineTrackListWidth = useMemo(() => {
         if (timlineTrackListRef.current) {
@@ -188,7 +195,29 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
         return 0;
     }, [timelineTrackLabelsRef]);
 
-    return (
+    // Auto-scroll timeline horizontally to keep playhead in view
+    useEffect(() => {
+        if (!timlineTrackListRef.current) return;
+        const container = timlineTrackListRef.current;
+        const duration = audioBuffer?.duration || DEFAULT_DURATION;
+        const playheadX = timeToX({
+            time: playhead,
+            duration,
+            width: container.scrollWidth,
+        });
+        const containerWidth = container.clientWidth;
+        // If playhead is outside the visible area, scroll to center it
+        if (playheadX < container.scrollLeft || playheadX > container.scrollLeft + containerWidth - 40) {
+            container.scrollLeft = Math.max(0, playheadX - containerWidth / 2);
+        }
+    }, [playhead, timlineTrackListRef, audioBuffer]);
+
+    // Compute windowStart: start at playhead, clamp so window fits in audio
+    const audioDuration = audioBuffer?.duration || DEFAULT_DURATION;
+    let windowStart = Math.min(playhead, Math.max(0, audioDuration - windowDuration));
+    windowStart = Math.max(0, windowStart);
+
+  return (
         <div
             style={{
                 position: "relative",
@@ -196,20 +225,25 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 height: "auto",
                 maxHeight: "94vh",
                 overflow: "auto",
-                background: muiBg,
-                borderRadius: 18,
-                boxShadow: `0 4px 48px ${muiShadow}`,
-                padding: 56,
-                color: muiText,
+      background: muiBg,
+      borderRadius: 18,
+      boxShadow: `0 4px 48px ${muiShadow}`,
+      padding: 56,
+      color: muiText,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "flex-start",
             }}
         >
-            <h3 style={{ color: muiAccent, marginTop: 0 }}>Timeline</h3>
-            {/* Band selector toggle */}
-            {bandNames.length > 0 && (
+            <TimelineControls
+                windowDuration={windowDuration}
+                setWindowDuration={setWindowDuration}
+                audioDuration={audioDuration}
+            />
+      <h3 style={{ color: muiAccent, marginTop: 0 }}>Timeline</h3>
+      {/* Band selector toggle */}
+      {bandNames.length > 0 && (
                 <div
                     style={{
                         marginBottom: 12,
@@ -221,13 +255,13 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                     <span style={{ fontWeight: 600, color: muiAccent }}>
                         Band Overlay:
                     </span>
-                    {bandNames.map((name, idx) => (
-                        <button
-                            key={name}
-                            onClick={() => setSelectedBandIdx(idx)}
-                            style={{
-                                marginRight: 6,
-                                borderRadius: 6,
+          {bandNames.map((name, idx) => (
+            <button
+              key={name}
+              onClick={() => setSelectedBandIdx(idx)}
+              style={{
+                marginRight: 6,
+                borderRadius: 6,
                                 background:
                                     selectedBandIdx === idx
                                         ? muiAccent
@@ -236,20 +270,20 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                     selectedBandIdx === idx ? muiBg : muiText,
                                 border: "none",
                                 padding: "4px 14px",
-                                fontWeight: 600,
+                fontWeight: 600,
                                 cursor: "pointer",
                                 outline:
                                     selectedBandIdx === idx
                                         ? `2px solid ${muiAccent}`
                                         : "none",
-                            }}
-                        >
-                            {name}
-                        </button>
-                    ))}
-                </div>
-            )}
-            {/* Template selector */}
+              }}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Template selector */}
             <div
                 style={{
                     marginBottom: 12,
@@ -261,31 +295,31 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 <span style={{ fontWeight: 600, color: muiAccent }}>
                     Template:
                 </span>
-                {TEMPLATES.map((tpl, idx) => (
-                    <button
-                        key={tpl.name}
-                        onClick={() => handleTemplateSelect(idx, TEMPLATES)}
-                        style={{
-                            marginRight: 6,
-                            borderRadius: 6,
+        {TEMPLATES.map((tpl, idx) => (
+          <button
+            key={tpl.name}
+            onClick={() => handleTemplateSelect(idx, TEMPLATES)}
+            style={{
+              marginRight: 6,
+              borderRadius: 6,
                             background:
                                 templateIdx === idx ? muiAccent : "#b0bec5",
-                            color: templateIdx === idx ? muiBg : muiText,
+              color: templateIdx === idx ? muiBg : muiText,
                             border: "none",
                             padding: "4px 14px",
-                            fontWeight: 600,
+              fontWeight: 600,
                             cursor: "pointer",
                             outline:
                                 templateIdx === idx
                                     ? `2px solid ${muiAccent}`
                                     : "none",
-                        }}
-                    >
-                        {tpl.name}
-                    </button>
-                ))}
-            </div>
-            {/* Underlay toggle */}
+            }}
+          >
+            {tpl.name}
+          </button>
+        ))}
+      </div>
+      {/* Underlay toggle */}
             <div
                 style={{
                     marginBottom: 12,
@@ -297,30 +331,30 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 <span style={{ fontWeight: 600, color: muiAccent }}>
                     Underlay:
                 </span>
-                {UNDERLAY_OPTIONS.map((opt: UnderlayType) => (
-                    <button
-                        key={opt}
-                        onClick={() => setUnderlay(opt)}
-                        style={{
-                            marginRight: 6,
-                            borderRadius: 6,
+        {UNDERLAY_OPTIONS.map((opt: UnderlayType) => (
+          <button
+            key={opt}
+            onClick={() => setUnderlay(opt)}
+            style={{
+              marginRight: 6,
+              borderRadius: 6,
                             background:
                                 underlay === opt ? muiAccent : "#b0bec5",
-                            color: underlay === opt ? muiBg : muiText,
+              color: underlay === opt ? muiBg : muiText,
                             border: "none",
                             padding: "4px 14px",
-                            fontWeight: 600,
+              fontWeight: 600,
                             cursor: "pointer",
                             outline:
                                 underlay === opt
                                     ? `2px solid ${muiAccent}`
                                     : "none",
-                        }}
-                    >
-                        {opt}
-                    </button>
-                ))}
-            </div>
+            }}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
             {/* Playback controls */}
             <Box
                 sx={{
@@ -386,20 +420,20 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                         />
                     </div>
                 )}
-                <div
-                    ref={timelineContainerRef}
-                    style={{
+      <div
+        ref={timelineContainerRef}
+        style={{
                         display: "flex",
                         flexDirection: "row",
                         alignItems: "flex-start",
                         width: "100%",
-                        height: timelineSize.height,
-                        background: muiBg,
-                        borderRadius: 16,
-                        boxShadow: `0 2px 24px ${muiShadow}`,
-                    }}
-                >
-                    {/* Track labels column */}
+          height: timelineSize.height,
+          background: muiBg,
+          borderRadius: 16,
+          boxShadow: `0 2px 24px ${muiShadow}`,
+        }}
+      >
+        {/* Track labels column */}
                     <div
                         ref={timelineTrackLabelsRef}
                         style={{
@@ -413,29 +447,29 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                             height: "100%",
                         }}
                     >
-                        <TrackList
-                            tracks={tracks}
-                            editingTrack={editingTrack}
-                            editingValue={editingValue}
-                            editingType={editingType}
+          <TrackList
+            tracks={tracks}
+            editingTrack={editingTrack}
+            editingValue={editingValue}
+            editingType={editingType}
                             onEdit={(i) => {
-                                setEditingTrack(i);
-                                setEditingValue(tracks[i].name);
-                                setEditingType(tracks[i].type);
-                            }}
-                            onEditCommit={handleTrackNameCommit}
-                            onEditChange={handleTrackNameChange}
+              setEditingTrack(i);
+              setEditingValue(tracks[i].name);
+              setEditingType(tracks[i].type);
+            }}
+            onEditCommit={handleTrackNameCommit}
+            onEditChange={handleTrackNameChange}
                             onTypeChange={(e) =>
                                 setEditingType(e.target.value as TrackType)
                             }
-                        />
-                    </div>
-                    {/* Timeline Stage with underlay canvas absolutely positioned */}
+          />
+        </div>
+        {/* Timeline Stage with underlay canvas absolutely positioned */}
                     <div
                         ref={timlineTrackListRef}
                         style={{
-                            flex: 1,
-                            minWidth: 400,
+          flex: 1,
+          minWidth: 400,
                             position: "relative",
                             overflow: "hidden",
                             height: "100%",
@@ -444,7 +478,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                             flexDirection: "column",
                         }}
                     >
-                        {/* Underlay canvas */}
+          {/* Underlay canvas */}
                         <div
                             style={{
                                 position: "absolute",
@@ -457,40 +491,40 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                 pointerEvents: "none",
                             }}
                         >
-                            <UnderlayCanvas
-                                type={underlay}
+            <UnderlayCanvas
+              type={underlay}
                                 width={
                                     timelineSize.width -
                                     TIMELINE_LEFT -
                                     TIMELINE_RIGHT_PAD
                                 }
-                                height={timelineSize.height - 40}
+              height={timelineSize.height - 40}
                                 audioData={
                                     audioBuffer
                                         ? audioBuffer.getChannelData(0)
                                         : undefined
                                 }
-                            />
-                            {/* Band overlay canvas */}
-                            {bandDataArr[selectedBandIdx]?.magnitudes && (
-                                <BandOverlayCanvas
+            />
+            {/* Band overlay canvas */}
+            {bandDataArr[selectedBandIdx]?.magnitudes && (
+              <BandOverlayCanvas
                                     magnitudes={
                                         bandDataArr[selectedBandIdx].magnitudes
                                     }
-                                    playhead={playhead}
-                                    duration={DURATION}
+                playhead={playhead}
+                                    duration={audioBuffer?.duration || DEFAULT_DURATION}
                                     width={
                                         timelineSize.width -
                                         TIMELINE_LEFT -
                                         TIMELINE_RIGHT_PAD
                                     }
-                                    height={timelineSize.height - 40}
-                                />
-                            )}
-                        </div>
-                        <Stage
-                            width={timelineSize.width}
-                            height={timelineSize.height}
+                height={timelineSize.height - 40}
+              />
+            )}
+          </div>
+          <Stage
+            width={timelineSize.width}
+            height={timelineSize.height}
                             style={{
                                 background: "none",
                                 borderRadius: 10,
@@ -499,20 +533,21 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                 position: "relative",
                                 zIndex: 1,
                             }}
-                            onClick={handleStageClick}
-                        >
-                            <Layer>
-                                <TimelineGrid
-                                    width={timelineSize.width}
-                                    tracks={tracks}
-                                    duration={DURATION}
-                                    muiText={muiText}
-                                    muiShadow={muiShadow}
-                                    dragOverTrack={dragOverTrack}
-                                />
-                                {/* Draw responses */}
-                                {(() => {
-                                    const validResponses = responses.filter(
+            onClick={handleStageClick}
+          >
+            <Layer>
+              <TimelineGrid
+                width={timelineSize.width}
+                tracks={tracks}
+                muiText={muiText}
+                muiShadow={muiShadow}
+                dragOverTrack={dragOverTrack}
+                                    windowStart={windowStart}
+                                    windowDuration={windowDuration}
+              />
+              {/* Draw responses */}
+              {(() => {
+                const validResponses = responses.filter(
                                         (resp) =>
                                             Number.isFinite(resp.start) &&
                                             Number.isFinite(resp.end) &&
@@ -532,29 +567,31 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                                     !validResponses.includes(r)
                                             )
                                         );
-                                    }
-                                    return validResponses.map((resp, idx) => {
-                                        const y = trackIndexToRectY(resp.track);
-                                        const x1 = timeToX({
+                }
+                return validResponses.map((resp, idx) => {
+                  const y = trackIndexToRectY(resp.track);
+                                        const x1 = timeToXWindow({
                                             time: resp.start,
-                                            duration: DURATION,
+                                            windowStart,
+                                            windowDuration,
                                             width: timelineSize.width,
                                         });
-                                        const x2 = timeToX({
+                                        const x2 = timeToXWindow({
                                             time: resp.end,
-                                            duration: DURATION,
+                                            windowStart,
+                                            windowDuration,
                                             width: timelineSize.width,
                                         });
-                                        return (
-                                            <ResponseRect
-                                                key={idx}
-                                                x1={x1}
-                                                x2={x2}
-                                                y={y}
-                                                fill={muiAccent}
-                                                shadowColor={muiShadow}
-                                                shadowBlur={4}
-                                                cornerRadius={4}
+                  return (
+                    <ResponseRect
+                      key={idx}
+                      x1={x1}
+                      x2={x2}
+                      y={y}
+                      fill={muiAccent}
+                      shadowColor={muiShadow}
+                      shadowBlur={4}
+                      cornerRadius={4}
                                                 onResizeLeft={(newStart) => {
                                                     if (
                                                         Math.abs(
@@ -563,7 +600,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                                         ) > 1e-4 &&
                                                         newStart <
                                                             resp.end - 0.1 &&
-                                                        newStart >= 0
+                                                        newStart >= windowStart
                                                     ) {
                                                         handleResize(
                                                             idx,
@@ -579,7 +616,9 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                                         ) > 1e-4 &&
                                                         newEnd >
                                                             resp.start + 0.1 &&
-                                                        newEnd <= DURATION
+                                                        newEnd <=
+                                                            windowStart +
+                                                                windowDuration
                                                     ) {
                                                         handleResize(
                                                             idx,
@@ -601,13 +640,14 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                                     });
                                                 }}
                                                 xToTime={(x) =>
-                                                    xToTime({
+                                                    xToTimeWindow({
                                                         x,
-                                                        duration: DURATION,
+                                                        windowStart,
+                                                        windowDuration,
                                                         width: timelineSize.width,
                                                     })
                                                 }
-                                                minX={TIMELINE_LEFT}
+                      minX={TIMELINE_LEFT}
                                                 maxX={
                                                     timelineSize.width -
                                                     TIMELINE_RIGHT_PAD
@@ -626,34 +666,40 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                                         newY
                                                     )
                                                 }
-                                            />
-                                        );
-                                    });
-                                })()}
-                                {/* Draw playhead */}
-                                <Line
-                                    points={[
-                                        timeToX({
-                                            time: playhead,
-                                            duration: DURATION,
-                                            width: timelineSize.width,
-                                        }),
+                    />
+                  );
+                });
+              })()}
+              {/* Draw playhead */}
+              <Line
+                points={[
+                                        (playhead <= windowStart + 1e-6)
+                                            ? TIMELINE_LEFT
+                                            : timeToXWindow({
+                                                time: playhead,
+                                                windowStart,
+                                                windowDuration,
+                                                width: timelineSize.width,
+                                            }),
                                         30,
-                                        timeToX({
-                                            time: playhead,
-                                            duration: DURATION,
-                                            width: timelineSize.width,
-                                        }),
-                                        timelineSize.height - 10,
-                                    ]}
-                                    stroke="#ff5252"
-                                    strokeWidth={2}
-                                    dash={[8, 6]}
-                                />
-                            </Layer>
-                        </Stage>
-                    </div>
-                </div>
+                                        (playhead <= windowStart + 1e-6)
+                                            ? TIMELINE_LEFT
+                                            : timeToXWindow({
+                                                time: playhead,
+                                                windowStart,
+                                                windowDuration,
+                                                width: timelineSize.width,
+                                            }),
+                  timelineSize.height - 10,
+                ]}
+                stroke="#ff5252"
+                strokeWidth={2}
+                dash={[8, 6]}
+              />
+            </Layer>
+          </Stage>
+        </div>
+      </div>
             </Box>
             <div style={{ color: "#b0bec5", marginTop: 12, fontSize: 15 }}>
                 <p>
@@ -665,9 +711,9 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                     Use the Underlay toggle above to preview how a waveform or
                     frequency plot would look beneath your timeline.
                 </p>
-            </div>
-        </div>
-    );
+      </div>
+    </div>
+  );
 };
 
-export default TimeTracks;
+export default TimeTracks; 

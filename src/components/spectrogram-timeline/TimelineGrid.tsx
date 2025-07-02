@@ -1,6 +1,6 @@
 import React from "react";
 import { Line, Rect, Text, Group } from "react-konva";
-import { TRACK_HEIGHT, trackIndexToRectY } from "./timelineMath";
+import { TRACK_HEIGHT, trackIndexToRectY, timeToXWindow } from "./timelineMath";
 
 interface Track {
     name: string;
@@ -9,22 +9,26 @@ interface Track {
 
 interface TimelineGridProps {
     width: number;
-    // height: number; // unused
     tracks: Track[];
-    duration: number;
     muiText: string;
     muiShadow: string;
     dragOverTrack?: number | null;
+    windowStart: number;
+    windowDuration: number;
 }
 
 const TimelineGrid: React.FC<TimelineGridProps> = ({
     width,
     tracks,
-    duration,
     muiText,
     muiShadow,
     dragOverTrack,
+    windowStart,
+    windowDuration,
 }) => {
+    // Only show ticks for the visible window
+    const startTick = Math.ceil(windowStart);
+    const endTick = Math.floor(windowStart + windowDuration);
     return (
         <Group>
             {/* Timeline axis */}
@@ -33,11 +37,18 @@ const TimelineGrid: React.FC<TimelineGridProps> = ({
                 stroke={muiText}
                 strokeWidth={2}
             />
-            {/* Time ticks */}
-            {Array.from({ length: duration + 1 }).map((_, i) => {
-                const tickX = 50 + (width - 60) * (i / duration);
+            {/* Time ticks for window */}
+            {Array.from({ length: endTick - startTick + 1 }).map((_, i) => {
+                const t = startTick + i;
+                if (t < windowStart || t > windowStart + windowDuration) return null;
+                const tickX = timeToXWindow({
+                    time: t,
+                    windowStart,
+                    windowDuration,
+                    width,
+                });
                 return (
-                    <Group key={i}>
+                    <Group key={t}>
                         <Line
                             points={[tickX, 25, tickX, 35]}
                             stroke={muiText}
@@ -46,7 +57,7 @@ const TimelineGrid: React.FC<TimelineGridProps> = ({
                         <Text
                             x={tickX - 8}
                             y={10}
-                            text={i.toString()}
+                            text={t.toString()}
                             fontSize={12}
                             fill={muiText}
                         />

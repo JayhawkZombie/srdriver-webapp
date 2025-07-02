@@ -44,6 +44,43 @@ export function xToTime({
     );
 }
 
+// Converts time (seconds) to X coordinate within a window
+export function timeToXWindow({
+    time,
+    windowStart,
+    windowDuration,
+    width,
+}: {
+    time: number;
+    windowStart: number;
+    windowDuration: number;
+    width: number;
+}) {
+    return (
+        ((time - windowStart) / windowDuration) * (width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD) +
+        TIMELINE_LEFT
+    );
+}
+
+// Converts X coordinate to time (seconds) within a window
+export function xToTimeWindow({
+    x,
+    windowStart,
+    windowDuration,
+    width,
+}: {
+    x: number;
+    windowStart: number;
+    windowDuration: number;
+    width: number;
+}) {
+    return (
+        ((x - TIMELINE_LEFT) / (width - TIMELINE_LEFT - TIMELINE_RIGHT_PAD)) *
+            windowDuration +
+        windowStart
+    );
+}
+
 // Returns the center Y coordinate for a given track index
 export function trackIndexToCenterY(trackIdx: number) {
     // Track rows start at y=40, each row is TRACK_HEIGHT tall with TRACK_GAP between

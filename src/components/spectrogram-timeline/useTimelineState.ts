@@ -53,6 +53,8 @@ export function useTimelineState({
         width: 800,
         height: 400,
     });
+    const [windowStart, setWindowStart] = useState(0);
+    const [windowDuration, setWindowDuration] = useState(15);
 
     // Dynamically size timeline to fill parent
     useEffect(() => {
@@ -226,6 +228,9 @@ export function useTimelineState({
         setResponses,
         playhead,
         setPlayhead,
+        startPlayhead,
+        stopPlayhead,
+        resetPlayhead,
         tracks,
         setTracks,
         editingTrack,
@@ -236,22 +241,21 @@ export function useTimelineState({
         setEditingType,
         templateIdx,
         setTemplateIdx,
-        animRef,
-        playingRef,
         underlay,
         setUnderlay,
         timelineContainerRef,
         timelineSize,
         setTimelineSize,
-        startPlayhead,
-        stopPlayhead,
-        resetPlayhead,
         xToTimeLocal,
         handleStageClick,
         handleResize,
         handleTrackNameChange,
         handleTrackNameCommit,
         handleTemplateSelect,
+        windowStart,
+        setWindowStart,
+        windowDuration,
+        setWindowDuration,
         trackHeight,
         trackGap,
         defaultResponseDuration,
