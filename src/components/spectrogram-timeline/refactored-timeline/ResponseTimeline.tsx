@@ -2,6 +2,7 @@ import React from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
 import useTimelineState, { type TimelineResponse } from "./useTimelineState";
 import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration } from "./timelineMath";
+import { usePlayback } from "./PlaybackContext";
 
 const LABELS_WIDTH = 200;
 const TRACKS_WIDTH = 800;
@@ -28,7 +29,6 @@ function Track({ y, height, label }: { y: number; height: number; label: string 
 
 export default function ResponseTimeline() {
   const {
-    playhead,
     windowStart,
     windowDuration,
     setWindowDuration,
@@ -37,18 +37,35 @@ export default function ResponseTimeline() {
     totalDuration,
   } = useTimelineState({ totalDuration: 15, initialWindowDuration: 5 });
 
+  // Use global playback context for playhead
+  const { currentTime, setCurrentTime } = usePlayback();
+
+  // Animate playhead (advance currentTime in context)
+  React.useEffect(() => {
+    let raf: number;
+    let start: number | null = null;
+    function animate(ts: number) {
+      if (start === null) start = ts;
+      const elapsed = (ts - start) / 1000;
+      setCurrentTime(Math.min(elapsed, totalDuration));
+      raf = requestAnimationFrame(animate);
+    }
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [setCurrentTime, totalDuration]);
+
   // Playhead X: always at center unless clamped
   let playheadX = TRACKS_WIDTH / 2;
   if (windowStart === 0) {
     playheadX = timeToXWindow({
-      time: playhead,
+      time: currentTime,
       windowStart: 0,
       windowDuration,
       width: TRACKS_WIDTH,
     });
   } else if (windowStart === totalDuration - windowDuration) {
     playheadX = timeToXWindow({
-      time: playhead,
+      time: currentTime,
       windowStart,
       windowDuration,
       width: TRACKS_WIDTH,
@@ -85,7 +102,7 @@ export default function ResponseTimeline() {
 
   // Find active rects (playhead is over them)
   const activeRectIds = responses.filter(
-    r => playhead >= r.timestamp && playhead <= r.timestamp + r.duration
+    r => currentTime >= r.timestamp && currentTime <= r.timestamp + r.duration
   ).map(r => r.id);
 
   return (
@@ -162,7 +179,7 @@ export default function ResponseTimeline() {
         </div>
       </div>
       <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 12, textAlign: "center" }}>
-        windowStart: {windowStart.toFixed(2)} | windowEnd: {(windowStart + windowDuration).toFixed(2)} | playhead: {playhead.toFixed(2)}
+        windowStart: {windowStart.toFixed(2)} | windowEnd: {(windowStart + windowDuration).toFixed(2)} | playhead: {currentTime.toFixed(2)}
       </div>
       <div style={{ color: "#fffde7", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
         Responses: [
