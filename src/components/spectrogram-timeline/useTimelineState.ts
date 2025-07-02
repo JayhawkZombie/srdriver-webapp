@@ -1,13 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
     xToTime,
+    xToTimeWindow,
     TRACK_HEIGHT,
     TRACK_GAP,
-    TIMELINE_LEFT,
-    TIMELINE_RIGHT_PAD,
 } from "./timelineMath";
-
-const LABEL_WIDTH = 160;
 
 export interface ResponseEvent {
     start: number;
@@ -112,33 +109,55 @@ export function useTimelineState({
         [timelineSize.width, duration]
     );
 
-    // Helper to get the left offset for the timeline content (labels + left pad)
-    function getTimelineContentOffset(timelineTrackLabelsRef?: React.RefObject<HTMLDivElement>) {
-        return TIMELINE_LEFT + (timelineTrackLabelsRef?.current?.clientWidth || 0);
-    }
-
     // Click to add response
     const handleStageClick = useCallback(
-        (e: import("konva/lib/Node").KonvaEventObject<PointerEvent>, timelineTrackLabelsRef?: React.RefObject<HTMLDivElement>) => {
+        (
+            e: import("konva/lib/Node").KonvaEventObject<PointerEvent>,
+            timelineTrackLabelsRef: React.RefObject<HTMLDivElement>,
+            windowStart: number,
+            windowDuration: number,
+            timelineTracksOnlyWidth: number,
+            tracksAreaRef: React.RefObject<HTMLDivElement>
+        ) => {
+            console.log('Stage clicked!');
+            console.log('editingTrack:', editingTrack);
+            console.log('tracksAreaRef.current:', tracksAreaRef.current);
             if (editingTrack !== null) return;
-            const stage = e.target.getStage();
-            if (!stage) return;
-            const pointer = stage.getPointerPosition();
-            if (!pointer) return;
-            const { x, y } = pointer;
-            // Calculate the left offset for the timeline content
-            const leftOffset = getTimelineContentOffset(timelineTrackLabelsRef);
-            const timelineX = x - leftOffset;
-            // Only allow clicks within the timeline area
+            if (!tracksAreaRef.current) return;
+            const clientX = e.evt.clientX;
+            const tracksRect = tracksAreaRef.current.getBoundingClientRect();
+            const timelineX = clientX - tracksRect.left;
+            const pointer = e.target.getStage()?.getPointerPosition();
+            const y = pointer ? pointer.y : 0;
+            console.log('handleStageClick debug:', {
+                clientX,
+                tracksRectLeft: tracksRect.left,
+                timelineX,
+                timelineTracksOnlyWidth,
+                windowStart,
+                windowDuration,
+                pointerY: y
+            });
             if (
                 timelineX < 0 ||
-                timelineX > timelineSize.width - LABEL_WIDTH - TIMELINE_LEFT - TIMELINE_RIGHT_PAD
-            )
+                timelineX > timelineTracksOnlyWidth
+            ) {
+                console.log('Click outside timeline X bounds');
                 return;
+            }
+            let added = false;
             for (let i = 0; i < tracks.length; i++) {
                 const top = 40 + i * (trackHeight + trackGap);
-                if (y >= top && y <= top + trackHeight) {
-                    let start = xToTimeLocal(timelineX);
+                const bottom = top + trackHeight;
+                console.log(`Checking track ${i}: y=${y}, top=${top}, bottom=${bottom}`);
+                if (y >= top && y <= bottom) {
+                    let start = xToTimeWindow({
+                        x: timelineX,
+                        windowStart,
+                        windowDuration,
+                        width: timelineTracksOnlyWidth,
+                    });
+                    console.log('Computed start time:', start);
                     start = Math.max(
                         0,
                         Math.min(duration - defaultResponseDuration, start)
@@ -148,15 +167,21 @@ export function useTimelineState({
                         start + defaultResponseDuration
                     );
                     setResponses((prev) => [...prev, { start, end, track: i }]);
+                    console.log(`Added rect: { start: ${start}, end: ${end}, track: ${i} }`);
+                    added = true;
                     break;
                 }
+            }
+            if (!added) {
+                console.log('Click did not hit any track row');
             }
         },
         [
             editingTrack,
             tracks.length,
             duration,
-            xToTimeLocal,
+            windowStart,
+            windowDuration,
             timelineSize.width,
             trackHeight,
             trackGap,

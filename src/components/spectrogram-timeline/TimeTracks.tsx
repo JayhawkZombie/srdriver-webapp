@@ -128,6 +128,7 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
 
     const timlineTrackListRef = useRef<HTMLDivElement>(null);
     const timelineTrackLabelsRef = useRef<HTMLDivElement>(null);
+    const tracksAreaRef = useRef<HTMLDivElement>(null);
 
     const [isPlaying, setIsPlaying] = React.useState(false);
     // Play/pause handlers
@@ -456,10 +457,10 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
       <div
         ref={timelineContainerRef}
         style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        alignItems: "flex-start",
-                        width: "100%",
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "flex-start",
+          width: "100%",
           height: timelineSize.height,
           background: muiBg,
           borderRadius: 16,
@@ -499,17 +500,17 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
         </div>
         {/* Timeline Stage with underlay canvas absolutely positioned */}
                     <div
-                        ref={timlineTrackListRef}
+                        ref={tracksAreaRef}
                         style={{
           flex: 1,
           minWidth: 400,
-                            position: "relative",
-                            overflow: "hidden",
-                            height: "100%",
-                            maxWidth: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                        }}
+          position: "relative",
+          overflow: "hidden",
+          height: "100%",
+          maxWidth: "100%",
+          display: "flex",
+          flexDirection: "column",
+        }}
                     >
           {/* Underlay canvas */}
                         <div
@@ -566,7 +567,14 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 position: "relative",
                 zIndex: 1,
             }}
-            onClick={e => handleStageClick(e as unknown as import("konva/lib/Node").KonvaEventObject<PointerEvent>, timelineTrackLabelsRef)}
+            onClick={e => handleStageClick(
+                e as unknown as import("konva/lib/Node").KonvaEventObject<PointerEvent>,
+                timelineTrackLabelsRef,
+                windowStart,
+                windowDuration,
+                timelineTracksOnlyWidth,
+                tracksAreaRef
+            )}
           >
             <Layer>
               <Text
@@ -575,17 +583,16 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 text={`playhead: ${playhead.toFixed(2)}, windowStart: ${windowStart.toFixed(2)}, windowDuration: ${windowDuration.toFixed(2)}, playheadX: ${playheadX.toFixed(2)}`}
               />
               <TimelineGrid
-                width={timelineSize.width}
+                width={timelineTracksOnlyWidth}
                 tracks={tracks}
                 muiText={muiText}
                 muiShadow={muiShadow}
                 dragOverTrack={dragOverTrack}
-                                    windowStart={windowStart}
-                                    windowDuration={windowDuration}
+                windowStart={windowStart}
+                windowDuration={windowDuration}
               />
               {/* Draw responses */}
               {(() => {
-                console.log("responses", responses);
                 const validResponses = responses.filter(
                                         (resp) =>
                                             Number.isFinite(resp.start) &&
@@ -609,18 +616,18 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                 }
                 return validResponses.map((resp, idx) => {
                   const y = trackIndexToRectY(resp.track);
-                                        const x1 = timeToXWindow({
-                                            time: resp.start,
-                                            windowStart,
-                                            windowDuration,
-                                            width: timelineSize.width,
-                                        });
-                                        const x2 = timeToXWindow({
-                                            time: resp.end,
-                                            windowStart,
-                                            windowDuration,
-                                            width: timelineSize.width,
-                                        });
+                  const x1 = timeToXWindow({
+                    time: resp.start,
+                    windowStart,
+                    windowDuration,
+                    width: timelineTracksOnlyWidth,
+                  });
+                  const x2 = timeToXWindow({
+                    time: resp.end,
+                    windowStart,
+                    windowDuration,
+                    width: timelineTracksOnlyWidth,
+                  });
                   return (
                     <ResponseRect
                       key={idx}
@@ -683,13 +690,12 @@ const TimeTracks: React.FC<TimeTracksProps> = ({ audioBuffer }) => {
                                                         x,
                                                         windowStart,
                                                         windowDuration,
-                                                        width: timelineSize.width,
+                                                        width: timelineTracksOnlyWidth,
                                                     })
                                                 }
                       minX={TIMELINE_LEFT}
                                                 maxX={
-                                                    timelineSize.width -
-                                                    TIMELINE_RIGHT_PAD
+                                                    timelineTracksOnlyWidth
                                                 }
                                                 onMove={(newX, newY) =>
                                                     handleResponseMove(
