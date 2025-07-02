@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState, useCallback } from "react";
 export interface PlaybackState {
   currentTime: number;
   isPlaying: boolean;
+  totalDuration: number;
 }
 
 export interface PlaybackContextValue extends PlaybackState {
@@ -16,12 +17,14 @@ export interface PlaybackContextValue extends PlaybackState {
   // Add more actions as needed
 }
 
+const DEFAULT_TOTAL_DURATION = 15;
+
 const PlaybackContext = createContext<PlaybackContextValue | undefined>(undefined);
 
 /**
  * Provider for global playback state. Wrap your app or timeline/spectrogram root with this.
  */
-export const PlaybackProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDuration?: number }> = ({ children, totalDuration = DEFAULT_TOTAL_DURATION }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -32,6 +35,7 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const value: PlaybackContextValue = {
     currentTime,
     isPlaying,
+    totalDuration,
     setCurrentTime,
     play,
     pause,
