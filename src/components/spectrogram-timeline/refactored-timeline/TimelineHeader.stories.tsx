@@ -6,24 +6,24 @@ import { Box } from "@mui/material";
 import { FakeAudioDataProvider } from "./WaveformAudioDataContext";
 
 export default {
-  title: "RefactoredTimeline/TimelineHeader",
+    title: "RefactoredTimeline/TimelineHeader",
 };
 
 export const Basic = () => (
-    <FakeAudioDataProvider type="sine" length={256}>
-        <PlaybackProvider>
-            <Box
-                sx={{
-                    width: "800px",
-                    height: "200px",
-                    margin: "0 0",
-                    background: "#42f5bf",
-                    padding: "1rem",
-                    minHeight: 120,
-                }}
-            >
+    <Box
+        sx={{
+            width: "800px",
+            height: "300px",
+            margin: "0 0",
+            background: "#00fca8",
+            padding: "1rem",
+            minHeight: 120,
+        }}
+    >
+        <FakeAudioDataProvider type="sine" length={256}>
+            <PlaybackProvider>
                 <TimelineHeader />
-            </Box>
-        </PlaybackProvider>
-    </FakeAudioDataProvider>
+            </PlaybackProvider>
+        </FakeAudioDataProvider>
+    </Box>
 );
