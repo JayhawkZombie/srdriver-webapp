@@ -1,22 +1,45 @@
-.timelineHeader {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 24px;
+.main {
+  position: relative;
   width: 100%;
-  padding: 8px 0;
+  min-width: 320px;
+  max-width: 900px;
+  height: 100%;
+  min-height: 150px;
+  max-height: 400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  background: #fffb00;
+  padding: 1rem;
+  /* Remove flex, use stacking */
 }
 
-.spectrogramPlaceholder {
-  background: #222;
+.controlsOverlay {
+  position: relative;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+}
+
+.waveformOverlay {
+    position: relative;
+  background: #ff17f3;
   color: #aaa;
   border-radius: 4px;
-  padding: 16px 32px;
+  padding: 1rem 1rem;
   min-width: 240px;
-  min-height: 48px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
   font-style: italic;
-} 
+}

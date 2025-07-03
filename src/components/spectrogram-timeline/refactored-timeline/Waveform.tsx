@@ -1,4 +1,5 @@
 import React from "react";
+import { getPeakIndex } from "./audioMath";
 
 export interface WaveformProps {
   data: number[]; // amplitudes, -1 to 1
@@ -18,14 +19,7 @@ const Waveform: React.FC<WaveformProps> = ({ data, width, height, showPeakTrace 
   }).join(' ');
 
   // Find peak (max abs amplitude)
-  let peakIdx = 0;
-  let peakVal = Math.abs(data[0] || 0);
-  for (let i = 1; i < data.length; i++) {
-    if (Math.abs(data[i]) > peakVal) {
-      peakVal = Math.abs(data[i]);
-      peakIdx = i;
-    }
-  }
+  const peakIdx = getPeakIndex(data);
   const peakX = (peakIdx / (len - 1)) * width;
   const peakY = height / 2 - (data[peakIdx] * (height / 2));
 
