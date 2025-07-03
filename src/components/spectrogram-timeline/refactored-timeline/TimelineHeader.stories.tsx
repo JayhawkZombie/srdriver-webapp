@@ -1,7 +1,6 @@
 import React from "react";
 import TimelineHeader from "./TimelineHeader";
 import { PlaybackProvider } from "./PlaybackContext";
-import { usePlaybackAutoAdvance } from "../../../hooks/usePlaybackAutoAdvance";
 import { Box } from "@mui/material";
 import { FakeAudioDataProvider } from "./WaveformAudioDataContext";
 
