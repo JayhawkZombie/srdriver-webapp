@@ -40,6 +40,16 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
   };
 }
 
+// --- Timeline types ---
+export interface TimelineResponse {
+  id: string;
+  timestamp: number;
+  duration: number;
+  trackIndex: number;
+  data: Record<string, any>;
+  triggered: boolean;
+}
+
 // --- Grouped Zustand store ---
 export interface AudioDataMetadata {
   fileName: string;
@@ -88,6 +98,9 @@ export interface AppState {
   };
   playback: PlaybackState;
   ui: UIState;
+  timeline: {
+    responses: TimelineResponse[];
+  };
   // Add other groups as needed
 }
 
@@ -114,9 +127,16 @@ const initialUI: UIState = {
   onlySustained: false,
   showDetectionFunction: false,
 };
+const initialTimeline = {
+  responses: [],
+};
 
 export const useAppStore = create<AppState & {
   setAudioData: (data: { waveform: number[]; duration: number }) => void;
+  addTimelineResponse: (resp: TimelineResponse) => void;
+  updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => void;
+  deleteTimelineResponse: (id: string) => void;
+  setTimelineResponses: (responses: TimelineResponse[]) => void;
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -125,6 +145,7 @@ export const useAppStore = create<AppState & {
     },
     playback: initialPlayback,
     ui: initialUI,
+    timeline: initialTimeline,
     setAudioData: ({ waveform, duration }) => {
       set((state) => ({
         audio: {
@@ -141,5 +162,36 @@ export const useAppStore = create<AppState & {
         },
       }));
     },
+    addTimelineResponse: (resp) => set(state => ({
+      timeline: {
+        ...state.timeline,
+        responses: [...state.timeline.responses, resp],
+      },
+    })),
+    updateTimelineResponse: (id, update) => set(state => ({
+      timeline: {
+        ...state.timeline,
+        responses: state.timeline.responses.map(r => r.id === id ? { ...r, ...update } : r),
+      },
+    })),
+    deleteTimelineResponse: (id) => set(state => ({
+      timeline: {
+        ...state.timeline,
+        responses: state.timeline.responses.filter(r => r.id !== id),
+      },
+    })),
+    setTimelineResponses: (responses) => set(state => ({
+      timeline: {
+        ...state.timeline,
+        responses,
+      },
+    })),
   }))
-); 
+);
+
+// --- Timeline selectors/hooks ---
+export const useTimelineResponses = () => useAppStore(state => state.timeline.responses);
+export const useAddTimelineResponse = () => useAppStore(state => state.addTimelineResponse);
+export const useUpdateTimelineResponse = () => useAppStore(state => state.updateTimelineResponse);
+export const useDeleteTimelineResponse = () => useAppStore(state => state.deleteTimelineResponse);
+export const useSetTimelineResponses = () => useAppStore(state => state.setTimelineResponses); 

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
 import { ResponseRect } from './ResponseRect';
+import { useTimelinePointerHandler } from './useTimelinePointerHandler';
 import TimelineContextMenu, { type TimelineMenuAction } from './TimelineContextMenu';
 import type { ResponseRectProps } from './ResponseRect';
 
@@ -15,7 +16,7 @@ export default {
   component: ResponseRect,
 };
 
-export const MinimalWorking = () => {
+export const FullInteractive = () => {
   const [rects, setRects] = useState([
     { id: 'rect1', timestamp: 1, duration: 2, trackIndex: 0, color: randomColor(), borderColor: '#fff' },
     { id: 'rect2', timestamp: 2.5, duration: 1.2, trackIndex: 0, color: randomColor(), borderColor: '#fff' },
@@ -91,6 +92,22 @@ export const MinimalWorking = () => {
     });
   };
 
+  // Move and resize logic for rects
+  const handleRectMove = (id: string, { timestamp, trackIndex }: { timestamp: number; trackIndex: number }) => {
+    setRects(rects => rects.map(r => r.id === id ? { ...r, timestamp, trackIndex } : r));
+  };
+  const handleRectResize = (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => {
+    setRects(rects => rects.map(r => r.id === id ? { ...r, timestamp: edge === 'start' ? newTimestamp : r.timestamp, duration: newDuration } : r));
+  };
+
+  // Use pointer handler for rects only
+  const pointerHandler = useTimelinePointerHandler({
+    ...geometry,
+    responses: rects,
+    onRectMove: handleRectMove,
+    onRectResize: handleRectResize,
+  });
+
   const rectActions = [
     {
       key: 'delete',
@@ -148,16 +165,20 @@ export const MinimalWorking = () => {
             const y = geometry.tracksTopOffset + rect.trackIndex * (geometry.trackHeight + geometry.trackGap) + geometry.trackHeight / 2 - 16;
             const width = (rect.duration / geometry.windowDuration) * geometry.tracksWidth;
             const height = 32;
+            const rectProps: ResponseRectProps = {
+              x,
+              y,
+              width,
+              height,
+              color: rect.color,
+              borderColor: rect.borderColor,
+              ...pointerHandler.getRectProps(rect.id),
+              onContextMenu: (e: any) => handleRectContextMenu(rect, e),
+            };
             return (
               <ResponseRect
                 key={rect.id}
-                x={x}
-                y={y}
-                width={width}
-                height={height}
-                color={rect.color}
-                borderColor={rect.borderColor}
-                onContextMenu={e => handleRectContextMenu(rect, e)}
+                {...rectProps}
               />
             );
           })}

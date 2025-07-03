@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
-import useTimelineState, { type TimelineResponse } from "./useTimelineState";
 import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration, getTimelinePointerInfo } from "./timelineMath";
 import type { TimelineGeometry } from "./timelineMath";
 import { usePlayback } from "./PlaybackContext";
@@ -10,15 +9,21 @@ import TracksColumn from "./TracksColumn";
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import DebugInfo from "./DebugInfo";
 import TimelineContextMenu from "./TimelineContextMenu";
+import type { TimelineMenuAction } from "./TimelineContextMenu";
+import type { TimelineResponse } from "../../../store/appStore";
+import {
+  useTimelineResponses,
+  useAddTimelineResponse,
+  useUpdateTimelineResponse,
+  useSetTimelineResponses,
+} from "../../../store/appStore";
 
-export default function ResponseTimeline() {
-  const {
-    responses,
-    addResponse,
-    totalDuration,
-    markResponsesTriggeredByPlayhead,
-    resetAllTriggered,
-  } = useTimelineState({ totalDuration: 15 });
+export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAction[] }) {
+  const responses = useTimelineResponses();
+  const addTimelineResponse = useAddTimelineResponse();
+  const updateTimelineResponse = useUpdateTimelineResponse();
+  const setTimelineResponses = useSetTimelineResponses();
+  const totalDuration = 15; // TODO: wire to global playback if needed
 
   // Responsive sizing for tracks area only
   const aspectRatio = 16 / 5;
@@ -45,13 +50,25 @@ export default function ResponseTimeline() {
     setWindowStart(newWindowStart);
   }, [currentTime, windowDuration, totalDuration]);
 
+  // Mark responses as triggered by playhead (global update)
   useEffect(() => {
+    if (responses.length === 0) return;
+    let changed = false;
+    let newResponses;
     if (currentTime === 0) {
-      resetAllTriggered();
+      newResponses = responses.map(r => {
+        if (r.triggered) changed = true;
+        return r.triggered ? { ...r, triggered: false } : r;
+      });
     } else {
-      markResponsesTriggeredByPlayhead(currentTime);
+      newResponses = responses.map(r => {
+        const shouldBeTriggered = currentTime >= r.timestamp && currentTime < r.timestamp + r.duration;
+        if (shouldBeTriggered !== r.triggered) changed = true;
+        return shouldBeTriggered !== r.triggered ? { ...r, triggered: shouldBeTriggered } : r;
+      });
     }
-  }, [currentTime, markResponsesTriggeredByPlayhead, resetAllTriggered]);
+    if (changed) setTimelineResponses(newResponses);
+  }, [currentTime, responses, setTimelineResponses]);
 
   // Ticks/grid lines
   const majorTickEvery = 1;
@@ -64,27 +81,20 @@ export default function ResponseTimeline() {
   }
 
   // Click handler for tracks area
-  function handleTracksClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    const bounding = e.currentTarget.getBoundingClientRect();
-    const pointerInfo = getTimelinePointerInfo({
-      pointerX: e.clientX,
-      pointerY: e.clientY,
-      boundingRect: bounding,
-      windowStart,
-      windowDuration,
-      tracksWidth: tracksWidth,
-      tracksTopOffset,
-      trackHeight,
-      trackGap,
-      numTracks,
-      totalDuration,
-    });
-    if (!pointerInfo) return;
-    const { time, trackIndex } = pointerInfo;
+  function handleTracksClick(info: any, e: any) {
+    // info already has time, trackIndex, etc.
+    const { time, trackIndex } = info;
     let duration = Math.random() * (3.0 - 0.1) + 0.1;
     duration = clampResponseDuration(time, duration, totalDuration, 0.1);
     if (duration === 0) return;
-    addResponse(time, duration, trackIndex, {});
+    addTimelineResponse({
+      id: crypto.randomUUID(),
+      timestamp: time,
+      duration,
+      trackIndex,
+      data: {},
+      triggered: false,
+    });
   }
 
   // Find active rects (playhead is over them)
@@ -123,11 +133,12 @@ export default function ResponseTimeline() {
   } = useTimelinePointerHandler({
     ...geometry,
     responses,
+    onBackgroundClick: handleTracksClick,
     onContextMenu: (info, event) => {
       // Latch all relevant info at the moment the menu is opened
       let responseData = null;
-      if (pointerState.hoveredResponseId) {
-        const resp = responses.find(r => r.id === pointerState.hoveredResponseId);
+      if (pointerState.hoveredId) {
+        const resp = responses.find(r => r.id === pointerState.hoveredId);
         if (resp) {
           responseData = {
             responseId: resp.id,
@@ -183,7 +194,6 @@ export default function ResponseTimeline() {
         >
           <div
             style={{ width: "100%", aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
-            onClick={handleTracksClick}
             {...getTrackAreaProps()}
           >
             <TracksColumn
@@ -199,8 +209,8 @@ export default function ResponseTimeline() {
               windowStart={windowStart}
               windowDuration={windowDuration}
               playheadX={playheadX}
-              hoveredTrackIndex={pointerState.hoveredTrackIndex}
-              hoveredResponseId={pointerState.hoveredResponseId}
+              hoveredTrackIndex={null}
+              hoveredResponseId={pointerState.hoveredId}
               onContextMenu={handleTracksContextMenu}
             />
           </div>
@@ -212,14 +222,13 @@ export default function ResponseTimeline() {
           info={contextMenuInfo}
           onClose={closeContextMenu}
           menuRef={contextMenuRef}
-          actions={[
+          actions={actions && actions.length > 0 ? actions : [
             {
               key: "log",
               text: "Log Info to Console",
               icon: "console",
               onClick: (info) => console.log("Clicked action with info:", info),
             },
-            // Add more actions here!
           ]}
         />
       </div>
