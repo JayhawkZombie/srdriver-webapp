@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
 import useTimelineState, { type TimelineResponse } from "./useTimelineState";
-import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration } from "./timelineMath";
+import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration, getTimelinePointerInfo } from "./timelineMath";
 import { usePlayback } from "./PlaybackContext";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import Track from "./Track";
@@ -62,13 +62,21 @@ export default function ResponseTimeline() {
   // Click handler for tracks area
   function handleTracksClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
     const bounding = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - bounding.left;
-    const y = e.clientY - bounding.top;
-    if (x < 0 || x > tracksWidth) return;
-    const time = xToTime({ x, windowStart, windowDuration, width: tracksWidth });
-    if (time < 0 || time > totalDuration) return;
-    const trackIndex = yToTrackIndex(y, trackHeight, trackGap, tracksTopOffset, numTracks);
-    if (trackIndex < 0) return;
+    const pointerInfo = getTimelinePointerInfo({
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      boundingRect: bounding,
+      windowStart,
+      windowDuration,
+      tracksWidth: tracksWidth,
+      tracksTopOffset,
+      trackHeight,
+      trackGap,
+      numTracks,
+      totalDuration,
+    });
+    if (!pointerInfo) return;
+    const { time, trackIndex } = pointerInfo;
     let duration = Math.random() * (3.0 - 0.1) + 0.1;
     duration = clampResponseDuration(time, duration, totalDuration, 0.1);
     if (duration === 0) return;
