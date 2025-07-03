@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
 import useTimelineState, { type TimelineResponse } from "./useTimelineState";
 import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration, getTimelinePointerInfo } from "./timelineMath";
+import type { TimelineGeometry } from "./timelineMath";
 import { usePlayback } from "./PlaybackContext";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import Track from "./Track";
@@ -99,30 +100,7 @@ export default function ResponseTimeline() {
     width: tracksWidth,
   });
 
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    info: any;
-  } | null>(null);
-
-  const handleContextMenu = (info: any, event: React.PointerEvent) => {
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      info,
-    });
-  };
-
-  // Hide context menu on click elsewhere
-  React.useEffect(() => {
-    if (!contextMenu) return;
-    const handle = () => setContextMenu(null);
-    window.addEventListener("mousedown", handle);
-    return () => window.removeEventListener("mousedown", handle);
-  }, [contextMenu]);
-
-  const { getTrackAreaProps, pointerState } = useTimelinePointerHandler({
+  const geometry: TimelineGeometry = {
     windowStart,
     windowDuration,
     tracksWidth: tracksWidth,
@@ -131,9 +109,18 @@ export default function ResponseTimeline() {
     trackGap,
     numTracks,
     totalDuration,
+  };
+
+  const { getTrackAreaProps, pointerState, isContextMenuOpen, contextMenuPosition, contextMenuInfo, closeContextMenu, contextMenuRef } = useTimelinePointerHandler({
+    ...geometry,
     responses,
-    onContextMenu: handleContextMenu,
   });
+
+  // Handler to forward context menu events from Konva Stage to the parent div (for ContextMenu2)
+  const handleTracksContextMenu = (e: React.MouseEvent) => {
+    // Let ContextMenu2 handle the event
+    // Optionally update pointer state here if needed
+  };
 
   return (
     <div
@@ -151,7 +138,7 @@ export default function ResponseTimeline() {
       }}
     >
       {/* Timeline row: labels + tracks */}
-      <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", maxWidth: 1000 }}>
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", maxWidth: 1200 }}>
         {/* Labels column, vertically centered with tracks */}
         <div style={{ width: labelsWidth, minWidth: 80, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: tracksHeight, marginRight: 8 }}>
           {[...Array(numTracks)].map((_, i) => (
@@ -163,39 +150,40 @@ export default function ResponseTimeline() {
         {/* Tracks area with aspect ratio */}
         <div
           ref={tracksRef}
-          style={{ flex: 1, aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
-          onClick={handleTracksClick}
-          {...getTrackAreaProps()}
+          style={{ flex: 1, minWidth: 0, display: "flex" }}
         >
-          <TracksColumn
-            tracksWidth={tracksWidth}
-            tracksHeight={tracksHeight}
-            trackHeight={trackHeight}
-            trackGap={trackGap}
-            numTracks={numTracks}
-            tracksTopOffset={tracksTopOffset}
-            tracksTotalHeight={tracksTotalHeight}
-            responses={responses}
-            activeRectIds={activeRectIds}
-            windowStart={windowStart}
-            windowDuration={windowDuration}
-            playheadX={playheadX}
-            hoveredTrackIndex={pointerState.hoveredTrackIndex}
-            hoveredResponseId={pointerState.hoveredResponseId}
-          />
-          {/* Custom context menu */}
-          {contextMenu && (
-            <TimelineContextMenu
-              x={contextMenu.x}
-              y={contextMenu.y}
-              info={{
-                ...contextMenu.info,
-                responseId: pointerState.hoveredResponseId,
-              }}
-              onClose={() => setContextMenu(null)}
+          <div
+            style={{ width: "100%", aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
+            onClick={handleTracksClick}
+            {...getTrackAreaProps()}
+          >
+            <TracksColumn
+              tracksWidth={tracksWidth}
+              tracksHeight={tracksHeight}
+              trackHeight={trackHeight}
+              trackGap={trackGap}
+              numTracks={numTracks}
+              tracksTopOffset={tracksTopOffset}
+              tracksTotalHeight={tracksTotalHeight}
+              responses={responses}
+              activeRectIds={activeRectIds}
+              windowStart={windowStart}
+              windowDuration={windowDuration}
+              playheadX={playheadX}
+              hoveredTrackIndex={pointerState.hoveredTrackIndex}
+              hoveredResponseId={pointerState.hoveredResponseId}
+              onContextMenu={handleTracksContextMenu}
             />
-          )}
+          </div>
         </div>
+        {/* Context menu portal (not a wrapper) */}
+        <TimelineContextMenu
+          isOpen={isContextMenuOpen}
+          position={contextMenuPosition}
+          info={contextMenuInfo}
+          onClose={closeContextMenu}
+          menuRef={contextMenuRef}
+        />
       </div>
       {/* Info and controls below timeline */}
       <div style={{ width: "100%", maxWidth: 1000, marginTop: 16 }}>

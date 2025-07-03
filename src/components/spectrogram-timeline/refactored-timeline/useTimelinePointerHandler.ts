@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { getTimelinePointerInfo } from "./timelineMath";
 
 /**
@@ -66,6 +66,12 @@ export function useTimelinePointerHandler({
     selectionBox: null as { x0: number; y0: number; x1: number; y1: number } | null,
   });
   const draggingRef = useRef(false);
+
+  // Context menu state
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenuInfo, setContextMenuInfo] = useState<any>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   const getPointerInfo = (e: React.PointerEvent) => {
     const bounding = e.currentTarget.getBoundingClientRect();
@@ -172,10 +178,57 @@ export function useTimelinePointerHandler({
     (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
       const pointerInfo = getPointerInfo(e);
+      let hoveredTrackIndex: number | null = null;
+      let hoveredResponseId: string | null = null;
+      if (pointerInfo) {
+        hoveredTrackIndex = pointerInfo.trackIndex;
+        const time = pointerInfo.time;
+        const trackIndex = pointerInfo.trackIndex;
+        hoveredResponseId = responses.find(
+          r =>
+            r.trackIndex === trackIndex &&
+            time >= r.timestamp &&
+            time < r.timestamp + r.duration
+        )?.id || null;
+      }
+      setPointerState((s) => ({
+        ...s,
+        hoveredTrackIndex,
+        hoveredResponseId,
+      }));
+      setIsContextMenuOpen(true);
+      setContextMenuPosition({ x: e.clientX, y: e.clientY });
+      setContextMenuInfo(pointerInfo);
       if (onContextMenu) onContextMenu(pointerInfo, e);
     },
-    [onContextMenu, getPointerInfo]
+    [onContextMenu, getPointerInfo, responses]
   );
+
+  // Close context menu on outside click or ESC
+  useEffect(() => {
+    if (!isContextMenuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setIsContextMenuOpen(false);
+      }
+    }
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setIsContextMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [isContextMenuOpen]);
+
+  const openContextMenu = useCallback((position: { x: number; y: number }, info: any) => {
+    setIsContextMenuOpen(true);
+    setContextMenuPosition(position);
+    setContextMenuInfo(info);
+  }, []);
+  const closeContextMenu = useCallback(() => setIsContextMenuOpen(false), []);
 
   // Selection box logic could be added here (drag-to-select)
 
@@ -188,5 +241,12 @@ export function useTimelinePointerHandler({
       onContextMenu: handleContextMenu,
     }),
     pointerState,
+    // Context menu state and helpers
+    isContextMenuOpen,
+    contextMenuPosition,
+    contextMenuInfo,
+    openContextMenu,
+    closeContextMenu,
+    contextMenuRef,
   };
 } 

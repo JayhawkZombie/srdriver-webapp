@@ -68,25 +68,8 @@ export function clampResponseDuration(timestamp: number, duration: number, total
   return Math.max(minDuration, Math.min(duration, maxAllowed));
 }
 
-/**
- * Given pointer x/y and timeline geometry, return the timeline time and track index, or null if out of bounds.
- */
-export function getTimelinePointerInfo({
-  pointerX,
-  pointerY,
-  boundingRect,
-  windowStart,
-  windowDuration,
-  tracksWidth,
-  tracksTopOffset,
-  trackHeight,
-  trackGap,
-  numTracks,
-  totalDuration,
-}: {
-  pointerX: number;
-  pointerY: number;
-  boundingRect: DOMRect;
+// Shared geometry type for timeline pointer calculations
+export type TimelineGeometry = {
   windowStart: number;
   windowDuration: number;
   tracksWidth: number;
@@ -95,13 +78,27 @@ export function getTimelinePointerInfo({
   trackGap: number;
   numTracks: number;
   totalDuration: number;
-}) {
+};
+
+/**
+ * Given pointer x/y and timeline geometry, return the timeline time and track index, or null if out of bounds.
+ */
+export function getTimelinePointerInfo({
+  pointerX,
+  pointerY,
+  boundingRect,
+  ...geometry
+}: {
+  pointerX: number;
+  pointerY: number;
+  boundingRect: DOMRect;
+} & TimelineGeometry) {
   const x = pointerX - boundingRect.left;
   const y = pointerY - boundingRect.top;
-  if (x < 0 || x > tracksWidth) return null;
-  const time = xToTime({ x, windowStart, windowDuration, width: tracksWidth });
-  if (time < 0 || time > totalDuration) return null;
-  const trackIndex = yToTrackIndex(y, trackHeight, trackGap, tracksTopOffset, numTracks);
+  if (x < 0 || x > geometry.tracksWidth) return null;
+  const time = xToTime({ x, windowStart: geometry.windowStart, windowDuration: geometry.windowDuration, width: geometry.tracksWidth });
+  if (time < 0 || time > geometry.totalDuration) return null;
+  const trackIndex = yToTrackIndex(y, geometry.trackHeight, geometry.trackGap, geometry.tracksTopOffset, geometry.numTracks);
   if (trackIndex < 0) return null;
   return { time, trackIndex };
 } 

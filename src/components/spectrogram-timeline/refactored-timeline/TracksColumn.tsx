@@ -1,6 +1,7 @@
 import React from "react";
 import { Stage, Layer, Rect, Line, Text as KonvaText } from "react-konva";
 import Track from "./Track";
+import type { KonvaEventObject } from 'konva/lib/Node';
 
 interface TracksColumnProps {
   tracksWidth: number;
@@ -17,6 +18,7 @@ interface TracksColumnProps {
   playheadX: number;
   hoveredTrackIndex: number | null;
   hoveredResponseId: string | null;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 const TracksColumn: React.FC<TracksColumnProps> = ({
@@ -34,6 +36,7 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
   playheadX,
   hoveredTrackIndex,
   hoveredResponseId,
+  onContextMenu,
 }) => {
   // Compute ticks/grid lines
   const majorTickEvery = 1;
@@ -45,8 +48,15 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
     ticks.push({ t, x, isMajor });
   }
 
+  const handleStageContextMenu = (evt: KonvaEventObject<PointerEvent>) => {
+    if (onContextMenu) {
+      // Konva wraps the native event in evt.evt
+      onContextMenu(evt.evt as unknown as React.MouseEvent);
+    }
+  };
+
   return (
-    <Stage width={tracksWidth} height={tracksHeight} style={{ position: "absolute", left: 0, top: 0 }}>
+    <Stage width={tracksWidth} height={tracksHeight} style={{ position: "absolute", left: 0, top: 0 }} onContextMenu={handleStageContextMenu}>
       <Layer>
         {/* Grid/tick lines */}
         {ticks.map(({ t, x, isMajor }) => (
