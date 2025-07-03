@@ -6,6 +6,8 @@ import { usePlayback } from "./PlaybackContext";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import Track from "./Track";
 import TracksColumn from "./TracksColumn";
+import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
+import DebugInfo from "./DebugInfo";
 
 export default function ResponseTimeline() {
   const {
@@ -96,6 +98,37 @@ export default function ResponseTimeline() {
     width: tracksWidth,
   });
 
+  // Pointer/hover logic
+  const { getTrackAreaProps, pointerState } = useTimelinePointerHandler({
+    windowStart,
+    windowDuration,
+    tracksWidth: tracksWidth,
+    tracksTopOffset,
+    trackHeight,
+    trackGap,
+    numTracks,
+    totalDuration,
+    responses,
+    onDragStart: (info, event) => {
+      console.log("drag start", info, event);
+    },
+    onDragMove: (info, event) => {
+      console.log("drag move", info, event);
+    },
+    onDragEnd: (info, event) => {
+      console.log("drag end", info, event);
+    },
+    onHover: (info, event) => {
+      console.log("hover", info, event);
+    },
+    onSelect: (info, event) => {
+      console.log("select", info, event);
+    },
+    onContextMenu: (info, event) => {
+      console.log("context menu", info, event);
+    },
+  });
+
   return (
     <div
       style={{
@@ -126,6 +159,7 @@ export default function ResponseTimeline() {
           ref={tracksRef}
           style={{ flex: 1, aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
           onClick={handleTracksClick}
+          {...getTrackAreaProps()}
         >
           <TracksColumn
             tracksWidth={tracksWidth}
@@ -140,6 +174,8 @@ export default function ResponseTimeline() {
             windowStart={windowStart}
             windowDuration={windowDuration}
             playheadX={playheadX}
+            hoveredTrackIndex={pointerState.hoveredTrackIndex}
+            hoveredResponseId={pointerState.hoveredResponseId}
           />
         </div>
       </div>
@@ -179,6 +215,7 @@ export default function ResponseTimeline() {
             />
           </label>
         </div>
+        <DebugInfo label="Pointer State" data={pointerState} />
       </div>
     </div>
   );

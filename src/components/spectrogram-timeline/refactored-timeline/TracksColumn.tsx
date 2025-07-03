@@ -15,6 +15,8 @@ interface TracksColumnProps {
   windowStart: number;
   windowDuration: number;
   playheadX: number;
+  hoveredTrackIndex: number | null;
+  hoveredResponseId: string | null;
 }
 
 const TracksColumn: React.FC<TracksColumnProps> = ({
@@ -30,6 +32,8 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
   windowStart,
   windowDuration,
   playheadX,
+  hoveredTrackIndex,
+  hoveredResponseId,
 }) => {
   // Compute ticks/grid lines
   const majorTickEvery = 1;
@@ -70,7 +74,7 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
         <Line points={[tracksWidth/2, tracksTopOffset, tracksWidth/2, tracksTopOffset + tracksTotalHeight]} stroke="#fff176" strokeWidth={1} dash={[2, 2]} />
       </Layer>
       <Layer>
-        {/* Track backgrounds */}
+        {/* Track backgrounds with hover effect */}
         {[...Array(numTracks)].map((_, i) => (
           <Track
             key={i}
@@ -78,14 +82,17 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
             height={trackHeight}
             label={`Track ${i + 1}`}
             width={tracksWidth}
+            // Highlight hovered track
+            styleOverride={hoveredTrackIndex === i ? { fill: "#2c3440" } : undefined}
           />
         ))}
-        {/* Response rects */}
+        {/* Response rects with hover outline */}
         {responses.map((resp) => {
           const x = ((resp.timestamp - windowStart) / windowDuration) * tracksWidth;
           const y = tracksTopOffset + resp.trackIndex * (trackHeight + trackGap) + trackHeight / 2;
           const rectWidth = (resp.duration / windowDuration) * tracksWidth;
           const isActive = activeRectIds.includes(resp.id);
+          const isHovered = hoveredResponseId === resp.id;
           return (
             <React.Fragment key={resp.id}>
               <Rect
@@ -94,8 +101,8 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
                 width={rectWidth}
                 height={28}
                 fill={isActive ? "#ff9800" : "#ffeb3b"}
-                stroke={isActive ? "#ff1744" : "#333"}
-                strokeWidth={2}
+                stroke={isHovered ? "#00e5ff" : isActive ? "#ff1744" : "#333"}
+                strokeWidth={isHovered ? 4 : 2}
                 cornerRadius={6}
               />
               <KonvaText x={x + rectWidth + 6} y={y - 8} text={`dur: ${resp.duration.toFixed(2)}`} fontSize={12} fill="#fffde7" />
