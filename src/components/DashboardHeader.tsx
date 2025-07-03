@@ -6,7 +6,6 @@ import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 import WorkspacesSharpIcon from "@mui/icons-material/WorkspacesSharp";
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
-import { useImpulseEvents } from '../context/ImpulseEventContext';
 
 interface DashboardHeaderProps {
   mode: 'light' | 'dark';
@@ -25,16 +24,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { devices } = useDeviceControllerContext();
   const anyConnected = devices.some(d => d.isConnected);
-  const { subscribe } = useImpulseEvents();
-  const [pulse, setPulse] = useState(false);
-
-  useEffect(() => {
-    const unsub = subscribe(() => {
-      setPulse(true);
-      setTimeout(() => setPulse(false), 300);
-    });
-    return unsub;
-  }, [subscribe]);
+  const [pulse] = useState(false);
 
   return (
     <AppBar position="sticky" elevation={2} sx={{ zIndex: 1201, top: 0 }}>

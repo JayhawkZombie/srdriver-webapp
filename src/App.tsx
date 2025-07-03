@@ -4,7 +4,6 @@ import Dashboard from "./components/Dashboard";
 import { DeviceControllerProvider } from "./controllers/DeviceControllerContext";
 import { ToastProvider } from "./controllers/ToastContext";
 import GlobalToast from "./components/GlobalToast";
-import { ImpulseEventProvider } from "./context/ImpulseEventContext";
 
 // @ts-expect-error - no types for blueprintjs direct css imports
 import "@blueprintjs/core/lib/css/blueprint.css";
@@ -31,7 +30,6 @@ function App() {
         <>
             <ThemeProvider theme={theme}>
                 <CssBaseline />
-                <ImpulseEventProvider>
                     <DeviceControllerProvider>
                         <ToastProvider>
                             <GlobalToast />
@@ -41,7 +39,6 @@ function App() {
                             />
                         </ToastProvider>
                     </DeviceControllerProvider>
-                </ImpulseEventProvider>
             </ThemeProvider>
         </>
     );

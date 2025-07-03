@@ -1,19 +1,12 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Typography,
-  Container,
   Drawer,
-  IconButton,
 } from '@mui/material';
-import AudioChunkerDemo from './AudioChunkerDemo';
-import { PulseControlsProvider } from '../controllers/PulseControlsContext';
-import { PulseToolsProvider } from '../controllers/PulseToolsContext';
 import DashboardHeader from './DashboardHeader';
 import LightsConnectionCard from './controls/LightsConnectionCard';
 import TestbedModal from './testbed/TestbedModal';
 import TestHarnessContent from './testbed/TestHarnessContent';
-import { useImpulseResponseHandlerToCommand } from "../hooks/useImpulseResponseHandlerToCommand";
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -25,8 +18,6 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
   const [testbedModalOpen, setTestbedModalOpen] = useState(false);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
 
-  useImpulseResponseHandlerToCommand();
-
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 0, py: 0 }}>
       <Box sx={{ height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', mt: 0, pt: 0 }}>
@@ -37,13 +28,6 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
           onOpenLeftDrawer={() => setLeftDrawerOpen(true)}
           onOpenTestbedModal={() => setTestbedModalOpen(true)}
         />
-        <Box sx={{ flexGrow: 1, width: '100%', py: 1, px: 0, m: 0 }}>
-          <PulseControlsProvider>
-            <PulseToolsProvider>
-              <AudioChunkerDemo />
-            </PulseToolsProvider>
-          </PulseControlsProvider>
-        </Box>
       </Box>
       <Drawer
         anchor="left"

@@ -15,4 +15,28 @@ export const Basic = () => (
       </div>
     </PlaybackControls>
   </PlaybackProvider>
-); 
+);
+
+export const WithAudioUpload = () => {
+  const [audioFile, setAudioFile] = React.useState<File | null>(null);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setAudioFile(file);
+    if (file) {
+      console.log("Uploaded audio file:", file);
+    }
+  };
+  return (
+    <PlaybackProvider>
+      <div style={{ marginBottom: 16 }}>
+        <input type="file" accept="audio/*" onChange={handleFileChange} />
+        {audioFile && (
+          <div style={{ color: '#fff', fontSize: 13, marginTop: 8 }}>
+            Selected file: <strong>{audioFile.name}</strong>
+          </div>
+        )}
+      </div>
+      <PlaybackControls />
+    </PlaybackProvider>
+  );
+}; 
