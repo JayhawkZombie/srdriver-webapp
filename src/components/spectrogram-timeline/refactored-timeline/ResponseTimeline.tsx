@@ -109,24 +109,24 @@ export default function ResponseTimeline() {
     numTracks,
     totalDuration,
     responses,
-    onDragStart: (info, event) => {
-      console.log("drag start", info, event);
-    },
-    onDragMove: (info, event) => {
-      console.log("drag move", info, event);
-    },
-    onDragEnd: (info, event) => {
-      console.log("drag end", info, event);
-    },
-    onHover: (info, event) => {
-      console.log("hover", info, event);
-    },
-    onSelect: (info, event) => {
-      console.log("select", info, event);
-    },
-    onContextMenu: (info, event) => {
-      console.log("context menu", info, event);
-    },
+    // onDragStart: (info, event) => {
+    //   console.log("drag start", info, event);
+    // },
+    // onDragMove: (info, event) => {
+    //   console.log("drag move", info, event);
+    // },
+    // onDragEnd: (info, event) => {
+    //   console.log("drag end", info, event);
+    // },
+    // onHover: (info, event) => {
+    //   console.log("hover", info, event);
+    // },
+    // onSelect: (info, event) => {
+    //   console.log("select", info, event);
+    // },
+    // onContextMenu: (info, event) => {
+    //   console.log("context menu", info, event);
+    // },
   });
 
   return (
