@@ -14,18 +14,18 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({ children }) => {
   const { currentTime, isPlaying, play, pause, seek, totalDuration } = usePlayback();
   const { enabled: autoplayEnabled, toggleAutoplay } = usePlaybackAutoAdvance();
 
+  const handlePlayPause = () => {
+    if (isPlaying) pause();
+    else play();
+  };
+
   return (
       <div className={styles.playbackControls}>
           <div className={styles.controlsRow}>
-              <IconControl
-                  onClick={play}
-                  title="Play"
-                  className={`${styles.playButton} ${isPlaying ? styles.playing : ""}`}
-              >
-                  <Icon icon="play" />
-              </IconControl>
-              <IconControl onClick={pause} title="Pause">
-                  <Icon icon="pause" />
+              <IconControl onClick={handlePlayPause} title={isPlaying ? "Pause" : "Play"}>
+                  <Icon
+                    icon={isPlaying ? "pause" : "play"}
+                  />
               </IconControl>
               <IconControl onClick={() => seek(0)} title="Restart">
                   <Icon icon="refresh" />
@@ -36,10 +36,7 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({ children }) => {
                       autoplayEnabled ? "Disable Autoplay" : "Enable Autoplay"
                   }
               >
-                  <Icon
-                      icon={"run-history"}
-                      style={{ color: autoplayEnabled ? "green" : "red" }}
-                  />
+                  <Icon icon={"run-history"} style={{ color: autoplayEnabled ? "green" : "red" }} />
               </IconControl>
               <SliderControl
                   min={0}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
 import useTimelineState, { type TimelineResponse } from "./useTimelineState";
 import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration } from "./timelineMath";
@@ -29,56 +29,41 @@ function Track({ y, height, label }: { y: number; height: number; label: string 
 
 export default function ResponseTimeline() {
   const {
-    windowStart,
-    windowDuration,
-    setWindowDuration,
     responses,
     addResponse,
     totalDuration,
-  } = useTimelineState({ totalDuration: 15, initialWindowDuration: 5 });
+    markResponsesTriggeredByPlayhead,
+    resetAllTriggered,
+  } = useTimelineState({ totalDuration: 15 });
 
   // Use global playback context for playhead
-  const { currentTime, setCurrentTime } = usePlayback();
+  const { currentTime } = usePlayback();
 
-  // Animate playhead (advance currentTime in context)
-  React.useEffect(() => {
-    let raf: number;
-    let start: number | null = null;
-    function animate(ts: number) {
-      if (start === null) start = ts;
-      const elapsed = (ts - start) / 1000;
-      setCurrentTime(Math.min(elapsed, totalDuration));
-      raf = requestAnimationFrame(animate);
+  // Window logic (auto-pan)
+  const [windowDuration, setWindowDuration] = useState(5);
+  const [windowStart, setWindowStart] = useState(0);
+  useEffect(() => {
+    // Auto-pan window so playhead stays centered, except at start/end
+    let newWindowStart = currentTime - windowDuration / 2;
+    if (newWindowStart < 0) newWindowStart = 0;
+    if (newWindowStart > totalDuration - windowDuration) newWindowStart = totalDuration - windowDuration;
+    setWindowStart(newWindowStart);
+  }, [currentTime, windowDuration, totalDuration]);
+
+  // Mark responses as triggered as playhead passes through
+  useEffect(() => {
+    if (currentTime === 0) {
+      resetAllTriggered();
+    } else {
+      markResponsesTriggeredByPlayhead(currentTime);
     }
-    raf = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(raf);
-  }, [setCurrentTime, totalDuration]);
-
-  // Playhead X: always at center unless clamped
-  let playheadX = TRACKS_WIDTH / 2;
-  if (windowStart === 0) {
-    playheadX = timeToXWindow({
-      time: currentTime,
-      windowStart: 0,
-      windowDuration,
-      width: TRACKS_WIDTH,
-    });
-  } else if (windowStart === totalDuration - windowDuration) {
-    playheadX = timeToXWindow({
-      time: currentTime,
-      windowStart,
-      windowDuration,
-      width: TRACKS_WIDTH,
-    });
-  }
-
-  const windowEnd = windowStart + windowDuration;
+  }, [currentTime, markResponsesTriggeredByPlayhead, resetAllTriggered]);
 
   // Ticks/grid lines
   const majorTickEvery = 1;
   const minorTickEvery = 0.2;
   const ticks = [];
-  for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowEnd; t += minorTickEvery) {
+  for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowStart + windowDuration; t += minorTickEvery) {
     const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
     const x = timeToXWindow({ time: t, windowStart, windowDuration, width: TRACKS_WIDTH });
     ticks.push({ t, x, isMajor });
@@ -102,8 +87,16 @@ export default function ResponseTimeline() {
 
   // Find active rects (playhead is over them)
   const activeRectIds = responses.filter(
-    r => currentTime >= r.timestamp && currentTime <= r.timestamp + r.duration
+    r => currentTime >= r.timestamp && currentTime < r.timestamp + r.duration
   ).map(r => r.id);
+
+  // Calculate playhead X position
+  const playheadX = timeToXWindow({
+    time: currentTime,
+    windowStart,
+    windowDuration,
+    width: TRACKS_WIDTH,
+  });
 
   return (
     <div style={{ width: CONTAINER_WIDTH, margin: "40px auto", background: "#222", borderRadius: 12, padding: 24 }}>
@@ -168,6 +161,7 @@ export default function ResponseTimeline() {
                   </React.Fragment>
                 );
               })}
+              {/* Playhead line */}
               <Line
                 points={[playheadX, TRACKS_TOP_OFFSET, playheadX, TRACKS_TOP_OFFSET + TRACKS_TOTAL_HEIGHT]}
                 stroke="#ff5252"

@@ -16,6 +16,17 @@ export interface FakeAudioDataProviderProps {
   children: React.ReactNode;
 }
 
+// Module-level cache for fake audio data
+const fakeAudioDataCache: Record<string, { barData: number[]; waveformData: number[] }> = {};
+
+function getCachedFakeData(type: FakeAudioType, length: number) {
+  const key = `${type}:${length}`;
+  if (!fakeAudioDataCache[key]) {
+    fakeAudioDataCache[key] = generateFakeData(type, length);
+  }
+  return fakeAudioDataCache[key];
+}
+
 function generateFakeData(type: FakeAudioType, length: number): { barData: number[]; waveformData: number[] } {
   if (type === "sine") {
     const data = Array.from({ length }, (_, i) => Math.sin((i / length) * 4 * Math.PI));
@@ -45,7 +56,7 @@ function generateFakeData(type: FakeAudioType, length: number): { barData: numbe
 
 export const FakeAudioDataProvider: React.FC<FakeAudioDataProviderProps> = ({ type = "screenshot", length = 400, children }) => {
   const value = useMemo(() => {
-    const { barData, waveformData } = generateFakeData(type, length);
+    const { barData, waveformData } = getCachedFakeData(type, length);
     return { barData, waveformData, type };
   }, [type, length]);
   return (

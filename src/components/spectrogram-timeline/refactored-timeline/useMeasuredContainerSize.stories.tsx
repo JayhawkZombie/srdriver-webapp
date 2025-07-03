@@ -30,8 +30,28 @@ const SizeDisplayBox: React.FC<{
   );
 };
 
+const parentStyle = {
+  border: '2px dashed #1976d2',
+  background: '#e3f2fd',
+  position: 'relative' as const,
+  margin: '2rem auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const parentLabelStyle = {
+  position: 'absolute' as const,
+  top: -24,
+  left: 0,
+  fontSize: 13,
+  color: '#1976d2',
+  fontWeight: 600,
+};
+
 export const StaticMinMax = () => (
-  <div style={{ width: 300, height: 120, margin: '2rem auto' }}>
+  <div style={{ ...parentStyle, width: 300, height: 120 }}>
+    <span style={parentLabelStyle}>Parent: 300x120px</span>
     <SizeDisplayBox options={{ minWidth: 200, minHeight: 80, maxWidth: 400, maxHeight: 200 }} label="minWidth:200, minHeight:80, maxWidth:400, maxHeight:200" />
   </div>
 );
@@ -45,7 +65,8 @@ export const DynamicWidthHeight = () => {
       <input type="range" min={100} max={400} value={parentWidth} onChange={e => setParentWidth(Number(e.target.value))} style={{ width: 200, margin: '0 8px' }} />
       <label>Height: {parentHeight}px</label>
       <input type="range" min={40} max={200} value={parentHeight} onChange={e => setParentHeight(Number(e.target.value))} style={{ width: 200, margin: '0 8px' }} />
-      <div style={{ width: parentWidth, height: parentHeight, margin: '1rem auto', background: '#b3e5fc' }}>
+      <div style={{ ...parentStyle, width: parentWidth, height: parentHeight }}>
+        <span style={parentLabelStyle}>Parent: {parentWidth}x{parentHeight}px</span>
         <SizeDisplayBox />
       </div>
     </div>
@@ -58,7 +79,8 @@ export const AspectRatio = () => {
     <div style={{ width: 400, margin: '2rem auto' }}>
       <label>Width: {parentWidth}px</label>
       <input type="range" min={100} max={400} value={parentWidth} onChange={e => setParentWidth(Number(e.target.value))} style={{ width: 200, margin: '0 8px' }} />
-      <div style={{ width: parentWidth, height: 200, margin: '1rem auto', background: '#c8e6c9' }}>
+      <div style={{ ...parentStyle, width: parentWidth, height: 200, background: '#c8e6c9', border: '2px dashed #388e3c' }}>
+        <span style={{ ...parentLabelStyle, color: '#388e3c' }}>Parent: {parentWidth}x200px</span>
         <SizeDisplayBox options={{ aspectRatio: 2 }} label="aspectRatio: 2 (width/height)" />
       </div>
     </div>
@@ -66,16 +88,19 @@ export const AspectRatio = () => {
 };
 
 export const NestedContainers = () => (
-  <div style={{ width: 350, height: 180, margin: '2rem auto', background: '#ffe082', padding: 12 }}>
+  <div style={{ ...parentStyle, width: 350, height: 180, background: '#ffe082', border: '2px dashed #fbc02d', padding: 12 }}>
+    <span style={{ ...parentLabelStyle, color: '#fbc02d' }}>Parent: 350x180px</span>
     <SizeDisplayBox label="Outer" style={{ background: '#fffde7', height: '100%' }} />
-    <div style={{ width: '80%', height: '60%', margin: '0 auto', background: '#b2dfdb' }}>
+    <div style={{ width: '80%', height: '60%', margin: '0 auto', background: '#b2dfdb', border: '2px dashed #00796b', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ ...parentLabelStyle, color: '#00796b' }}>Inner Parent: 80%x60%</span>
       <SizeDisplayBox label="Inner" style={{ background: '#e0f2f1' }} />
     </div>
   </div>
 );
 
 export const EdgeCases = () => (
-  <div style={{ width: 80, height: 30, margin: '2rem auto', background: '#ffcdd2' }}>
-    <SizeDisplayBox options={{ minWidth: 100, minHeight: 50, maxWidth: 120, maxHeight: 60, aspectRatio: 2 }} label="minW:100, minH:50, maxW:120, maxH:60, aspect:2" />
+  <div style={{ ...parentStyle, width: 80, height: 30, background: '#ffcdd2', border: '2px dashed #b71c1c' }}>
+    <span style={{ ...parentLabelStyle, color: '#b71c1c' }}>Parent: 80x30px</span>
+    <SizeDisplayBox options={{ minWidth: 100, minHeight: 50, maxWidth: 120, maxHeight: 60, aspectRatio: 2 }} label="minW:100, minH:50, maxW:120, maxH:60, aspect:2" style={{ background: '#fff' }} />
   </div>
 ); 
