@@ -4,7 +4,8 @@ import styles from "./TimelineHeader.module.css";
 import { useContainerSize } from "./useContainerSize";
 import { SvgVisualizationWrapper } from "./SvgVisualizationWrapper";
 import BarWaveform from "./BarWaveform";
-import { useWaveformAudioData } from "./WaveformAudioDataContext";
+import { useAppStore } from "../../../store/appStore";
+import { selectBarData } from "../../../store/selectors";
 
 interface TimelineHeaderProps {
   children?: React.ReactNode;
@@ -12,7 +13,7 @@ interface TimelineHeaderProps {
 
 const TimelineHeader: React.FC<TimelineHeaderProps> = ({ children }) => {
   const [containerRef] = useContainerSize();
-  const { barData } = useWaveformAudioData();
+  const barData = useAppStore(selectBarData);
 
   return (
     <div className={styles.timelineHeader} ref={containerRef}>
@@ -22,7 +23,7 @@ const TimelineHeader: React.FC<TimelineHeaderProps> = ({ children }) => {
       <div className={styles.headerVis}>
         <SvgVisualizationWrapper className={styles.svgWrapper} minHeight={80} minWidth={120}>
           {({ width, height }) => (
-            <BarWaveform data={barData} width={width} height={height} color="#4fc3f7" barWidth={1} />
+            <BarWaveform data={barData || []} width={width} height={height} color="#4fc3f7" barWidth={1} />
           )}
         </SvgVisualizationWrapper>
       </div>

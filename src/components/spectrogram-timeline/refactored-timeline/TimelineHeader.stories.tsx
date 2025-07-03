@@ -2,7 +2,7 @@ import React from "react";
 import TimelineHeader from "./TimelineHeader";
 import { PlaybackProvider } from "./PlaybackContext";
 import { Box } from "@mui/material";
-import { FakeAudioDataProvider } from "./WaveformAudioDataContext";
+import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
 
 export default {
     title: "RefactoredTimeline/TimelineHeader",
@@ -19,10 +19,10 @@ export const Basic = () => (
             minHeight: 120,
         }}
     >
-        <FakeAudioDataProvider type="sine" length={256}>
+        <FakeAppStateStoryProvider mockType="sine">
             <PlaybackProvider>
                 <TimelineHeader />
             </PlaybackProvider>
-        </FakeAudioDataProvider>
+        </FakeAppStateStoryProvider>
     </Box>
 );

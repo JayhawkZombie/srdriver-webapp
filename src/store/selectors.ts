@@ -8,6 +8,7 @@ export const selectWaveform = (state: AppState) => state.audio.analysis.waveform
 export const selectAudioBuffer = (state: AppState) => state.audio.data.analysis?.audioBuffer;
 export const selectDuration = (state: AppState) =>
   state.audio.data.analysis?.audioBuffer?.duration ?? state.audio.analysis.duration;
+export const selectBarData = (state: AppState) => state.audio.analysis.barData;
 
 // Playback selectors
 export const selectCurrentTime = (state: AppState) => state.playback.currentTime;

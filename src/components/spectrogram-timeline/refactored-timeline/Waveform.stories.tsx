@@ -12,12 +12,7 @@ const makeSineWave = (length: number) => Array.from({ length }, (_, i) => Math.s
 const makeNoise = (length: number) => Array.from({ length }, () => Math.random() * 2 - 1);
 
 export const Sine = () => (
-  <FakeAppStateStoryProvider initialState={{
-    audio: {
-      analysis: { waveform: makeSineWave(256), duration: 4, fftSequence: [], summary: null, audioBuffer: null },
-      data: { metadata: null, analysis: null }
-    }
-  }}>
+  <FakeAppStateStoryProvider mockType="sine">
     <PlaybackProvider>
       <div>
         <div style={{ marginBottom: 8 }}>Without peak trace:</div>
@@ -30,12 +25,7 @@ export const Sine = () => (
 );
 
 export const Noise = () => (
-  <FakeAppStateStoryProvider initialState={{
-    audio: {
-      analysis: { waveform: makeNoise(256), duration: 4, fftSequence: [], summary: null, audioBuffer: null },
-      data: { metadata: null, analysis: null }
-    }
-  }}>
+  <FakeAppStateStoryProvider mockType="noise">
     <PlaybackProvider>
       <div>
         <div style={{ marginBottom: 8 }}>Without peak trace:</div>

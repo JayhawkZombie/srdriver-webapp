@@ -2,17 +2,41 @@ import React from "react";
 import TimelineHeader from "./TimelineHeader";
 import ResponseTimeline from "./ResponseTimeline";
 import { PlaybackProvider } from "./PlaybackContext";
-import { FakeAudioDataProvider } from "./WaveformAudioDataContext";
+import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
 import { usePlaybackAutoAdvance } from "../../../hooks/usePlaybackAutoAdvance";
 
 export default {
-  title: "RefactoredTimeline/TimelineHeader + ResponseTimeline",
+    title: "RefactoredTimeline/TimelineHeader + ResponseTimeline",
 };
 
-const WithFakeAudioData = () => {
-    usePlaybackAutoAdvance(true);
+export const WithFakeAudioData = () => {
     return (
-        <FakeAudioDataProvider type="screenshot" length={600}>
+        <FakeAppStateStoryProvider mockType="screenshotBar">
+            <PlaybackProvider totalDuration={15}>
+                <PlaybackAutoAdvanceEnabler />
+                <div
+                    style={{
+                        width: "100%",
+                        maxWidth: 900,
+                        margin: "0 auto",
+                        background: "#181818",
+                        padding: 24,
+                        minHeight: 320,
+                    }}
+                >
+                    <TimelineHeader />
+                    <div style={{ height: 24 }} />
+                    <ResponseTimeline />
+                </div>
+            </PlaybackProvider>
+        </FakeAppStateStoryProvider>
+    );
+};
+
+export const UnifiedDemo = () => (
+    <FakeAppStateStoryProvider mockType="screenshotBar">
+        <PlaybackProvider totalDuration={15}>
+            <PlaybackAutoAdvanceEnabler />
             <div
                 style={{
                     width: "100%",
@@ -24,27 +48,14 @@ const WithFakeAudioData = () => {
                 }}
             >
                 <TimelineHeader />
-                <div style={{ height: 24 }} />
+                {/* <div style={{ height: 24 }} /> */}
                 <ResponseTimeline />
             </div>
-        </FakeAudioDataProvider>
-    );
-};
-
-export const UnifiedDemo = () => (
-  <PlaybackProvider totalDuration={15}>
-    <FakeAudioDataProvider type="screenshot" length={600}>
-      <PlaybackAutoAdvanceEnabler />
-      <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', background: '#181818', padding: 24, minHeight: 320 }}>
-        <TimelineHeader />
-        {/* <div style={{ height: 24 }} /> */}
-        <ResponseTimeline />
-      </div>
-    </FakeAudioDataProvider>
-  </PlaybackProvider>
+        </PlaybackProvider>
+    </FakeAppStateStoryProvider>
 );
 
 function PlaybackAutoAdvanceEnabler() {
-  usePlaybackAutoAdvance(true);
-  return null;
-} 
+    usePlaybackAutoAdvance(true);
+    return null;
+}

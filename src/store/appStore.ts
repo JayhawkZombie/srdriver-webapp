@@ -50,6 +50,7 @@ export interface AudioDataAnalysis {
   detectionTimes?: number[];
   waveform?: number[];
   duration?: number;
+  barData?: number[];
 }
 
 export interface AudioDataState {
