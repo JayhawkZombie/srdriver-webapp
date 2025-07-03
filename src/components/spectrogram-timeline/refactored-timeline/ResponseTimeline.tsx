@@ -111,9 +111,38 @@ export default function ResponseTimeline() {
     totalDuration,
   };
 
-  const { getTrackAreaProps, pointerState, isContextMenuOpen, contextMenuPosition, contextMenuInfo, closeContextMenu, contextMenuRef } = useTimelinePointerHandler({
+  const {
+    getTrackAreaProps,
+    pointerState,
+    isContextMenuOpen,
+    contextMenuPosition,
+    contextMenuInfo,
+    closeContextMenu,
+    contextMenuRef,
+    openContextMenu,
+  } = useTimelinePointerHandler({
     ...geometry,
     responses,
+    onContextMenu: (info, event) => {
+      // Latch all relevant info at the moment the menu is opened
+      let responseData = null;
+      if (pointerState.hoveredResponseId) {
+        const resp = responses.find(r => r.id === pointerState.hoveredResponseId);
+        if (resp) {
+          responseData = {
+            responseId: resp.id,
+            timestamp: resp.timestamp,
+            duration: resp.duration,
+            trackIndex: resp.trackIndex,
+          };
+        }
+      }
+      // Store the latched info in contextMenuInfo
+      openContextMenu(
+        { x: event.clientX, y: event.clientY },
+        { ...info, ...responseData }
+      );
+    },
   });
 
   // Handler to forward context menu events from Konva Stage to the parent div (for ContextMenu2)
@@ -183,6 +212,15 @@ export default function ResponseTimeline() {
           info={contextMenuInfo}
           onClose={closeContextMenu}
           menuRef={contextMenuRef}
+          actions={[
+            {
+              key: "log",
+              text: "Log Info to Console",
+              icon: "console",
+              onClick: (info) => console.log("Clicked action with info:", info),
+            },
+            // Add more actions here!
+          ]}
         />
       </div>
       {/* Info and controls below timeline */}
