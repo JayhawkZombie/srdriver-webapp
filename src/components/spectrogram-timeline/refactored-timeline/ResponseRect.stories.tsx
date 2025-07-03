@@ -20,7 +20,17 @@ export const MinimalWorking = () => {
     { id: 'rect1', timestamp: 1, duration: 2, trackIndex: 0, color: randomColor(), borderColor: '#fff' },
     { id: 'rect2', timestamp: 2.5, duration: 1.2, trackIndex: 0, color: randomColor(), borderColor: '#fff' },
   ]);
-  const [menu, setMenu] = useState({ open: false, position: null, info: null, type: null });
+  const [menu, setMenu] = useState<{
+    open: boolean;
+    position: { x: number; y: number } | null;
+    info: any;
+    type: 'rect' | 'bg' | null;
+  }>({
+    open: false,
+    position: null,
+    info: null,
+    type: null,
+  });
   const menuRef = useRef(null);
 
   const geometry = {
@@ -35,7 +45,7 @@ export const MinimalWorking = () => {
   };
 
   // Add rect on background click
-  const handleStageClick = (e) => {
+  const handleStageClick = (e: any) => {
     if (e.target.name() !== 'stage-bg') return; // Only add if clicking on background
     e.evt.preventDefault();
     const boundingRect = e.target.getStage().container().getBoundingClientRect();
@@ -59,7 +69,7 @@ export const MinimalWorking = () => {
   };
 
   // Context menu for background
-  const handleStageContextMenu = (e) => {
+  const handleStageContextMenu = (e: any) => {
     if (e.target.name() !== 'stage-bg') return;
     e.evt.preventDefault();
     setMenu({
@@ -71,7 +81,7 @@ export const MinimalWorking = () => {
   };
 
   // Context menu for rect
-  const handleRectContextMenu = (rect, e) => {
+  const handleRectContextMenu = (rect: any, e: any) => {
     e.evt.preventDefault();
     setMenu({
       open: true,
@@ -86,7 +96,7 @@ export const MinimalWorking = () => {
       key: 'delete',
       text: 'Delete Rect',
       icon: 'trash',
-      onClick: (info) => {
+      onClick: (info: any) => {
         setRects(rects => rects.filter(r => r.id !== info.id));
         setMenu({ open: false, position: null, info: null, type: null });
       },
