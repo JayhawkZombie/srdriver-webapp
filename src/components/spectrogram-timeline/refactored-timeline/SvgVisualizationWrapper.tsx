@@ -1,4 +1,7 @@
-import React, { useRef, useLayoutEffect, useState } from "react";
+import React from "react";
+import type { CSSProperties } from "react";
+import styles from "./SvgVisualizationWrapper.module.css";
+import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 
 interface SvgVisualizationWrapperProps {
   children: (size: { width: number; height: number }) => React.ReactNode;
@@ -10,12 +13,12 @@ interface SvgVisualizationWrapperProps {
   aspectRatio?: number; // width / height
   borderRadius?: number;
   padding?: number | string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 export const SvgVisualizationWrapper: React.FC<SvgVisualizationWrapperProps> = ({
   children,
-  className,
+  className = "",
   minHeight = 80,
   minWidth = 120,
   maxHeight = 400,
@@ -23,48 +26,25 @@ export const SvgVisualizationWrapper: React.FC<SvgVisualizationWrapperProps> = (
   aspectRatio,
   borderRadius = 12,
   padding = 0,
-  style,
+  style = {},
 }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: minWidth, height: minHeight });
+  const [ref, size] = useMeasuredContainerSize({ minWidth, minHeight, maxWidth, maxHeight, aspectRatio });
 
-  useLayoutEffect(() => {
-    if (!ref.current) return;
-    const handleResize = () => {
-      if (!ref.current) return;
-      let width = ref.current.offsetWidth;
-      let height = ref.current.offsetHeight;
-      if (aspectRatio) {
-        // Adjust height to maintain aspect ratio
-        height = width / aspectRatio;
-      }
-      width = Math.max(minWidth, Math.min(width, maxWidth));
-      height = Math.max(minHeight, Math.min(height, maxHeight));
-      setSize({ width, height });
-    };
-    handleResize();
-    const ro = new window.ResizeObserver(handleResize);
-    ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, [aspectRatio, minWidth, minHeight, maxWidth, maxHeight]);
+  const wrapperStyle: CSSProperties = {
+    minWidth,
+    minHeight,
+    maxWidth,
+    maxHeight,
+    borderRadius,
+    padding,
+    ...style,
+  };
 
   return (
     <div
       ref={ref}
-      className={className}
-      style={{
-        width: '100%',
-        height: '100%',
-        minWidth,
-        minHeight,
-        maxWidth,
-        maxHeight,
-        borderRadius,
-        overflow: 'hidden',
-        padding,
-        boxSizing: 'border-box',
-        ...style,
-      }}
+      className={`${styles.svgVisRoot} ${className}`.trim()}
+      style={wrapperStyle}
     >
       {children(size)}
     </div>

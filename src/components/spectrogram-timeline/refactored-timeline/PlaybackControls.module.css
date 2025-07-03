@@ -22,3 +22,7 @@
 .children {
   margin-top: 8px;
 } 
+
+.playButton.playing {
+  color: #004711;
+}

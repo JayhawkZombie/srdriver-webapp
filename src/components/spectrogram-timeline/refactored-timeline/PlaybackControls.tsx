@@ -17,7 +17,11 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({ children }) => {
   return (
       <div className={styles.playbackControls}>
           <div className={styles.controlsRow}>
-              <IconControl onClick={play} title="Play">
+              <IconControl
+                  onClick={play}
+                  title="Play"
+                  className={`${styles.playButton} ${isPlaying ? styles.playing : ""}`}
+              >
                   <Icon icon="play" />
               </IconControl>
               <IconControl onClick={pause} title="Pause">
@@ -32,7 +36,10 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({ children }) => {
                       autoplayEnabled ? "Disable Autoplay" : "Enable Autoplay"
                   }
               >
-                  <Icon icon={"run-history"} style={{ color: autoplayEnabled ? "green" : "red" }} />
+                  <Icon
+                      icon={"run-history"}
+                      style={{ color: autoplayEnabled ? "green" : "red" }}
+                  />
               </IconControl>
               <SliderControl
                   min={0}

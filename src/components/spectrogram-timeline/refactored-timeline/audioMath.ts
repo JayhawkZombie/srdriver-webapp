@@ -31,4 +31,34 @@ export function getPeakIndices2D(data: number[][]): number[] {
     }
     return maxIdx;
   });
+}
+
+/**
+ * Maps waveform amplitude data to SVG polyline points string.
+ * Amplitudes should be in [-1, 1].
+ */
+export function waveformToSvgPoints(data: number[], width: number, height: number): string {
+  const len = data.length;
+  return data.map((amp, i) => {
+    const x = (i / (len - 1)) * width;
+    // SVG y=0 is top, so invert amplitude
+    const y = height / 2 - (amp * (height / 2));
+    return `${x},${y}`;
+  }).join(' ');
+}
+
+/**
+ * Returns the SVG coordinates (x, y) for the peak index in a waveform.
+ * Amplitudes should be in [-1, 1].
+ */
+export function getPeakCoordinate(
+  data: number[],
+  peakIdx: number,
+  width: number,
+  height: number
+): [number, number] {
+  const len = data.length;
+  const peakX = (peakIdx / (len - 1)) * width;
+  const peakY = height / 2 - (data[peakIdx] * (height / 2));
+  return [peakX, peakY];
 } 

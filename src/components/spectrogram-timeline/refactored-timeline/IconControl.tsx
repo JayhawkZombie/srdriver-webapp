@@ -6,12 +6,13 @@ interface IconControlProps {
   onClick?: React.MouseEventHandler<HTMLElement>;
   children: React.ReactNode; // Should be a Blueprint icon
   title?: string;
+  className?: string;
 }
 
-const IconControl: React.FC<IconControlProps> = ({ onClick, children, title }) => (
+const IconControl: React.FC<IconControlProps> = ({ onClick, children, title, className }) => (
   <Button
     minimal
-    className={`${styles.iconControl} bp5-button`}
+    className={`${styles.iconControl} bp5-button ${className}`}
     onClick={onClick}
     title={title}
     small
