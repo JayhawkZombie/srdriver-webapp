@@ -5,6 +5,7 @@ import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration } from "./
 import { usePlayback } from "./PlaybackContext";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import Track from "./Track";
+import TracksColumn from "./TracksColumn";
 
 export default function ResponseTimeline() {
   const {
@@ -118,71 +119,20 @@ export default function ResponseTimeline() {
           style={{ flex: 1, aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
           onClick={handleTracksClick}
         >
-          <Stage width={tracksWidth} height={tracksHeight} style={{ position: "absolute", left: 0, top: 0 }}>
-            <Layer>
-              {ticks.map(({ t, x, isMajor }) => (
-                <React.Fragment key={t.toFixed(2)}>
-                  <Line
-                    points={[x, tracksTopOffset, x, tracksTopOffset + tracksTotalHeight]}
-                    stroke={isMajor ? "#fff" : "#888"}
-                    strokeWidth={isMajor ? 2 : 1}
-                    dash={isMajor ? undefined : [2, 4]}
-                  />
-                  {isMajor && (
-                    <KonvaText
-                      x={x + 2}
-                      y={tracksTopOffset - 22}
-                      text={t.toFixed(1)}
-                      fontSize={14}
-                      fill="#fff"
-                    />
-                  )}
-                </React.Fragment>
-              ))}
-              <Line points={[0, tracksTopOffset, 0, tracksTopOffset + tracksTotalHeight]} stroke="#ffeb3b" strokeWidth={2} dash={[4, 2]} />
-              <Line points={[tracksWidth, tracksTopOffset, tracksWidth, tracksTopOffset + tracksTotalHeight]} stroke="#00bcd4" strokeWidth={2} dash={[4, 2]} />
-              <Line points={[tracksWidth/2, tracksTopOffset, tracksWidth/2, tracksTopOffset + tracksTotalHeight]} stroke="#fff176" strokeWidth={1} dash={[2, 2]} />
-            </Layer>
-            <Layer>
-              {[...Array(numTracks)].map((_, i) => (
-                <Track
-                  key={i}
-                  y={tracksTopOffset + i * (trackHeight + trackGap)}
-                  height={trackHeight}
-                  label={`Track ${i + 1}`}
-                  width={tracksWidth}
-                />
-              ))}
-              {responses.map((resp) => {
-                const x = timeToXWindow({ time: resp.timestamp, windowStart, windowDuration, width: tracksWidth });
-                const y = tracksTopOffset + resp.trackIndex * (trackHeight + trackGap) + trackHeight / 2;
-                const rectWidth = (resp.duration / windowDuration) * tracksWidth;
-                const isActive = activeRectIds.includes(resp.id);
-                return (
-                  <React.Fragment key={resp.id}>
-                    <Rect
-                      x={x}
-                      y={y - 14}
-                      width={rectWidth}
-                      height={28}
-                      fill={isActive ? "#ff9800" : "#ffeb3b"}
-                      stroke={isActive ? "#ff1744" : "#333"}
-                      strokeWidth={2}
-                      cornerRadius={6}
-                    />
-                    <KonvaText x={x + rectWidth + 6} y={y - 8} text={`dur: ${resp.duration.toFixed(2)}`} fontSize={12} fill="#fffde7" />
-                  </React.Fragment>
-                );
-              })}
-              {/* Playhead line */}
-              <Line
-                points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
-                stroke="#ff5252"
-                strokeWidth={2}
-                dash={[8, 6]}
-              />
-            </Layer>
-          </Stage>
+          <TracksColumn
+            tracksWidth={tracksWidth}
+            tracksHeight={tracksHeight}
+            trackHeight={trackHeight}
+            trackGap={trackGap}
+            numTracks={numTracks}
+            tracksTopOffset={tracksTopOffset}
+            tracksTotalHeight={tracksTotalHeight}
+            responses={responses}
+            activeRectIds={activeRectIds}
+            windowStart={windowStart}
+            windowDuration={windowDuration}
+            playheadX={playheadX}
+          />
         </div>
       </div>
       {/* Info and controls below timeline */}
