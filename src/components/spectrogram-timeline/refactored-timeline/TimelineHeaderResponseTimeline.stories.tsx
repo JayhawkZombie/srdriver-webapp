@@ -37,7 +37,7 @@ export const UnifiedDemo = () => (
       <PlaybackAutoAdvanceEnabler />
       <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', background: '#181818', padding: 24, minHeight: 320 }}>
         <TimelineHeader />
-        <div style={{ height: 24 }} />
+        {/* <div style={{ height: 24 }} /> */}
         <ResponseTimeline />
       </div>
     </FakeAudioDataProvider>
