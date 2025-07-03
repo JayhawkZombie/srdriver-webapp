@@ -22,8 +22,15 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
     const setAndPersist: typeof set = (fnOrObj) => {
       set(fnOrObj);
       const state = _get() as unknown as AppState;
+      // Deep clone and remove audioBuffer before persisting
       const stateToPersist = {
-        audio: state.audio,
+        audio: {
+          ...state.audio,
+          analysis: {
+            ...state.audio.analysis,
+            audioBuffer: null, // Do not persist AudioBuffer
+          },
+        },
         playback: state.playback,
         ui: state.ui,
       };
@@ -43,7 +50,6 @@ export interface AudioDataAnalysis {
   fftSequence: (Float32Array | number[]);
   normalizedFftSequence?: number[][];
   summary: Record<string, unknown> | null;
-  audioBuffer: AudioBuffer | null;
   bandDataArr?: Array<Record<string, unknown>>;
   impulseStrengths?: number[][];
   detectionFunction?: number[];
@@ -93,7 +99,6 @@ const initialAudioData: AudioDataState = {
 const initialAudioAnalysis: AudioDataAnalysis = {
   fftSequence: [],
   summary: null,
-  audioBuffer: null,
 };
 const initialPlayback: PlaybackState = {
   currentTime: 0,
@@ -110,14 +115,31 @@ const initialUI: UIState = {
   showDetectionFunction: false,
 };
 
-export const useAppStore = create<AppState>(
-  persistWithIndexedDB<AppState>('app-state', (set, get) => ({
+export const useAppStore = create<AppState & {
+  setAudioData: (data: { waveform: number[]; duration: number }) => void;
+}>(
+  persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
       data: initialAudioData,
       analysis: initialAudioAnalysis,
     },
     playback: initialPlayback,
     ui: initialUI,
-    // Add other groups as needed
+    setAudioData: ({ waveform, duration }) => {
+      set((state) => ({
+        audio: {
+          ...state.audio,
+          analysis: {
+            ...state.audio.analysis,
+            waveform,
+            duration,
+          },
+        },
+        playback: {
+          ...state.playback,
+          totalDuration: duration,
+        },
+      }));
+    },
   }))
 ); 
