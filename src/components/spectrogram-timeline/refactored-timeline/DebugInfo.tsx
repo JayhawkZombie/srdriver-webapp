@@ -27,6 +27,7 @@ export const DebugInfo: React.FC<DebugInfoProps> = ({
         borderRadius: 8,
         margin: "12px auto",
         maxWidth: 800,
+        minHeight: 500,
         overflowX: "auto",
         fontFamily: "monospace",
         ...style,

@@ -8,6 +8,7 @@ import Track from "./Track";
 import TracksColumn from "./TracksColumn";
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import DebugInfo from "./DebugInfo";
+import TimelineContextMenu from "./TimelineContextMenu";
 
 export default function ResponseTimeline() {
   const {
@@ -98,7 +99,29 @@ export default function ResponseTimeline() {
     width: tracksWidth,
   });
 
-  // Pointer/hover logic
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    info: any;
+  } | null>(null);
+
+  const handleContextMenu = (info: any, event: React.PointerEvent) => {
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      info,
+    });
+  };
+
+  // Hide context menu on click elsewhere
+  React.useEffect(() => {
+    if (!contextMenu) return;
+    const handle = () => setContextMenu(null);
+    window.addEventListener("mousedown", handle);
+    return () => window.removeEventListener("mousedown", handle);
+  }, [contextMenu]);
+
   const { getTrackAreaProps, pointerState } = useTimelinePointerHandler({
     windowStart,
     windowDuration,
@@ -109,24 +132,7 @@ export default function ResponseTimeline() {
     numTracks,
     totalDuration,
     responses,
-    // onDragStart: (info, event) => {
-    //   console.log("drag start", info, event);
-    // },
-    // onDragMove: (info, event) => {
-    //   console.log("drag move", info, event);
-    // },
-    // onDragEnd: (info, event) => {
-    //   console.log("drag end", info, event);
-    // },
-    // onHover: (info, event) => {
-    //   console.log("hover", info, event);
-    // },
-    // onSelect: (info, event) => {
-    //   console.log("select", info, event);
-    // },
-    // onContextMenu: (info, event) => {
-    //   console.log("context menu", info, event);
-    // },
+    onContextMenu: handleContextMenu,
   });
 
   return (
@@ -177,6 +183,18 @@ export default function ResponseTimeline() {
             hoveredTrackIndex={pointerState.hoveredTrackIndex}
             hoveredResponseId={pointerState.hoveredResponseId}
           />
+          {/* Custom context menu */}
+          {contextMenu && (
+            <TimelineContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              info={{
+                ...contextMenu.info,
+                responseId: pointerState.hoveredResponseId,
+              }}
+              onClose={() => setContextMenu(null)}
+            />
+          )}
         </div>
       </div>
       {/* Info and controls below timeline */}
