@@ -45,7 +45,7 @@ const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, posit
         }}
       >
         <Menu>
-          <MenuItem text={`Time: ${info?.time?.toFixed(2)}`} disabled />
+          <MenuItem text={`Timestamp: ${info?.timestamp !== undefined ? info.timestamp.toFixed(2) : ''}`} disabled />
           <MenuItem text={`Track: ${info?.trackIndex}`} disabled />
           {info?.responseId && <MenuItem text={`Response ID: ${info.responseId}`} disabled />}
           {info?.timestamp !== undefined && (

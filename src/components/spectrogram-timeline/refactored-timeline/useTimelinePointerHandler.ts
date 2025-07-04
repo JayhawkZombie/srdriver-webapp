@@ -96,6 +96,7 @@ export function useTimelinePointerHandler({
         numTracks,
         totalDuration,
       });
+      console.log('getTrackAreaProps', info);
       if (!info) return;
       if (onBackgroundClick) onBackgroundClick(info, e);
     },

@@ -164,12 +164,16 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     const boundingRect = e.target.getStage().container().getBoundingClientRect();
     const pointerX = e.evt.clientX;
     const pointerY = e.evt.clientY;
+    console.log('[DEBUG] Stage context menu pointer:', { pointerX, pointerY });
+    console.log('[DEBUG] Stage context menu geometry:', geometry);
+    console.log('[DEBUG] About to call getTimelinePointerInfo', { pointerX, pointerY, boundingRect, geometry });
     const rawInfo = getTimelinePointerInfo({
       pointerX,
       pointerY,
       boundingRect,
       ...geometry,
     });
+    console.log('[DEBUG] Stage context menu rawInfo:', rawInfo);
     // Map to TimelineResponse-like fields for context menu consistency
     const info = rawInfo ? {
       timestamp: rawInfo.time,
@@ -290,54 +294,8 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
               width={tracksWidth}
               height={tracksHeight}
               style={{ position: "absolute", left: 0, top: 0 }}
-              onClick={(e: any) => {
-                console.log('[DEBUG] Stage onClick', e, e?.target?.name && e.target.name(), e?.evt);
-                if (!e || !e.target || e.target.name() !== 'stage-bg') {
-                  console.log('[DEBUG] Click not on stage-bg:', e?.target?.name && e.target.name());
-                  return;
-                }
-                if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
-                const boundingRect = e.target.getStage().container().getBoundingClientRect();
-                const pointerX = e.evt.clientX;
-                const pointerY = e.evt.clientY;
-                const x = pointerX - boundingRect.left;
-                const y = pointerY - boundingRect.top;
-                console.log('[DEBUG] Click coords:', { pointerX, pointerY, x, y });
-                // Calculate time and trackIndex from x/y
-                const time = geometry.windowStart + (x / geometry.tracksWidth) * geometry.windowDuration;
-                const trackIndex = Math.floor((y - geometry.tracksTopOffset) / (geometry.trackHeight + geometry.trackGap));
-                console.log('[DEBUG] Computed time/track:', { time, trackIndex });
-                if (trackIndex < 0 || trackIndex >= geometry.numTracks) {
-                  console.log('[DEBUG] Click outside valid track range:', trackIndex);
-                  return;
-                }
-                const defaultDuration = 1;
-                const timestamp = Math.max(0, Math.min(time, geometry.totalDuration - defaultDuration));
-                addTimelineResponse({
-                  id: crypto.randomUUID(),
-                  timestamp,
-                  duration: defaultDuration,
-                  trackIndex,
-                  data: {},
-                  triggered: false,
-                });
-                console.log('[DEBUG] Added response:', { timestamp, duration: defaultDuration, trackIndex });
-              }}
-              onContextMenu={(e: any) => {
-                console.log('[DEBUG] Stage onContextMenu', e, e?.target?.name && e.target.name(), e?.evt);
-                if (!e || !e.target || e.target.name() !== 'stage-bg') {
-                  console.log('[DEBUG] ContextMenu not on stage-bg:', e?.target?.name && e.target.name());
-                  return;
-                }
-                if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
-                setMenu({
-                  open: true,
-                  position: { x: e.evt.clientX, y: e.evt.clientY },
-                  info: {},
-                  type: 'bg',
-                });
-                console.log('[DEBUG] Opened context menu at', { x: e.evt.clientX, y: e.evt.clientY });
-              }}
+              onClick={handleStageClick}
+              onContextMenu={handleStageContextMenu}
             >
               <Layer>
                 {/* Background shape for hit testing */}

@@ -93,8 +93,10 @@ export function getTimelinePointerInfo({
   pointerY: number;
   boundingRect: DOMRect;
 } & TimelineGeometry) {
+  console.log('[DEBUG] getTimelinePointerInfo called', { pointerX, pointerY, boundingRect, geometry });
   const x = pointerX - boundingRect.left;
   const y = pointerY - boundingRect.top;
+  console.log('[DEBUG] getTimelinePointerInfo local x/y:', { x, y }, geometry);
   if (x < 0 || x > geometry.tracksWidth) return null;
   const time = xToTime({ x, windowStart: geometry.windowStart, windowDuration: geometry.windowDuration, width: geometry.tracksWidth });
   if (time < 0 || time > geometry.totalDuration) return null;
