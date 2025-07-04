@@ -8,10 +8,9 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import EditableNickname from '../EditableNickname';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import type { Device } from '../../types/Device';
 import { useDeviceControllerMap } from '../../controllers/DeviceControllerContext';
-import { useDeviceMetadata, useDeviceConnection, useDeviceState } from '../../store/appStore';
+import { useDeviceMetadata, useDeviceConnection } from '../../store/appStore';
 
 // ConnectionStatusIcon: shows connection state as an icon (not a chip)
 const ConnectionStatusIcon: React.FC<{ device: Device }> = ({ device }) => {
@@ -39,12 +38,17 @@ const ConnectionStatusIcon: React.FC<{ device: Device }> = ({ device }) => {
 // Main ConnectionTools component
 const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
   const { devices, connectDevice, disconnectDevice } = useDeviceControllerContext();
-  const device: Device | undefined = devices.find(d => d.id === deviceId);
-  const deviceMetadata = device ? useDeviceMetadata(device.browserId) : undefined;
-  const setDeviceNickname = useAppStore((state: any) => state.setDeviceNickname);
-  const deviceConnection = device ? useDeviceConnection(device.browserId) : undefined;
+  const device: Device | undefined = devices.find(d => d.browserId === deviceId);
+  const deviceMetadata = useDeviceMetadata(deviceId);
+  const setDeviceNickname = useAppStore((state) => state.setDeviceNickname);
+  const deviceConnection = useDeviceConnection(deviceId);
   const { getController } = useDeviceControllerMap();
-  console.log("Device connection", deviceConnection);
+  if (!deviceId) {
+    console.error('ConnectionTools: deviceId is undefined');
+    return null;
+  }
+  const handleDisconnect = () => device && disconnectDevice(device.browserId);
+  const handleConnect = () => device && connectDevice(device.browserId);
   // Allow rendering with a null device (for empty row)
   if (!device) {
     return (
@@ -54,7 +58,13 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
             browserId={deviceId}
             value={deviceMetadata?.nickname || ''}
             fallbackName={''}
-            onChange={nickname => setDeviceNickname(deviceId, nickname)}
+            onChange={nickname => {
+              if (!deviceId) {
+                console.error('setDeviceNickname called with undefined deviceId');
+                return;
+              }
+              setDeviceNickname(deviceId, nickname);
+            }}
             size="small"
           />
         </Box>
@@ -63,10 +73,7 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
             <IconButton
               size="small"
               color="primary"
-              onClick={e => {
-                e.stopPropagation();
-                connectDevice(deviceId);
-              }}
+              onClick={() => handleConnect()}
             >
               <PowerSettingsNewIcon fontSize="small" />
             </IconButton>
@@ -96,6 +103,10 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
                 }}
                 onClick={e => {
                   e.stopPropagation();
+                  if (!deviceId) {
+                    console.error('RTT ping called with undefined deviceId');
+                    return;
+                  }
                   const controller = getController(deviceId);
                   if (controller) controller.pingForRTT();
                 }}
@@ -130,86 +141,84 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
                   browserId={device.browserId}
                   value={deviceMetadata?.nickname}
                   fallbackName={device.name}
-                  onChange={(nickname) =>
-                      setDeviceNickname(device.browserId, nickname)
-                  }
+                  onChange={(nickname) => {
+                    if (!device.browserId) {
+                      console.error('setDeviceNickname called with undefined browserId');
+                      return;
+                    }
+                    setDeviceNickname(device.browserId, nickname);
+                  }}
                   size="small"
               />
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 1 }}>
-            {
-              device ? (
-                              <Tooltip title="Connection Status">
-                  <ConnectionStatusIcon device={device} />
+            {device ? (
+              <ConnectionStatusIcon device={device} />
+            ) : null}
+            {device.isConnected ? (
+              <Tooltip title="Disconnect">
+                <IconButton
+                  size="small"
+                  color="secondary"
+                  onClick={() => handleDisconnect()}
+                  disabled={device.isConnecting}
+                >
+                  <LinkOffIcon fontSize="small" />
+                </IconButton>
               </Tooltip>
-              ) : null
-            }
-              {device.isConnected ? (
-                  <Tooltip title="Disconnect">
-                      <IconButton
-                          size="small"
-                          color="secondary"
-                          onClick={(e) => {
-                              e.stopPropagation();
-                              disconnectDevice(device.id);
-                          }}
-                          disabled={device.isConnecting}
-                      >
-                          <LinkOffIcon fontSize="small" />
-                      </IconButton>
-                  </Tooltip>
-              ) : (
-                  <Tooltip
-                      title={device.isConnecting ? "Connecting..." : "Connect"}
-                  >
-                      <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={(e) => {
-                              e.stopPropagation();
-                              connectDevice(device.id);
-                          }}
-                          disabled={device.isConnecting}
-                      >
-                          <PowerSettingsNewIcon fontSize="small" />
-                      </IconButton>
-                  </Tooltip>
-              )}
-              {deviceConnection?.bleRTT !== undefined && (
-                  <Tooltip
-                      title={`BLE RTT: ${deviceConnection.bleRTT} ms (click to re-ping)`}
-                  >
-                      <IconButton
-                          size="small"
-                          sx={{
-                              ml: 1,
-                              p: 0,
-                              width: 36,
-                              height: 24,
-                              minWidth: 36,
-                              minHeight: 24,
-                              borderRadius: "6px",
-                              background: "#222",
-                              color: "#fff",
-                              opacity: 0.85,
-                              fontWeight: 700,
-                              fontSize: 13,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              transition: "background 0.2s",
-                              "&:hover": { background: "#333" },
-                          }}
-                          onClick={(e) => {
-                              e.stopPropagation();
-                              const controller = getController(device.browserId);
-                              if (controller) controller.pingForRTT();
-                          }}
-                      >
-                          {deviceConnection.bleRTT} ms
-                      </IconButton>
-                  </Tooltip>
-              )}
+            ) : (
+              <Tooltip
+                title={device.isConnecting ? "Connecting..." : "Connect"}
+              >
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => handleConnect()}
+                  disabled={device.isConnecting}
+                >
+                  <PowerSettingsNewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {deviceConnection?.bleRTT !== undefined && (
+              <Tooltip
+                title={`BLE RTT: ${deviceConnection.bleRTT} ms (click to re-ping)`}
+              >
+                <IconButton
+                  size="small"
+                  sx={{
+                    ml: 1,
+                    p: 0,
+                    width: 36,
+                    height: 24,
+                    minWidth: 36,
+                    minHeight: 24,
+                    borderRadius: "6px",
+                    background: "#222",
+                    color: "#fff",
+                    opacity: 0.85,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "background 0.2s",
+                    "&:hover": { background: "#333" },
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!device.browserId) {
+                      console.error('RTT ping called with undefined browserId');
+                      return;
+                    }
+                    const controller = getController(device.browserId);
+                    if (controller) controller.pingForRTT();
+                  }}
+                >
+                  {deviceConnection.bleRTT} ms
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>
       </Box>
   );

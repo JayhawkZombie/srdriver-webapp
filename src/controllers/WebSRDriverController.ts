@@ -28,11 +28,8 @@ export class WebSRDriverController implements ISRDriverController {
   private _debouncers: Record<string, { timeout: ReturnType<typeof setTimeout> | null; lastValue: unknown }> = {};
   private _onPong?: (rtt: number) => void;
   private _pendingPingTimestamp?: number;
-  public deviceId: string;
 
-  constructor(deviceId: string) {
-    this.deviceId = deviceId;
-  }
+  constructor() {}
 
   // Callbacks
   onBrightnessChange?: (value: number) => void;
@@ -210,6 +207,10 @@ export class WebSRDriverController implements ISRDriverController {
               const pongTimestamp = parseInt(str.split(":")[1], 10);
               if (this._pendingPingTimestamp && pongTimestamp === this._pendingPingTimestamp) {
                 const rtt = Date.now() - pongTimestamp;
+                if (!this.deviceId) {
+                  console.error('Attempted to update RTT for undefined deviceId');
+                  return;
+                }
                 console.log(`[BLE RTT] Pong received for device ${this.deviceId}: RTT = ${rtt} ms (pongTimestamp: ${pongTimestamp}, now: ${Date.now()})`);
                 // Update Zustand store with RTT for this device
                 useAppStore.getState().setDeviceConnection(this.deviceId, { bleRTT: rtt });
@@ -345,18 +346,30 @@ export class WebSRDriverController implements ISRDriverController {
   setBrightness(value: number, delay: number = 100): void {
     this.debouncedWrite('brightness', value, async (v) => {
       await this._setBrightnessImmediate(v);
+      if (!this.deviceId) {
+        console.error('Attempted to update brightness for undefined deviceId');
+        return;
+      }
       useAppStore.getState().setDeviceState(this.deviceId, { brightness: v });
     }, delay);
   }
   setSpeed(value: number, delay: number = 100): void {
     this.debouncedWrite('speed', value, async (v) => {
       await this._setSpeedImmediate(v);
+      if (!this.deviceId) {
+        console.error('Attempted to update speed for undefined deviceId');
+        return;
+      }
       useAppStore.getState().setDeviceState(this.deviceId, { speed: v });
     }, delay);
   }
   setPattern(index: number, delay: number = 100): void {
     this.debouncedWrite('pattern', index, async (v) => {
       await this._setPatternImmediate(v);
+      if (!this.deviceId) {
+        console.error('Attempted to update pattern for undefined deviceId');
+        return;
+      }
       useAppStore.getState().setDeviceState(this.deviceId, { patternIndex: v });
     }, delay);
   }
@@ -484,7 +497,11 @@ export class WebSRDriverController implements ISRDriverController {
     await this.sendCommand(command);
   }
 
-  public getDeviceId(): string | undefined {
+  get deviceId(): string | undefined {
+    return this.device?.id;
+  }
+
+  getDeviceId(): string | undefined {
     return this.device?.id;
   }
 

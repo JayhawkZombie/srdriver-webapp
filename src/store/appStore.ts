@@ -113,7 +113,6 @@ export type DeviceTypeInfo = {
 };
 
 export type DeviceMetadata = {
-  id: string;
   browserId: string;
   nickname: string;
   name: string;
@@ -277,8 +276,8 @@ export const useAppStore = create<AppState & {
       },
     })),
     addDevice: (metadata) => set(state => ({
-      devices: [...state.devices, metadata.id],
-      deviceMetadata: { ...state.deviceMetadata, [metadata.id]: metadata },
+      devices: [...state.devices, metadata.browserId],
+      deviceMetadata: { ...state.deviceMetadata, [metadata.browserId]: metadata },
     })),
     removeDevice: (id) => set(state => {
       const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));

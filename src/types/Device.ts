@@ -1,7 +1,6 @@
 import { WebSRDriverController } from '../controllers/WebSRDriverController';
 
 export interface Device {
-  id: string;
   name: string;
   controller: WebSRDriverController;
   isConnected: boolean;

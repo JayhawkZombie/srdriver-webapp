@@ -106,7 +106,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
 }) => {
     const { devices } = useDeviceControllerContext();
     const { getController } = useDeviceControllerMap();
-    const device = devices.find(d => d.id === deviceId);
+    const device = devices.find(d => d.browserId === deviceId);
     const controller = getController(deviceId);
     const deviceState = useAppStore(state => state.deviceState[deviceId]);
     const setDeviceState = useAppStore(state => state.setDeviceState);
