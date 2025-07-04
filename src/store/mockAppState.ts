@@ -43,6 +43,22 @@ export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar"
       },
       data: { metadata: null, analysis: null },
     },
-    // Add playback/ui defaults as needed
+    playback: {
+      currentTime: 0,
+      isPlaying: false,
+      totalDuration: 4,
+    },
+    ui: {
+      windowSec: 4,
+      showFirstDerivative: false,
+      showSecondDerivative: false,
+      showImpulses: true,
+      showSustainedImpulses: false,
+      onlySustained: false,
+      showDetectionFunction: false,
+    },
+    timeline: {
+      responses: [],
+    },
   };
 } 

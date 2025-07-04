@@ -48,6 +48,7 @@ export interface TimelineResponse {
   trackIndex: number;
   data: Record<string, any>;
   triggered: boolean;
+  intent?: string; // e.g., 'primary', 'error', 'success', etc.
 }
 
 // --- Grouped Zustand store ---

@@ -50,38 +50,66 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
       sourceRef.current = null;
     }
     if (timerRef.current) {
-      window.clearInterval(timerRef.current);
+      if (audioBufferRef.current) {
+        window.clearInterval(timerRef.current);
+      } else {
+        cancelAnimationFrame(timerRef.current);
+      }
       timerRef.current = null;
     }
     setTimeout(() => { isSeekingRef.current = false; }, 0); // Reset after microtask
   };
 
   const play = useCallback(() => {
-    if (!audioBufferRef.current) return setIsPlaying(false);
-    if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
-    stopSource();
-    const source = audioCtxRef.current.createBufferSource();
-    source.buffer = audioBufferRef.current;
-    source.connect(audioCtxRef.current.destination);
-    source.start(0, currentTimeRef.current);
-    source.onended = () => {
-      if (!isSeekingRef.current) setIsPlaying(false);
-    };
-    sourceRef.current = source;
-    setIsPlaying(true);
-    // Timer to update currentTime
-    timerRef.current = window.setInterval(() => {
-      setCurrentTime((t) => {
-        const next = t + 0.05;
-        if (audioBufferRef.current && next >= audioBufferRef.current.duration) {
-          setIsPlaying(false);
-          stopSource();
-          return audioBufferRef.current.duration;
+    if (audioBufferRef.current) {
+      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+      stopSource();
+      const source = audioCtxRef.current.createBufferSource();
+      source.buffer = audioBufferRef.current;
+      source.connect(audioCtxRef.current.destination);
+      source.start(0, currentTimeRef.current);
+      source.onended = () => {
+        if (!isSeekingRef.current) setIsPlaying(false);
+      };
+      sourceRef.current = source;
+      setIsPlaying(true);
+      // Timer to update currentTime
+      timerRef.current = window.setInterval(() => {
+        setCurrentTime((t) => {
+          const next = t + 0.05;
+          if (audioBufferRef.current && next >= audioBufferRef.current.duration) {
+            setIsPlaying(false);
+            stopSource();
+            return audioBufferRef.current.duration;
+          }
+          return next;
+        });
+      }, 50);
+    } else {
+      // DEMO MODE: advance playhead with requestAnimationFrame for smoothness
+      stopSource();
+      setIsPlaying(true);
+      let lastTime = performance.now();
+      const step = (now: number) => {
+        if (!isPlayingRef.current) return;
+        const dt = (now - lastTime) / 1000;
+        lastTime = now;
+        setCurrentTime((t) => {
+          const next = t + dt;
+          if (next >= totalDuration) {
+            setIsPlaying(false);
+            stopSource();
+            return totalDuration;
+          }
+          return next;
+        });
+        if (isPlayingRef.current) {
+          timerRef.current = requestAnimationFrame(step);
         }
-        return next;
-      });
-    }, 50);
-  }, []);
+      };
+      timerRef.current = requestAnimationFrame(step);
+    }
+  }, [totalDuration]);
 
   const pause = useCallback(() => {
     stopSource();

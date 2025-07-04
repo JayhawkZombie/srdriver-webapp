@@ -2,6 +2,7 @@ import React from "react";
 import { Stage, Layer, Rect, Line, Text as KonvaText } from "react-konva";
 import Track from "./Track";
 import type { KonvaEventObject } from 'konva/lib/Node';
+import { ResponseRect } from './ResponseRect';
 
 interface TracksColumnProps {
   tracksWidth: number;
@@ -19,6 +20,7 @@ interface TracksColumnProps {
   hoveredTrackIndex: number | null;
   hoveredResponseId: string | null;
   onContextMenu?: (e: React.MouseEvent) => void;
+  getRectProps?: (id: string) => any;
 }
 
 const TracksColumn: React.FC<TracksColumnProps> = ({
@@ -37,6 +39,7 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
   hoveredTrackIndex,
   hoveredResponseId,
   onContextMenu,
+  getRectProps,
 }) => {
   // Compute ticks/grid lines
   const majorTickEvery = 1;
@@ -99,24 +102,22 @@ const TracksColumn: React.FC<TracksColumnProps> = ({
         {/* Response rects with hover outline */}
         {responses.map((resp) => {
           const x = ((resp.timestamp - windowStart) / windowDuration) * tracksWidth;
-          const y = tracksTopOffset + resp.trackIndex * (trackHeight + trackGap) + trackHeight / 2;
-          const rectWidth = (resp.duration / windowDuration) * tracksWidth;
-          const isActive = activeRectIds.includes(resp.id);
-          const isHovered = hoveredResponseId === resp.id;
+          const y = tracksTopOffset + resp.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16;
+          const width = (resp.duration / windowDuration) * tracksWidth;
+          const height = 32;
+          // getRectProps must be passed in as a prop to TracksColumn from the parent timeline
+          const rectProps = getRectProps ? getRectProps(resp.id) : {};
           return (
-            <React.Fragment key={resp.id}>
-              <Rect
-                x={x}
-                y={y - 14}
-                width={rectWidth}
-                height={28}
-                fill={isActive ? "#ff9800" : "#ffeb3b"}
-                stroke={isHovered ? "#00e5ff" : isActive ? "#ff1744" : "#333"}
-                strokeWidth={isHovered ? 4 : 2}
-                cornerRadius={6}
-              />
-              <KonvaText x={x + rectWidth + 6} y={y - 8} text={`dur: ${resp.duration.toFixed(2)}`} fontSize={12} fill="#fffde7" />
-            </React.Fragment>
+            <ResponseRect
+              key={resp.id}
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              color={resp.color || (activeRectIds.includes(resp.id) ? '#ff9800' : '#4fc3f7')}
+              borderColor={resp.borderColor || '#fff'}
+              {...rectProps}
+            />
           );
         })}
         {/* Playhead line */}

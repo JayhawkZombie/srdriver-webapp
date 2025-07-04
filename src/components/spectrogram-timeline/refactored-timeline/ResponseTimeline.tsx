@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
 import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration, getTimelinePointerInfo } from "./timelineMath";
 import type { TimelineGeometry } from "./timelineMath";
@@ -17,13 +17,14 @@ import {
   useUpdateTimelineResponse,
   useSetTimelineResponses,
 } from "../../../store/appStore";
+import { ResponseRect } from './ResponseRect';
 
 export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAction[] }) {
   const responses = useTimelineResponses();
   const addTimelineResponse = useAddTimelineResponse();
   const updateTimelineResponse = useUpdateTimelineResponse();
   const setTimelineResponses = useSetTimelineResponses();
-  const totalDuration = 15; // TODO: wire to global playback if needed
+  const { totalDuration } = usePlayback();
 
   // Responsive sizing for tracks area only
   const aspectRatio = 16 / 5;
@@ -121,45 +122,113 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     totalDuration,
   };
 
-  const {
-    getTrackAreaProps,
-    pointerState,
-    isContextMenuOpen,
-    contextMenuPosition,
-    contextMenuInfo,
-    closeContextMenu,
-    contextMenuRef,
-    openContextMenu,
-  } = useTimelinePointerHandler({
+  const pointerHandler = useTimelinePointerHandler({
     ...geometry,
     responses,
     onBackgroundClick: handleTracksClick,
-    onContextMenu: (info, event) => {
-      // Latch all relevant info at the moment the menu is opened
-      let responseData = null;
-      if (pointerState.hoveredId) {
-        const resp = responses.find(r => r.id === pointerState.hoveredId);
-        if (resp) {
-          responseData = {
-            responseId: resp.id,
-            timestamp: resp.timestamp,
-            duration: resp.duration,
-            trackIndex: resp.trackIndex,
-          };
-        }
+    onRectMove: (id, { timestamp, trackIndex }) => {
+      updateTimelineResponse(id, { timestamp, trackIndex });
+    },
+    onRectResize: (id, edge, newTimestamp, newDuration) => {
+      if (edge === 'start') {
+        updateTimelineResponse(id, { timestamp: newTimestamp, duration: newDuration });
+      } else {
+        updateTimelineResponse(id, { duration: newDuration });
       }
-      // Store the latched info in contextMenuInfo
-      openContextMenu(
-        { x: event.clientX, y: event.clientY },
-        { ...info, ...responseData }
-      );
     },
   });
 
-  // Handler to forward context menu events from Konva Stage to the parent div (for ContextMenu2)
-  const handleTracksContextMenu = (e: React.MouseEvent) => {
-    // Let ContextMenu2 handle the event
-    // Optionally update pointer state here if needed
+  // Context menu state
+  const [menu, setMenu] = useState<{
+    open: boolean;
+    position: { x: number; y: number } | null;
+    info: any;
+    type: 'rect' | 'bg' | null;
+  }>({
+    open: false,
+    position: null,
+    info: null,
+    type: null,
+  });
+  const menuRef = useRef(null);
+
+  // Context menu for background
+  const handleStageContextMenu = (e: any) => {
+    console.log('[DEBUG] handleStageContextMenu fired', e, e?.target?.name && e.target.name(), e?.evt);
+    if (!e || !e.target || e.target.name() !== 'stage-bg') {
+      console.log('[DEBUG] ContextMenu not on stage-bg:', e?.target?.name && e.target.name());
+      return;
+    }
+    if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
+    setMenu({
+      open: true,
+      position: { x: e.evt.clientX, y: e.evt.clientY },
+      info: {},
+      type: 'bg',
+    });
+    console.log('[DEBUG] Opened context menu at', { x: e.evt.clientX, y: e.evt.clientY });
+  };
+
+  // Context menu for rect
+  const handleRectContextMenu = (rect: any, e: any) => {
+    e.evt.preventDefault();
+    setMenu({
+      open: true,
+      position: { x: e.evt.clientX, y: e.evt.clientY },
+      info: rect,
+      type: 'rect',
+    });
+  };
+
+  // Map intent to color/borderColor
+  function getRectColors(intent?: string) {
+    switch (intent) {
+      case 'error':
+        return { color: '#ff5252', borderColor: '#b71c1c' };
+      case 'success':
+        return { color: '#69f0ae', borderColor: '#1b5e20' };
+      case 'warning':
+        return { color: '#ffe082', borderColor: '#ffb300' };
+      case 'info':
+        return { color: '#4fc3f7', borderColor: '#01579b' };
+      default:
+        return { color: '#2196f3', borderColor: '#fff' };
+    }
+  }
+
+  // Add rect on background click
+  const handleStageClick = (e: any) => {
+    console.log('[DEBUG] handleStageClick fired', e, e?.target?.name && e.target.name(), e?.evt);
+    if (!e || !e.target || e.target.name() !== 'stage-bg') {
+      console.log('[DEBUG] Click not on stage-bg:', e?.target?.name && e.target.name());
+      return;
+    }
+    if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
+    const boundingRect = e.target.getStage().container().getBoundingClientRect();
+    const pointerX = e.evt.clientX;
+    const pointerY = e.evt.clientY;
+    const x = pointerX - boundingRect.left;
+    const y = pointerY - boundingRect.top;
+    console.log('[DEBUG] Click coords:', { pointerX, pointerY, x, y });
+    // Calculate time and trackIndex from x/y
+    const time = geometry.windowStart + (x / geometry.tracksWidth) * geometry.windowDuration;
+    const trackIndex = Math.floor((y - geometry.tracksTopOffset) / (geometry.trackHeight + geometry.trackGap));
+    console.log('[DEBUG] Computed time/track:', { time, trackIndex });
+    if (trackIndex < 0 || trackIndex >= geometry.numTracks) {
+      console.log('[DEBUG] Click outside valid track range:', trackIndex);
+      return;
+    }
+    const defaultDuration = 1;
+    const timestamp = Math.max(0, Math.min(time, geometry.totalDuration - defaultDuration));
+    addTimelineResponse({
+      id: crypto.randomUUID(),
+      timestamp,
+      duration: defaultDuration,
+      trackIndex,
+      data: {},
+      triggered: false,
+    });
+    console.log('[DEBUG] Added response:', { timestamp, duration: defaultDuration, trackIndex });
   };
 
   return (
@@ -194,43 +263,158 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
         >
           <div
             style={{ width: "100%", aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
-            {...getTrackAreaProps()}
           >
-            <TracksColumn
-              tracksWidth={tracksWidth}
-              tracksHeight={tracksHeight}
-              trackHeight={trackHeight}
-              trackGap={trackGap}
-              numTracks={numTracks}
-              tracksTopOffset={tracksTopOffset}
-              tracksTotalHeight={tracksTotalHeight}
-              responses={responses}
-              activeRectIds={activeRectIds}
-              windowStart={windowStart}
-              windowDuration={windowDuration}
-              playheadX={playheadX}
-              hoveredTrackIndex={null}
-              hoveredResponseId={pointerState.hoveredId}
-              onContextMenu={handleTracksContextMenu}
+            <Stage
+              width={tracksWidth}
+              height={tracksHeight}
+              style={{ position: "absolute", left: 0, top: 0 }}
+              onClick={(e: any) => {
+                console.log('[DEBUG] Stage onClick', e, e?.target?.name && e.target.name(), e?.evt);
+                if (!e || !e.target || e.target.name() !== 'stage-bg') {
+                  console.log('[DEBUG] Click not on stage-bg:', e?.target?.name && e.target.name());
+                  return;
+                }
+                if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
+                const boundingRect = e.target.getStage().container().getBoundingClientRect();
+                const pointerX = e.evt.clientX;
+                const pointerY = e.evt.clientY;
+                const x = pointerX - boundingRect.left;
+                const y = pointerY - boundingRect.top;
+                console.log('[DEBUG] Click coords:', { pointerX, pointerY, x, y });
+                // Calculate time and trackIndex from x/y
+                const time = geometry.windowStart + (x / geometry.tracksWidth) * geometry.windowDuration;
+                const trackIndex = Math.floor((y - geometry.tracksTopOffset) / (geometry.trackHeight + geometry.trackGap));
+                console.log('[DEBUG] Computed time/track:', { time, trackIndex });
+                if (trackIndex < 0 || trackIndex >= geometry.numTracks) {
+                  console.log('[DEBUG] Click outside valid track range:', trackIndex);
+                  return;
+                }
+                const defaultDuration = 1;
+                const timestamp = Math.max(0, Math.min(time, geometry.totalDuration - defaultDuration));
+                addTimelineResponse({
+                  id: crypto.randomUUID(),
+                  timestamp,
+                  duration: defaultDuration,
+                  trackIndex,
+                  data: {},
+                  triggered: false,
+                });
+                console.log('[DEBUG] Added response:', { timestamp, duration: defaultDuration, trackIndex });
+              }}
+              onContextMenu={(e: any) => {
+                console.log('[DEBUG] Stage onContextMenu', e, e?.target?.name && e.target.name(), e?.evt);
+                if (!e || !e.target || e.target.name() !== 'stage-bg') {
+                  console.log('[DEBUG] ContextMenu not on stage-bg:', e?.target?.name && e.target.name());
+                  return;
+                }
+                if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
+                setMenu({
+                  open: true,
+                  position: { x: e.evt.clientX, y: e.evt.clientY },
+                  info: {},
+                  type: 'bg',
+                });
+                console.log('[DEBUG] Opened context menu at', { x: e.evt.clientX, y: e.evt.clientY });
+              }}
+            >
+              <Layer>
+                {/* Background shape for hit testing */}
+                <Rect
+                  name="stage-bg"
+                  x={0}
+                  y={0}
+                  width={tracksWidth}
+                  height={tracksHeight}
+                  fill="rgba(0,0,0,0)"
+                  listening={true}
+                />
+                {/* Grid/tick lines */}
+                {(() => {
+                  const majorTickEvery = 1;
+                  const minorTickEvery = 0.2;
+                  const ticks = [];
+                  for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowStart + windowDuration; t += minorTickEvery) {
+                    const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
+                    const x = ((t - windowStart) / windowDuration) * tracksWidth;
+                    ticks.push({ t, x, isMajor });
+                  }
+                  return (
+                    <>
+                      {ticks.map(({ t, x, isMajor }) => (
+                        <React.Fragment key={t.toFixed(2)}>
+                          <Line
+                            points={[x, tracksTopOffset, x, tracksTopOffset + tracksTotalHeight]}
+                            stroke={isMajor ? "#fff" : "#888"}
+                            strokeWidth={isMajor ? 2 : 1}
+                            dash={isMajor ? undefined : [2, 4]}
+                          />
+                          {isMajor && (
+                            <KonvaText
+                              x={x + 2}
+                              y={tracksTopOffset - 22}
+                              text={t.toFixed(1)}
+                              fontSize={14}
+                              fill="#fff"
+                            />
+                          )}
+                        </React.Fragment>
+                      ))}
+                      {/* Boundary lines */}
+                      <Line points={[0, tracksTopOffset, 0, tracksTopOffset + tracksTotalHeight]} stroke="#ffeb3b" strokeWidth={2} dash={[4, 2]} />
+                      <Line points={[tracksWidth, tracksTopOffset, tracksWidth, tracksTopOffset + tracksTotalHeight]} stroke="#00bcd4" strokeWidth={2} dash={[4, 2]} />
+                      <Line points={[tracksWidth/2, tracksTopOffset, tracksWidth/2, tracksTopOffset + tracksTotalHeight]} stroke="#fff176" strokeWidth={1} dash={[2, 2]} />
+                    </>
+                  );
+                })()}
+                {/* Track backgrounds */}
+                {[...Array(numTracks)].map((_, i) => (
+                  <Track
+                    key={i}
+                    y={tracksTopOffset + i * (trackHeight + trackGap)}
+                    height={trackHeight}
+                    label={`Track ${i + 1}`}
+                    width={tracksWidth}
+                    listening={false}
+                  />
+                ))}
+                {/* Playhead line */}
+                <Line
+                  points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
+                  stroke="#ffeb3b"
+                  strokeWidth={3}
+                  dash={[6, 4]}
+                />
+                {/* Response rects */}
+                {responses.map(rect => {
+                  const x = ((rect.timestamp - windowStart) / windowDuration) * tracksWidth;
+                  const y = tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16;
+                  const width = (rect.duration / windowDuration) * tracksWidth;
+                  const height = 32;
+                  const { color, borderColor } = getRectColors(rect.intent);
+                  const rectProps = {
+                    x,
+                    y,
+                    width,
+                    height,
+                    color,
+                    borderColor,
+                    ...pointerHandler.getRectProps(rect.id),
+                    onContextMenu: (e: any) => handleRectContextMenu(rect, e),
+                  };
+                  return <ResponseRect key={rect.id} {...rectProps} />;
+                })}
+              </Layer>
+            </Stage>
+            <TimelineContextMenu
+              isOpen={menu.open}
+              position={menu.position}
+              info={menu.info}
+              onClose={() => setMenu({ open: false, position: null, info: null, type: null })}
+              menuRef={menuRef}
+              actions={actions}
             />
           </div>
         </div>
-        {/* Context menu portal (not a wrapper) */}
-        <TimelineContextMenu
-          isOpen={isContextMenuOpen}
-          position={contextMenuPosition}
-          info={contextMenuInfo}
-          onClose={closeContextMenu}
-          menuRef={contextMenuRef}
-          actions={actions && actions.length > 0 ? actions : [
-            {
-              key: "log",
-              text: "Log Info to Console",
-              icon: "console",
-              onClick: (info) => console.log("Clicked action with info:", info),
-            },
-          ]}
-        />
       </div>
       {/* Info and controls below timeline */}
       <div style={{ width: "100%", maxWidth: 1000, marginTop: 16 }}>
@@ -268,7 +452,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
             />
           </label>
         </div>
-        <DebugInfo label="Pointer State" data={pointerState} />
+        <DebugInfo label="Pointer State" data={pointerHandler.pointerState} />
       </div>
     </div>
   );

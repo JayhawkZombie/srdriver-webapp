@@ -70,7 +70,7 @@ function PlaybackControlsTest() {
 
 export const BasicControls = () => (
   <FakeAppStateStoryProvider mockType="sine">
-    <PlaybackProvider>
+    <PlaybackProvider totalDuration={15}>
       <PlaybackControlsTest />
     </PlaybackProvider>
   </FakeAppStateStoryProvider>
