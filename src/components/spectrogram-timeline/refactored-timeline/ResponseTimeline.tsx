@@ -370,7 +370,11 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                   const y = tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16;
                   const width = (rect.duration / windowDuration) * tracksWidth;
                   const height = 32;
-                  const { color, borderColor } = getRectColors(rect.intent);
+                  // Use orange for active rects
+                  const isActive = activeRectIds.includes(rect.id);
+                  const { color, borderColor } = isActive
+                    ? { color: '#ff9800', borderColor: '#ff9800' }
+                    : getRectColors(rect.intent);
                   const rectProps = {
                     x,
                     y,
