@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box,
     Typography,
@@ -23,6 +23,7 @@ import type { SelectChangeEvent } from "@mui/material/Select";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import SpeedOutlinedIcon from "@mui/icons-material/SpeedOutlined";
+import ColorPicker from './ColorPicker';
 
 const patternNames = [
     "Pattern 0",
@@ -117,6 +118,13 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
     const [firePatternIndex, setFirePatternIndex] = useState<number>(0);
     const [isFiringPattern, setIsFiringPattern] = useState<boolean>(false);
     const [patternArgument, setPatternArgument] = useState<string>("(255,255,255)-(0,0,0)");
+    const [localHighColor, setLocalHighColor] = useState<string>(rgbToHex(device?.highColor || {r:255,g:255,b:255}));
+    const [localLowColor, setLocalLowColor] = useState<string>(rgbToHex(device?.lowColor || {r:0,g:0,b:0}));
+
+    useEffect(() => {
+        setLocalHighColor(rgbToHex(device?.highColor || {r:255,g:255,b:255}));
+        setLocalLowColor(rgbToHex(device?.lowColor || {r:0,g:0,b:0}));
+    }, [device?.highColor, device?.lowColor]);
 
     const handleBrightnessChange = (
         event: Event | React.SyntheticEvent<Element, Event>,
@@ -146,12 +154,40 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
     const handlePulseBrightness = async () => {
         setIsPulsing(true);
         setTimeout(() => setIsPulsing(false), pulseDuration);
+        if (controller && device?.isConnected) controller.pulseBrightness(pulseTargetBrightness, pulseDuration);
     };
 
     const handleFirePattern = async () => {
         setIsFiringPattern(true);
         setTimeout(() => setIsFiringPattern(false), 500);
+        if (controller && device?.isConnected) controller.firePattern(firePatternIndex, patternArgument);
     };
+
+    const handleApplyHighColor = () => {
+        if (controller && device?.isConnected) controller.setHighColor(hexToRgb(localHighColor));
+    };
+
+    const handleApplyLowColor = () => {
+        if (controller && device?.isConnected) controller.setLowColor(hexToRgb(localLowColor));
+    };
+
+    function hexToRgb(hex: string) {
+        // Remove # if present
+        hex = hex.replace(/^#/, '');
+        if (hex.length === 3) {
+            hex = hex.split('').map(x => x + x).join('');
+        }
+        const num = parseInt(hex, 16);
+        return {
+            r: (num >> 16) & 255,
+            g: (num >> 8) & 255,
+            b: num & 255,
+        };
+    }
+
+    function rgbToHex({r,g,b}:{r:number,g:number,b:number}) {
+        return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+    }
 
     if (!device || !device.isConnected) return null;
 
@@ -410,6 +446,18 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
                         {isFiringPattern ? "..." : "Fire"}
                     </Button>
                 </Stack>
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'row', gap: 2, alignItems: 'center', mt: 2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, marginBottom: 2 }}>High Color</span>
+                    <ColorPicker color={localHighColor} onChange={setLocalHighColor} />
+                    <Button size="small" variant="outlined" sx={{ mt: 1 }} onClick={handleApplyHighColor}>Apply</Button>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, marginBottom: 2 }}>Low Color</span>
+                    <ColorPicker color={localLowColor} onChange={setLocalLowColor} />
+                    <Button size="small" variant="outlined" sx={{ mt: 1 }} onClick={handleApplyLowColor}>Apply</Button>
+                </Box>
             </Box>
         </Box>
     );

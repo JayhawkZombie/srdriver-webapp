@@ -1,3 +1,4 @@
+import type { AppState } from "./appStore";
 import {
   makeSineWave,
   makeNoise,
@@ -7,7 +8,7 @@ import {
   makeScreenshotLikeBarData,
 } from "./mockAudioData";
 
-export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar" | "beatBar" | "screenshotBar" = "sine") {
+export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar" | "beatBar" | "screenshotBar" = "sine"): AppState {
   let waveform, barData;
   switch (type) {
     case "sine":
@@ -39,7 +40,6 @@ export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar"
         duration: 4,
         fftSequence: [],
         summary: null,
-        audioBuffer: null,
       },
       data: { metadata: null, analysis: null },
     },
@@ -60,5 +60,11 @@ export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar"
     timeline: {
       responses: [],
     },
+    devices: [],
+    deviceMetadata: {},
+    deviceState: {},
+    deviceConnection: {},
+    deviceData: {},
+    deviceUserPrefs: {},
   };
 } 

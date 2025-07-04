@@ -342,21 +342,38 @@ export class WebSRDriverController implements ISRDriverController {
 
   // Public debounced methods
   setBrightness(value: number, delay: number = 100): void {
-    this.debouncedWrite('brightness', value, (v) => this._setBrightnessImmediate(v), delay);
+    this.debouncedWrite('brightness', value, async (v) => {
+      await this._setBrightnessImmediate(v);
+      useAppStore.getState().setDeviceState(this.deviceId, { brightness: v });
+    }, delay);
   }
   setSpeed(value: number, delay: number = 100): void {
-    this.debouncedWrite('speed', value, (v) => this._setSpeedImmediate(v), delay);
+    this.debouncedWrite('speed', value, async (v) => {
+      await this._setSpeedImmediate(v);
+      useAppStore.getState().setDeviceState(this.deviceId, { speed: v });
+    }, delay);
   }
   setPattern(index: number, delay: number = 100): void {
-    this.debouncedWrite('pattern', index, (v) => this._setPatternImmediate(v), delay);
+    this.debouncedWrite('pattern', index, async (v) => {
+      await this._setPatternImmediate(v);
+      useAppStore.getState().setDeviceState(this.deviceId, { patternIndex: v });
+    }, delay);
   }
 
   // Public debounced setter methods
   setHighColor(color: RGBColor, delay: number = 100): void {
-    this.debouncedWrite('highColor', color, (v) => this._setHighColorImmediate(v), delay);
+    this.debouncedWrite('highColor', color, async (v) => {
+      await this._setHighColorImmediate(v);
+      // Optionally: update Device object in context for optimistic UI
+      // (skip Zustand deviceState update for highColor)
+    }, delay);
   }
   setLowColor(color: RGBColor, delay: number = 100): void {
-    this.debouncedWrite('lowColor', color, (v) => this._setLowColorImmediate(v), delay);
+    this.debouncedWrite('lowColor', color, async (v) => {
+      await this._setLowColorImmediate(v);
+      // Optionally: update Device object in context for optimistic UI
+      // (skip Zustand deviceState update for lowColor)
+    }, delay);
   }
   setLeftSeriesCoefficients(coeffs: [number, number, number], delay: number = 100): void {
     this.debouncedWrite('leftSeriesCoefficients', coeffs, (v) => this._setLeftSeriesCoefficientsImmediate(v), delay);
