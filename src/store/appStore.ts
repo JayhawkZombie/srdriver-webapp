@@ -275,10 +275,25 @@ export const useAppStore = create<AppState & {
         responses,
       },
     })),
-    addDevice: (metadata) => set(state => ({
-      devices: [...state.devices, metadata.browserId],
-      deviceMetadata: { ...state.deviceMetadata, [metadata.browserId]: metadata },
-    })),
+    addDevice: (metadata) => set(state => {
+      const prev = state.deviceMetadata[metadata.browserId] || {};
+      return {
+        devices: state.devices.includes(metadata.browserId)
+          ? state.devices
+          : [...state.devices, metadata.browserId],
+        deviceMetadata: {
+          ...state.deviceMetadata,
+          [metadata.browserId]: {
+            ...prev,
+            ...metadata,
+            nickname: metadata.nickname || prev.nickname || '',
+            group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
+            tags: metadata.tags || prev.tags || [],
+            typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
+          },
+        },
+      };
+    }),
     removeDevice: (id) => set(state => {
       const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
       const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));

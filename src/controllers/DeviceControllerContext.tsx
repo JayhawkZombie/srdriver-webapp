@@ -202,13 +202,14 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
         return;
       }
       controllerMapRef.current[browserId] = controller; // Only add after connect
+      const existingMeta = useAppStore.getState().deviceMetadata[browserId];
       const metadata: DeviceMetadata = {
         browserId,
         name: controller.getDeviceName() || 'SRDriver',
-        nickname: '',
-        group: null,
-        tags: [],
-        typeInfo: { model: '', firmwareVersion: '', numLEDs: 0, ledLayout: 'strip', capabilities: [] },
+        nickname: existingMeta?.nickname ?? '',
+        group: existingMeta?.group ?? null,
+        tags: existingMeta?.tags ?? [],
+        typeInfo: existingMeta?.typeInfo ?? { model: '', firmwareVersion: '', numLEDs: 0, ledLayout: 'strip', capabilities: [] },
       };
       useAppStore.getState().addDevice(metadata);
       addDevice(metadata);
