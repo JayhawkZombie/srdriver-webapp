@@ -5,6 +5,7 @@ import { set as idbSet, get as idbGet } from 'idb-keyval';
 // --- Generic IndexedDB middleware ---
 export function persistWithIndexedDB<T extends object>(key: string, config: StateCreator<T>): StateCreator<T> {
   return (set, _get, api) => {
+    console.log('[Zustand] Hydration starting...');
     idbGet(key).then((stored: unknown) => {
       if (stored && typeof stored === 'object' && stored !== null) {
         const s = stored as Partial<AppState>;
@@ -17,7 +18,15 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
         if (s.playback) {
           set((state: T) => ({ ...state, playback: s.playback } as T));
         }
+        if (s.deviceMetadata) {
+          set((state: T) => ({ ...state, deviceMetadata: s.deviceMetadata } as T));
+        }
+        if (s.devices) {
+          set((state: T) => ({ ...state, devices: s.devices } as T));
+        }
       }
+      set((state: T) => ({ ...state, hydrated: true } as T));
+      console.log('[Zustand] Hydration complete. deviceMetadata:', _get().deviceMetadata);
     });
     const setAndPersist: typeof set = (fnOrObj) => {
       set(fnOrObj);
@@ -33,6 +42,8 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
         },
         playback: state.playback,
         ui: state.ui,
+        deviceMetadata: state.deviceMetadata,
+        devices: state.devices,
       };
       idbSet(key, stateToPersist);
     };
@@ -103,7 +114,7 @@ export type DeviceTypeInfo = {
 
 export type DeviceMetadata = {
   id: string;
-  macOrId: string;
+  browserId: string;
   nickname: string;
   name: string;
   group: string | null;
@@ -150,12 +161,13 @@ export interface AppState {
   timeline: {
     responses: TimelineResponse[];
   };
-  devices: string[];
-  deviceMetadata: { [id: string]: DeviceMetadata };
-  deviceState: { [id: string]: DeviceUIState };
-  deviceConnection: { [id: string]: DeviceConnectionStatus };
-  deviceData: { [id: string]: DeviceDataBlob };
-  deviceUserPrefs: DeviceUserPrefs;
+  devices: string[]; // still an array of device IDs for ordering, but all maps below are keyed by browserId
+  deviceMetadata: { [browserId: string]: DeviceMetadata }; // now keyed by browserId
+  deviceState: { [browserId: string]: DeviceUIState };
+  deviceConnection: { [browserId: string]: DeviceConnectionStatus };
+  deviceData: { [browserId: string]: DeviceDataBlob };
+  deviceUserPrefs: { [browserId: string]: DeviceUserPrefs[string] };
+  hydrated: boolean;
   // Add other groups as needed
 }
 
@@ -200,12 +212,14 @@ export const useAppStore = create<AppState & {
   addDevice: (metadata: DeviceMetadata) => void;
   removeDevice: (id: string) => void;
   setDeviceMetadata: (id: string, metadata: DeviceMetadata) => void;
+  setDeviceNickname: (id: string, nickname: string) => void;
   setDeviceState: (id: string, state: Partial<DeviceUIState>) => void;
   setDeviceConnection: (id: string, status: Partial<DeviceConnectionStatus>) => void;
   setDeviceData: (id: string, data: DeviceDataBlob) => void;
   updateDeviceTypeInfo: (id: string, typeInfo: Partial<DeviceTypeInfo>) => void;
   setDeviceGroup: (id: string, group: string | null) => void;
   setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
+  hydrated: boolean;
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -221,6 +235,7 @@ export const useAppStore = create<AppState & {
     deviceConnection: initialDeviceConnection,
     deviceData: initialDeviceData,
     deviceUserPrefs: initialDeviceUserPrefs,
+    hydrated: false,
     setAudioData: ({ waveform, duration }) => {
       set((state) => ({
         audio: {
@@ -266,11 +281,11 @@ export const useAppStore = create<AppState & {
       deviceMetadata: { ...state.deviceMetadata, [metadata.id]: metadata },
     })),
     removeDevice: (id) => set(state => {
-      const { [id]: _, ...restMeta } = state.deviceMetadata;
-      const { [id]: __, ...restState } = state.deviceState;
-      const { [id]: ___, ...restConn } = state.deviceConnection;
-      const { [id]: ____, ...restData } = state.deviceData;
-      const { [id]: _____, ...restPrefs } = state.deviceUserPrefs;
+      const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
+      const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
+      const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
+      const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
+      const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
       return {
         devices: state.devices.filter(did => did !== id),
         deviceMetadata: restMeta,
@@ -280,48 +295,65 @@ export const useAppStore = create<AppState & {
         deviceUserPrefs: restPrefs,
       };
     }),
-    setDeviceMetadata: (id, metadata) => set(state => ({
-      deviceMetadata: { ...state.deviceMetadata, [id]: metadata },
+    setDeviceMetadata: (browserId, metadata) => set(state => ({
+      deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
     })),
-    setDeviceState: (id, update) => set(state => ({
-      deviceState: { ...state.deviceState, [id]: { ...state.deviceState[id], ...update } },
-    })),
-    setDeviceConnection: (id, update) => set(state => ({
-      deviceConnection: { ...state.deviceConnection, [id]: { ...state.deviceConnection[id], ...update } },
-    })),
-    setDeviceData: (id, data) => set(state => ({
-      deviceData: { ...state.deviceData, [id]: data },
-    })),
-    updateDeviceTypeInfo: (id, typeInfo) => set(state => ({
+    setDeviceNickname: (browserId, nickname) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
-        [id]: {
-          ...state.deviceMetadata[id],
-          typeInfo: { ...state.deviceMetadata[id].typeInfo, ...typeInfo },
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          nickname,
         },
       },
     })),
-    setDeviceGroup: (id, group) => set(state => ({
+    setDeviceState: (browserId, update) => set(state => ({
+      deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
+    })),
+    setDeviceConnection: (browserId, update) => set(state => ({
+      deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
+    })),
+    setDeviceData: (browserId, data) => set(state => ({
+      deviceData: { ...state.deviceData, [browserId]: data },
+    })),
+    updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
-        [id]: {
-          ...state.deviceMetadata[id],
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
+        },
+      },
+    })),
+    setDeviceGroup: (browserId, group) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
           group,
         },
       },
     })),
-    setDeviceUserPrefs: (id, prefs) => set(state => ({
-      deviceUserPrefs: {
-        ...state.deviceUserPrefs,
-        [id]: { ...state.deviceUserPrefs[id], ...prefs },
-      },
+    setDeviceUserPrefs: (browserId, prefs) => set(state => ({
+      deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
     })),
   }))
-);
+); 
 
 // --- Timeline selectors/hooks ---
 export const useTimelineResponses = () => useAppStore(state => state.timeline.responses);
 export const useAddTimelineResponse = () => useAppStore(state => state.addTimelineResponse);
 export const useUpdateTimelineResponse = () => useAppStore(state => state.updateTimelineResponse);
 export const useDeleteTimelineResponse = () => useAppStore(state => state.deleteTimelineResponse);
-export const useSetTimelineResponses = () => useAppStore(state => state.setTimelineResponses); 
+export const useSetTimelineResponses = () => useAppStore(state => state.setTimelineResponses);
+
+export const useDeviceMetadata = (browserId: string) =>
+  useAppStore(state => state.deviceMetadata[browserId]);
+export const useDeviceState = (browserId: string) =>
+  useAppStore(state => state.deviceState[browserId]);
+export const useDeviceConnection = (browserId: string) =>
+  useAppStore(state => state.deviceConnection[browserId]);
+export const useDeviceUserPrefs = (browserId: string) =>
+  useAppStore(state => state.deviceUserPrefs[browserId]);
+
+export const useHydrated = () => useAppStore(state => state.hydrated); 

@@ -141,6 +141,7 @@ export class WebSRDriverController implements ISRDriverController {
         throw new Error("No device selected");
       }
       this.device = device;
+      console.log("Connecting to device", this.device);
       const server = await this.device.gatt?.connect();
       if (!server) {
         throw new Error("Failed to connect to GATT server");

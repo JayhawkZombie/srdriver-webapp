@@ -5,14 +5,14 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 
 interface EditableNicknameProps {
-  macOrId: string;
+  browserId: string;
   value?: string;
   fallbackName: string;
   onChange: (nickname: string) => void;
   size?: 'small' | 'medium';
 }
 
-const EditableNickname: React.FC<EditableNicknameProps> = ({ macOrId, value, fallbackName, onChange, size = 'medium' }) => {
+const EditableNickname: React.FC<EditableNicknameProps> = ({ browserId, value, fallbackName, onChange, size = 'medium' }) => {
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState(value || '');
 

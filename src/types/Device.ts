@@ -18,7 +18,7 @@ export interface Device {
   rightSeriesCoefficients: [number, number, number];
   savedLeftSeriesCoefficients: [number, number, number];
   savedRightSeriesCoefficients: [number, number, number];
-  macOrId: string;
+  browserId: string;
   heartbeat?: {
     last: number | null;
     isAlive: boolean;

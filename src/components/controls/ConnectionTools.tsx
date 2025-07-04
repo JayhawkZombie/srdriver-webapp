@@ -11,6 +11,7 @@ import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import type { Device } from '../../types/Device';
 import { useDeviceControllerMap } from '../../controllers/DeviceControllerContext';
+import { useDeviceMetadata, useDeviceConnection, useDeviceState } from '../../store/appStore';
 
 // ConnectionStatusIcon: shows connection state as an icon (not a chip)
 const ConnectionStatusIcon: React.FC<{ device: Device }> = ({ device }) => {
@@ -39,9 +40,9 @@ const ConnectionStatusIcon: React.FC<{ device: Device }> = ({ device }) => {
 const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
   const { devices, connectDevice, disconnectDevice } = useDeviceControllerContext();
   const device: Device | undefined = devices.find(d => d.id === deviceId);
-  const deviceMetadata = useAppStore(state => state.deviceMetadata);
+  const deviceMetadata = device ? useDeviceMetadata(device.browserId) : undefined;
   const setDeviceNickname = useAppStore((state: any) => state.setDeviceNickname);
-  const deviceConnection = useAppStore(state => state.deviceConnection);
+  const deviceConnection = device ? useDeviceConnection(device.browserId) : undefined;
   const { getController } = useDeviceControllerMap();
   console.log("Device connection", deviceConnection);
   // Allow rendering with a null device (for empty row)
@@ -50,8 +51,8 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
       <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5, justifyContent: "center" }}>
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
           <EditableNickname
-            macOrId={deviceId}
-            value={deviceMetadata[deviceId]?.nickname || ''}
+            browserId={deviceId}
+            value={deviceMetadata?.nickname || ''}
             fallbackName={''}
             onChange={nickname => setDeviceNickname(deviceId, nickname)}
             size="small"
@@ -70,8 +71,8 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
               <PowerSettingsNewIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          {deviceConnection[deviceId]?.bleRTT !== undefined && (
-            <Tooltip title={`BLE RTT: ${deviceConnection[deviceId].bleRTT} ms (click to re-ping)`}>
+          {deviceConnection?.bleRTT !== undefined && (
+            <Tooltip title={`BLE RTT: ${deviceConnection.bleRTT} ms (click to re-ping)`}>
               <IconButton
                 size="small"
                 sx={{
@@ -99,7 +100,7 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
                   if (controller) controller.pingForRTT();
                 }}
               >
-                {deviceConnection[deviceId].bleRTT} ms
+                {deviceConnection.bleRTT} ms
               </IconButton>
             </Tooltip>
           )}
@@ -108,81 +109,109 @@ const ConnectionTools: React.FC<{ deviceId: string }> = ({ deviceId }) => {
     );
   }
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1.5, justifyContent: "center" }}>
-      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
-        <EditableNickname
-          macOrId={device.macOrId}
-          value={deviceMetadata[device.macOrId]?.nickname}
-          fallbackName={device.name}
-          onChange={nickname => setDeviceNickname(device.macOrId, nickname)}
-          size="small"
-        />
-      </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1 }}>
-        {device.isConnected ? (
-          <Tooltip title="Disconnect">
-            <IconButton
-              size="small"
-              color="secondary"
-              onClick={e => {
-                e.stopPropagation();
-                disconnectDevice(device.id);
-              }}
-              disabled={device.isConnecting}
-            >
-              <LinkOffIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : (
-          <Tooltip title={device.isConnecting ? 'Connecting...' : 'Connect'}>
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={e => {
-                e.stopPropagation();
-                connectDevice(device.id);
-              }}
-              disabled={device.isConnecting}
-            >
-              <PowerSettingsNewIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-        {deviceConnection[device.id]?.bleRTT !== undefined && (
-          <Tooltip title={`BLE RTT: ${deviceConnection[device.id].bleRTT} ms (click to re-ping)`}>
-            <IconButton
-              size="small"
+      <Box
+          sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              gap: 1.5,
+              justifyContent: "center",
+          }}
+      >
+          <Box
               sx={{
-                ml: 1,
-                p: 0,
-                width: 36,
-                height: 24,
-                minWidth: 36,
-                minHeight: 24,
-                borderRadius: '6px',
-                background: '#222',
-                color: '#fff',
-                opacity: 0.85,
-                fontWeight: 700,
-                fontSize: 13,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 0.2s',
-                '&:hover': { background: '#333' },
+                  flex: 1,
+                  minWidth: 0,
+                  display: "flex",
+                  alignItems: "center",
               }}
-              onClick={e => {
-                e.stopPropagation();
-                const controller = getController(device.id);
-                if (controller) controller.pingForRTT();
-              }}
-            >
-              {deviceConnection[device.id].bleRTT} ms
-            </IconButton>
-          </Tooltip>
-        )}
+          >
+              <EditableNickname
+                  browserId={device.browserId}
+                  value={deviceMetadata?.nickname}
+                  fallbackName={device.name}
+                  onChange={(nickname) =>
+                      setDeviceNickname(device.browserId, nickname)
+                  }
+                  size="small"
+              />
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 1 }}>
+            {
+              device ? (
+                              <Tooltip title="Connection Status">
+                  <ConnectionStatusIcon device={device} />
+              </Tooltip>
+              ) : null
+            }
+              {device.isConnected ? (
+                  <Tooltip title="Disconnect">
+                      <IconButton
+                          size="small"
+                          color="secondary"
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              disconnectDevice(device.id);
+                          }}
+                          disabled={device.isConnecting}
+                      >
+                          <LinkOffIcon fontSize="small" />
+                      </IconButton>
+                  </Tooltip>
+              ) : (
+                  <Tooltip
+                      title={device.isConnecting ? "Connecting..." : "Connect"}
+                  >
+                      <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              connectDevice(device.id);
+                          }}
+                          disabled={device.isConnecting}
+                      >
+                          <PowerSettingsNewIcon fontSize="small" />
+                      </IconButton>
+                  </Tooltip>
+              )}
+              {deviceConnection?.bleRTT !== undefined && (
+                  <Tooltip
+                      title={`BLE RTT: ${deviceConnection.bleRTT} ms (click to re-ping)`}
+                  >
+                      <IconButton
+                          size="small"
+                          sx={{
+                              ml: 1,
+                              p: 0,
+                              width: 36,
+                              height: 24,
+                              minWidth: 36,
+                              minHeight: 24,
+                              borderRadius: "6px",
+                              background: "#222",
+                              color: "#fff",
+                              opacity: 0.85,
+                              fontWeight: 700,
+                              fontSize: 13,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "background 0.2s",
+                              "&:hover": { background: "#333" },
+                          }}
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              const controller = getController(device.browserId);
+                              if (controller) controller.pingForRTT();
+                          }}
+                      >
+                          {deviceConnection.bleRTT} ms
+                      </IconButton>
+                  </Tooltip>
+              )}
+          </Box>
       </Box>
-    </Box>
   );
 };
 

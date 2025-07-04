@@ -172,7 +172,7 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
       rightSeriesCoefficients: [0.0, 0.0, 0.0],
       savedLeftSeriesCoefficients: [0.0, 0.0, 0.0],
       savedRightSeriesCoefficients: [0.0, 0.0, 0.0],
-      macOrId: uniqueId,
+      browserId: uniqueId,
     };
     setDevices(prev => [...prev, newDevice]);
   }, [devices.length]);
@@ -206,16 +206,26 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
         ));
         useAppStore.getState().setDeviceConnection(deviceId, { isConnected: true, isConnecting: false, error: null });
         // Optionally update deviceMetadata with real info from controller/device
-        const meta = useAppStore.getState().deviceMetadata[deviceId] || {};
-        useAppStore.getState().setDeviceMetadata(deviceId, {
+        const existingMeta = useAppStore.getState().deviceMetadata[deviceId];
+        const meta = existingMeta || {};
+        const realDeviceId = controller.deviceId;
+        // swap data from temp deviceId to real deviceId
+        const newControllerMapRefCopy = { ...controllerMapRef.current };
+        delete newControllerMapRefCopy[deviceId];
+        newControllerMapRefCopy[realDeviceId] = controllerMapRef.current[deviceId];
+        controllerMapRef.current = newControllerMapRefCopy;
+        controller.deviceId = realDeviceId;
+        // update deviceMetadata
+        useAppStore.getState().setDeviceMetadata(realDeviceId, {
           ...meta,
-          id: deviceId,
+          id: realDeviceId,
           name: controller.getDeviceName() || meta.name || 'SRDriver',
-          macOrId: deviceId,
+          browserId: realDeviceId,
           group: meta.group || null,
           tags: meta.tags || [],
           typeInfo: meta.typeInfo || { model: '', firmwareVersion: '', numLEDs: 0, ledLayout: 'strip', capabilities: [] },
-          nickname: meta.nickname || '',
+          nickname: existingMeta?.nickname ?? "",
+          // nickname: existingMeta?.nickname || meta.nickname || '',
         });
         // Send a ping to measure RTT
         controller.pingForRTT();

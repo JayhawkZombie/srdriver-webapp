@@ -11,13 +11,12 @@ import AddIcon from "@mui/icons-material/Add";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import { useDeviceControllerContext } from "../../controllers/DeviceControllerContext";
 import DeviceControls from "./DeviceControls";
-import { useAppStore } from "../../store/appStore";
+import { useDeviceMetadata, useDeviceConnection, useDeviceState } from '../../store/appStore';
 import ConnectionTools from './ConnectionTools';
 
 const LightsConnectionCard: React.FC = () => {
     const { devices, addDevice } = useDeviceControllerContext();
     const theme = useTheme();
-    const deviceMetadata = useAppStore(state => state.deviceMetadata);
     const [selectedDeviceId, setSelectedDeviceId] = React.useState<string | null>(null);
     const [visible, setVisible] = React.useState(true);
 
@@ -103,7 +102,7 @@ const LightsConnectionCard: React.FC = () => {
                                 const isSelected = selectedDeviceId === device.id;
                                 return (
                                     <Box
-                                        key={device.id}
+                                        key={device.browserId}
                                         onClick={() => setSelectedDeviceId(device.id)}
                                         sx={{
                                             flex: 1,
@@ -127,7 +126,7 @@ const LightsConnectionCard: React.FC = () => {
                                         tabIndex={0}
                                         role="button"
                                     >
-                                        <ConnectionTools deviceId={device.id} />
+                                        <ConnectionTools deviceId={device.browserId} />
                                     </Box>
                                 );
                             })}
@@ -138,7 +137,7 @@ const LightsConnectionCard: React.FC = () => {
                             <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
                                 Device Controls
                             </Typography>
-                            <DeviceControls deviceId={selectedDevice.id} />
+                            <DeviceControls deviceId={selectedDevice.browserId} />
                         </Box>
                     )}
                 </Box>
