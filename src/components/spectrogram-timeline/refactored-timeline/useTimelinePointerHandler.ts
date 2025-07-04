@@ -164,14 +164,22 @@ export function useTimelinePointerHandler({
         const dy = e.target.y() - dragStartRef.current.y;
         // Convert dx to time delta
         const timeDelta = (dx / tracksWidth) * windowDuration;
-        // Convert dy to track index delta
-        const trackDelta = Math.round(dy / (trackHeight + trackGap));
+        // Do NOT snap trackIndex while dragging; just store the floating Y offset
         const newTimestamp = Math.max(0, Math.min(totalDuration - rect.duration, dragStartRef.current.timestamp + timeDelta));
-        const newTrackIndex = Math.max(0, Math.min(numTracks - 1, dragStartRef.current.trackIndex + trackDelta));
-        if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: newTrackIndex });
+        // Keep trackIndex as original during drag
+        if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: dragStartRef.current.trackIndex });
         e.cancelBubble = true;
       },
       onDragEnd: (e: any) => {
+        if (!dragStartRef.current) return;
+        // On drop, snap to nearest track
+        const dy = e.target.y() - dragStartRef.current.y;
+        const trackDelta = Math.round(dy / (trackHeight + trackGap));
+        const snappedTrackIndex = Math.max(0, Math.min(numTracks - 1, dragStartRef.current.trackIndex + trackDelta));
+        const dx = e.target.x() - dragStartRef.current.x;
+        const timeDelta = (dx / tracksWidth) * windowDuration;
+        const newTimestamp = Math.max(0, Math.min(totalDuration - rect.duration, dragStartRef.current.timestamp + timeDelta));
+        if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: snappedTrackIndex });
         setDraggingId(null);
         dragStartRef.current = null;
         e.cancelBubble = true;

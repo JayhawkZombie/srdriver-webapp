@@ -127,6 +127,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     responses,
     onBackgroundClick: handleTracksClick,
     onRectMove: (id, { timestamp, trackIndex }) => {
+      console.log('[DEBUG] onRectMove', { id, timestamp, trackIndex });
       updateTimelineResponse(id, { timestamp, trackIndex });
     },
     onRectResize: (id, edge, newTimestamp, newDuration) => {
@@ -160,17 +161,38 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
       return;
     }
     if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
+    const boundingRect = e.target.getStage().container().getBoundingClientRect();
+    const pointerX = e.evt.clientX;
+    const pointerY = e.evt.clientY;
+    const rawInfo = getTimelinePointerInfo({
+      pointerX,
+      pointerY,
+      boundingRect,
+      ...geometry,
+    });
+    // Map to TimelineResponse-like fields for context menu consistency
+    const info = rawInfo ? {
+      timestamp: rawInfo.time,
+      trackIndex: rawInfo.trackIndex,
+      // Optionally add duration, id, etc. if needed for menu actions
+    } : {};
     setMenu({
       open: true,
-      position: { x: e.evt.clientX, y: e.evt.clientY },
-      info: {},
+      position: { x: pointerX, y: pointerY },
+      info,
       type: 'bg',
     });
-    console.log('[DEBUG] Opened context menu at', { x: e.evt.clientX, y: e.evt.clientY });
+    console.log('[DEBUG] Opened context menu at', { x: pointerX, y: pointerY }, info);
   };
 
   // Context menu for rect
   const handleRectContextMenu = (rect: any, e: any) => {
+    // If rect is a Konva node, find the corresponding timeline response
+    if (rect && rect.attrs && rect.attrs.id) {
+      const found = responses.find(r => r.id === rect.attrs.id);
+      if (found) rect = found;
+    }
+    console.log('[DEBUG] handleRectContextMenu rect:', rect);
     e.evt.preventDefault();
     setMenu({
       open: true,
