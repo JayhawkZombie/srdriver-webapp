@@ -211,7 +211,7 @@ export class WebSRDriverController implements ISRDriverController {
                 const rtt = Date.now() - pongTimestamp;
                 console.log(`[BLE RTT] Pong received for device ${this.deviceId}: RTT = ${rtt} ms (pongTimestamp: ${pongTimestamp}, now: ${Date.now()})`);
                 // Update Zustand store with RTT for this device
-                useAppStore.getState().setDeviceState(this.deviceId, { bleRTT: rtt });
+                useAppStore.getState().setDeviceConnection(this.deviceId, { bleRTT: rtt });
                 console.log(`[BLE RTT] Updated Zustand for device ${this.deviceId} with RTT: ${rtt} ms`);
                 this._onPong?.(rtt);
                 this._pendingPingTimestamp = undefined;
@@ -500,5 +500,9 @@ export class WebSRDriverController implements ISRDriverController {
     const timestamp = Date.now();
     this._pendingPingTimestamp = timestamp;
     await this.sendCommand(`ping:${timestamp}`);
+  }
+
+  public getDeviceName(): string {
+    return this.device?.name || '';
   }
 } 

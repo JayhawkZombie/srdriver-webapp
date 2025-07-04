@@ -92,6 +92,54 @@ export interface UIState {
   // Add more UI controls as needed
 }
 
+// --- Device types ---
+export type DeviceTypeInfo = {
+  model: string;
+  firmwareVersion: string;
+  numLEDs: number;
+  ledLayout: 'strip' | 'matrix' | 'custom';
+  capabilities: string[];
+};
+
+export type DeviceMetadata = {
+  id: string;
+  macOrId: string;
+  nickname: string;
+  name: string;
+  group: string | null;
+  tags: string[];
+  typeInfo: DeviceTypeInfo;
+};
+
+export type DeviceUIState = {
+  brightness: number;
+  speed: number;
+  patternIndex: number;
+};
+
+export type DeviceConnectionStatus = {
+  isConnected: boolean;
+  isConnecting: boolean;
+  lastHeartbeat: number | null;
+  bleRTT: number | null;
+  error: string | null;
+  lastSeen: number | null;
+  autoReconnect: boolean;
+};
+
+export type DeviceDataBlob = {
+  [key: string]: any;
+};
+
+export type DeviceUserPrefs = {
+  [id: string]: {
+    autoReconnect?: boolean;
+    preferredGroup?: string;
+    // Extend as needed
+  };
+};
+
+// --- AppState ---
 export interface AppState {
   audio: {
     data: AudioDataState;
@@ -102,10 +150,16 @@ export interface AppState {
   timeline: {
     responses: TimelineResponse[];
   };
+  devices: string[];
+  deviceMetadata: { [id: string]: DeviceMetadata };
+  deviceState: { [id: string]: DeviceUIState };
+  deviceConnection: { [id: string]: DeviceConnectionStatus };
+  deviceData: { [id: string]: DeviceDataBlob };
+  deviceUserPrefs: DeviceUserPrefs;
   // Add other groups as needed
 }
 
-// Initial state
+// --- Initial state ---
 const initialAudioData: AudioDataState = {
   metadata: null,
   analysis: null,
@@ -131,6 +185,11 @@ const initialUI: UIState = {
 const initialTimeline = {
   responses: [],
 };
+const initialDeviceMetadata: { [id: string]: DeviceMetadata } = {};
+const initialDeviceState: { [id: string]: DeviceUIState } = {};
+const initialDeviceConnection: { [id: string]: DeviceConnectionStatus } = {};
+const initialDeviceData: { [id: string]: DeviceDataBlob } = {};
+const initialDeviceUserPrefs: DeviceUserPrefs = {};
 
 export const useAppStore = create<AppState & {
   setAudioData: (data: { waveform: number[]; duration: number }) => void;
@@ -138,6 +197,15 @@ export const useAppStore = create<AppState & {
   updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => void;
   deleteTimelineResponse: (id: string) => void;
   setTimelineResponses: (responses: TimelineResponse[]) => void;
+  addDevice: (metadata: DeviceMetadata) => void;
+  removeDevice: (id: string) => void;
+  setDeviceMetadata: (id: string, metadata: DeviceMetadata) => void;
+  setDeviceState: (id: string, state: Partial<DeviceUIState>) => void;
+  setDeviceConnection: (id: string, status: Partial<DeviceConnectionStatus>) => void;
+  setDeviceData: (id: string, data: DeviceDataBlob) => void;
+  updateDeviceTypeInfo: (id: string, typeInfo: Partial<DeviceTypeInfo>) => void;
+  setDeviceGroup: (id: string, group: string | null) => void;
+  setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -147,6 +215,12 @@ export const useAppStore = create<AppState & {
     playback: initialPlayback,
     ui: initialUI,
     timeline: initialTimeline,
+    devices: [],
+    deviceMetadata: initialDeviceMetadata,
+    deviceState: initialDeviceState,
+    deviceConnection: initialDeviceConnection,
+    deviceData: initialDeviceData,
+    deviceUserPrefs: initialDeviceUserPrefs,
     setAudioData: ({ waveform, duration }) => {
       set((state) => ({
         audio: {
@@ -185,6 +259,61 @@ export const useAppStore = create<AppState & {
       timeline: {
         ...state.timeline,
         responses,
+      },
+    })),
+    addDevice: (metadata) => set(state => ({
+      devices: [...state.devices, metadata.id],
+      deviceMetadata: { ...state.deviceMetadata, [metadata.id]: metadata },
+    })),
+    removeDevice: (id) => set(state => {
+      const { [id]: _, ...restMeta } = state.deviceMetadata;
+      const { [id]: __, ...restState } = state.deviceState;
+      const { [id]: ___, ...restConn } = state.deviceConnection;
+      const { [id]: ____, ...restData } = state.deviceData;
+      const { [id]: _____, ...restPrefs } = state.deviceUserPrefs;
+      return {
+        devices: state.devices.filter(did => did !== id),
+        deviceMetadata: restMeta,
+        deviceState: restState,
+        deviceConnection: restConn,
+        deviceData: restData,
+        deviceUserPrefs: restPrefs,
+      };
+    }),
+    setDeviceMetadata: (id, metadata) => set(state => ({
+      deviceMetadata: { ...state.deviceMetadata, [id]: metadata },
+    })),
+    setDeviceState: (id, update) => set(state => ({
+      deviceState: { ...state.deviceState, [id]: { ...state.deviceState[id], ...update } },
+    })),
+    setDeviceConnection: (id, update) => set(state => ({
+      deviceConnection: { ...state.deviceConnection, [id]: { ...state.deviceConnection[id], ...update } },
+    })),
+    setDeviceData: (id, data) => set(state => ({
+      deviceData: { ...state.deviceData, [id]: data },
+    })),
+    updateDeviceTypeInfo: (id, typeInfo) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [id]: {
+          ...state.deviceMetadata[id],
+          typeInfo: { ...state.deviceMetadata[id].typeInfo, ...typeInfo },
+        },
+      },
+    })),
+    setDeviceGroup: (id, group) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [id]: {
+          ...state.deviceMetadata[id],
+          group,
+        },
+      },
+    })),
+    setDeviceUserPrefs: (id, prefs) => set(state => ({
+      deviceUserPrefs: {
+        ...state.deviceUserPrefs,
+        [id]: { ...state.deviceUserPrefs[id], ...prefs },
       },
     })),
   }))

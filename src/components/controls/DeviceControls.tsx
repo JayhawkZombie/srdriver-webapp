@@ -15,14 +15,14 @@ import {
     IconButton,
     Chip,
 } from "@mui/material";
-import { useDeviceById } from "../../controllers/DeviceControllerContext";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
-import SpeedOutlinedIcon from "@mui/icons-material/SpeedOutlined";
+import { useDeviceControllerContext, useDeviceControllerMap } from '../../controllers/DeviceControllerContext';
 import { useAppStore } from "../../store/appStore";
 import type { DeviceUIState, AppState } from "../../store/appStore";
 import { useShallow } from "zustand/react/shallow";
 import type { SelectChangeEvent } from "@mui/material/Select";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
+import SpeedOutlinedIcon from "@mui/icons-material/SpeedOutlined";
 
 const patternNames = [
     "Pattern 0",
@@ -34,11 +34,11 @@ const patternNames = [
     "Pattern 6",
     "Pattern 7",
     "Pattern 8",
+    "Flat Color",
 ];
 
 interface DeviceControlsProps {
     deviceId: string;
-    onUpdate: (update: any) => void;
 }
 
 // Reusable labeled slider with optional tooltip
@@ -102,98 +102,58 @@ function LabeledSlider({
 
 const DeviceControls: React.FC<DeviceControlsProps> = ({
     deviceId,
-    onUpdate,
 }) => {
-    const device = useDeviceById(deviceId);
-    const { brightness, speed, patternIndex } = useAppStore(
-        useShallow((state: AppState) => {
-            const dev = state.devices[deviceId] as DeviceUIState | undefined;
-            return {
-                brightness: dev?.brightness ?? device?.brightness ?? 128,
-                speed: dev?.speed ?? device?.speed ?? 1,
-                patternIndex: dev?.patternIndex ?? device?.patternIndex ?? 0,
-            };
-        })
-    );
-    const setDeviceState = useAppStore((state) => state.setDeviceState);
+    const { devices } = useDeviceControllerContext();
+    const { getController } = useDeviceControllerMap();
+    const device = devices.find(d => d.id === deviceId);
+    const controller = getController(deviceId);
+    const deviceState = useAppStore(state => state.deviceState[deviceId]);
+    const setDeviceState = useAppStore(state => state.setDeviceState);
+    const { brightness, speed, patternIndex } = deviceState || { brightness: 128, speed: 1, patternIndex: 0 };
     const [pulseDuration, setPulseDuration] = useState<number>(1000);
-    const [pulseTargetBrightness, setPulseTargetBrightness] =
-        useState<number>(255);
+    const [pulseTargetBrightness, setPulseTargetBrightness] = useState<number>(255);
     const [isPulsing, setIsPulsing] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [firePatternIndex, setFirePatternIndex] = useState<number>(0);
     const [isFiringPattern, setIsFiringPattern] = useState<boolean>(false);
-    const [patternArgument, setPatternArgument] = useState<string>(
-        "(255,255,255)-(0,0,0)"
-    );
+    const [patternArgument, setPatternArgument] = useState<string>("(255,255,255)-(0,0,0)");
 
     const handleBrightnessChange = (
         event: Event | React.SyntheticEvent<Element, Event>,
         value: number | number[]
     ) => {
-        if (!device || !device.controller) return;
         const brightnessValue = value as number;
         setDeviceState(deviceId, { brightness: brightnessValue });
-        onUpdate({ brightness: brightnessValue });
-        device.controller.setBrightness(brightnessValue);
+        if (controller && device?.isConnected) controller.setBrightness(brightnessValue);
     };
 
     const handleSpeedChange = (
         event: Event | React.SyntheticEvent<Element, Event>,
         value: number | number[]
     ) => {
-        if (!device || !device.controller) return;
         const speedValue = value as number;
         setDeviceState(deviceId, { speed: speedValue });
-        onUpdate({ speed: speedValue });
-        device.controller.setSpeed(speedValue);
+        if (controller && device?.isConnected) controller.setSpeed(speedValue);
     };
 
     const handlePatternChange = (event: SelectChangeEvent<number>) => {
-        if (!device || !device.controller) return;
         const patternIndexValue = Number(event.target.value);
         setDeviceState(deviceId, { patternIndex: patternIndexValue });
-        onUpdate({ patternIndex: patternIndexValue });
-        device.controller.setPattern(patternIndexValue);
+        if (controller && device?.isConnected) controller.setPattern(patternIndexValue);
     };
 
+    // Pulse and fire pattern are UI-only for now (no BLE logic)
     const handlePulseBrightness = async () => {
-        if (!device || !device.controller) return;
         setIsPulsing(true);
-        try {
-            await device.controller.pulseBrightness(
-                pulseTargetBrightness,
-                pulseDuration
-            );
-        } catch (e) {
-            setError((e as Error).message || "Failed to pulse brightness");
-        } finally {
-            setIsPulsing(false);
-        }
+        setTimeout(() => setIsPulsing(false), pulseDuration);
     };
 
     const handleFirePattern = async () => {
-        if (!device || !device.controller) return;
         setIsFiringPattern(true);
-        setError(null);
-        try {
-            console.log(
-                "Firing pattern with argument",
-                firePatternIndex,
-                patternArgument
-            );
-            await device.controller.firePattern(
-                firePatternIndex,
-                patternArgument
-            );
-        } catch (e) {
-            setError((e as Error).message || "Failed to fire pattern");
-        } finally {
-            setIsFiringPattern(false);
-        }
+        setTimeout(() => setIsFiringPattern(false), 500);
     };
 
-    if (!device || !device.isConnected || !device.controller) return null;
+    if (!device || !device.isConnected) return null;
 
     // Helper for RTT color
     const getLatencyColor = (rtt?: number) => {
@@ -244,7 +204,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
                             label=""
                             min={0}
                             max={255}
-                            value={brightness}
+                            value={brightness ?? 128}
                             onChange={handleBrightnessChange}
                             size="small"
                             sx={{
@@ -276,7 +236,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
                             label=""
                             min={0}
                             max={255}
-                            value={speed}
+                            value={speed ?? 1}
                             onChange={handleSpeedChange}
                             size="small"
                             sx={{
@@ -307,7 +267,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
                             <Select
                                 labelId="pattern-select-label"
                                 onChange={handlePatternChange}
-                                value={patternIndex}
+                                value={patternIndex ?? 0}
                                 label="Pattern"
                                 sx={{ fontSize: 12 }}
                             >
@@ -422,7 +382,7 @@ const DeviceControls: React.FC<DeviceControlsProps> = ({
                         >
                             {[
                                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
-                                14, 15, 16, 17,
+                                14, 15, 16, 17, 18
                             ].map((idx) => (
                                 <MenuItem
                                     key={idx}

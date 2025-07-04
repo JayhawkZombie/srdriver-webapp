@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { WebSRDriverController } from './WebSRDriverController';
-import { Device } from '../types/Device';
+import type { Device } from '../types/Device';
 import { Box, Button, Typography, Stack } from '@mui/material';
 import { useAppStore } from '../store/appStore';
 import AnimatedStatusChip from '../components/AnimatedStatusChip';
@@ -141,18 +141,23 @@ const heartbeatCallbacks: React.MutableRefObject<{ [deviceId: string]: ((isAlive
 // Heartbeat event callbacks (fires on every heartbeat)
 const heartbeatEventCallbacks: React.MutableRefObject<{ [deviceId: string]: (() => void)[] }> = { current: {} };
 
+// Controller map context for deviceId -> WebSRDriverController
+const DeviceControllerMapContext = React.createContext<{ getController: (id: string) => WebSRDriverController | undefined }>({ getController: () => undefined });
+
 export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [devices, setDevices] = useState<Device[]>([]);
-  const devicesMetadata = useAppStore(state => state.devicesMetadata);
-  const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
+  const deviceMetadata = useAppStore(state => state.deviceMetadata);
+  // Map of deviceId -> controller
+  const controllerMapRef = React.useRef<{ [id: string]: WebSRDriverController }>({});
 
-  
   const addDevice = useCallback(() => {
     const uniqueId = `device-${Date.now()}`;
+    const controller = new WebSRDriverController(uniqueId);
+    controllerMapRef.current[uniqueId] = controller;
     const newDevice: Device = {
       id: uniqueId,
       name: `SRDriver ${devices.length + 1}`,
-      controller: new WebSRDriverController(uniqueId),
+      controller,
       isConnected: false,
       isConnecting: false,
       error: null,
@@ -173,6 +178,7 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
   }, [devices.length]);
 
   const removeDevice = useCallback((deviceId: string) => {
+    delete controllerMapRef.current[deviceId];
     setDevices(prev => prev.filter(d => d.id !== deviceId));
   }, []);
 
@@ -180,6 +186,7 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
     setDevices(prev => prev.map(device =>
       device.id === deviceId ? { ...device, isConnecting: true, error: null } : device
     ));
+    useAppStore.getState().setDeviceConnection(deviceId, { isConnecting: true, error: null });
     try {
       setDevices(prev => prev.map(device => {
         if (device.id === deviceId) {
@@ -187,46 +194,55 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
         }
         return device;
       }));
-      const device = devices.find(d => d.id === deviceId);
-      if (!device) throw new Error('Device not found');
-      await device.controller.connect();
-      const realId = device.controller.getDeviceId();
-      if (realId && device.macOrId !== realId) {
-        const oldNickname = devicesMetadata[device.macOrId]?.nickname;
-        if (oldNickname) {
-          setDeviceNickname(realId, oldNickname);
-        }
-        setDevices(prev => prev.map(d =>
-          d.id === deviceId ? { ...d, macOrId: realId } : d
-        ));
-        device.controller.deviceId = realId;
+      let controller = controllerMapRef.current[deviceId];
+      if (!controller) {
+        controller = new WebSRDriverController(deviceId);
+        controllerMapRef.current[deviceId] = controller;
       }
-      setDevices(prev => prev.map(d =>
-        d.id === deviceId ? { ...d, isConnected: true, isConnecting: false, error: null } : d
-      ));
-      // Fire-and-forget BLE RTT measurement after connection
-      device.controller.pingForRTT?.();
+      // Fire & forget connect
+      controller.connect().then(() => {
+        setDevices(prev => prev.map(d =>
+          d.id === deviceId ? { ...d, isConnected: true, isConnecting: false, error: null } : d
+        ));
+        useAppStore.getState().setDeviceConnection(deviceId, { isConnected: true, isConnecting: false, error: null });
+        // Optionally update deviceMetadata with real info from controller/device
+        const meta = useAppStore.getState().deviceMetadata[deviceId] || {};
+        useAppStore.getState().setDeviceMetadata(deviceId, {
+          ...meta,
+          id: deviceId,
+          name: controller.getDeviceName() || meta.name || 'SRDriver',
+          macOrId: deviceId,
+          group: meta.group || null,
+          tags: meta.tags || [],
+          typeInfo: meta.typeInfo || { model: '', firmwareVersion: '', numLEDs: 0, ledLayout: 'strip', capabilities: [] },
+          nickname: meta.nickname || '',
+        });
+        // Send a ping to measure RTT
+        controller.pingForRTT();
+      }).catch((e: any) => {
+        setDevices(prev => prev.map(d =>
+          d.id === deviceId ? { ...d, isConnected: false, isConnecting: false, error: e.message || 'Failed to connect' } : d
+        ));
+        useAppStore.getState().setDeviceConnection(deviceId, { isConnected: false, isConnecting: false, error: e.message || 'Failed to connect' });
+      });
     } catch (e: any) {
       setDevices(prev => prev.map(d =>
         d.id === deviceId ? { ...d, isConnected: false, isConnecting: false, error: e.message || 'Failed to connect' } : d
       ));
+      useAppStore.getState().setDeviceConnection(deviceId, { isConnected: false, isConnecting: false, error: e.message || 'Failed to connect' });
     }
-  }, [devices, devicesMetadata, setDeviceNickname]);
+  }, [deviceMetadata]);
 
   const disconnectDevice = useCallback(async (deviceId: string) => {
-    const device = devices.find(d => d.id === deviceId);
-    if (!device) return;
-    try {
-      await device.controller.disconnect();
-      setDevices(prev => prev.map(d =>
-        d.id === deviceId ? { ...d, isConnected: false, isConnecting: false } : d
-      ));
-    } catch (e: any) {
-      setDevices(prev => prev.map(d =>
-        d.id === deviceId ? { ...d, error: e.message || 'Failed to disconnect' } : d
-      ));
-    }
-  }, [devices]);
+    const controller = controllerMapRef.current[deviceId];
+    if (!controller) return;
+    // Fire & forget disconnect
+    controller.disconnect();
+    setDevices(prev => prev.map(d =>
+      d.id === deviceId ? { ...d, isConnected: false, isConnecting: false } : d
+    ));
+    useAppStore.getState().setDeviceConnection(deviceId, { isConnected: false, isConnecting: false });
+  }, []);
 
   const updateDevice = useCallback((deviceId: string, update: Partial<Device>) => {
     setDevices(prev => prev.map(d =>
@@ -258,10 +274,12 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
 
   return (
     <HeartbeatProvider>
-      <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice, onHeartbeatChange, onHeartbeat }}>
-        <HeartbeatManager />
-        {children}
-      </DeviceControllerContext.Provider>
+      <DeviceControllerMapContext.Provider value={{ getController: (id) => controllerMapRef.current[id] }}>
+        <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice, onHeartbeatChange, onHeartbeat }}>
+          <HeartbeatManager />
+          {children}
+        </DeviceControllerContext.Provider>
+      </DeviceControllerMapContext.Provider>
     </HeartbeatProvider>
   );
 };
@@ -270,6 +288,10 @@ export function useDeviceControllerContext() {
   const ctx = useContext(DeviceControllerContext);
   if (!ctx) throw new Error('useDeviceControllerContext must be used within a DeviceControllerProvider');
   return ctx;
+}
+
+export function useDeviceControllerMap() {
+  return React.useContext(DeviceControllerMapContext);
 }
 
 // DeviceConnectionPanel UI for connecting/disconnecting devices

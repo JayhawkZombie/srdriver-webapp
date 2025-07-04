@@ -22,3 +22,8 @@ const IconControl: React.FC<IconControlProps> = ({ onClick, children, title, cla
 );
 
 export default IconControl; 
+
+
+// Simple helpers to create icon controls, wraps the parent button and just passes all props,
+// and renders the right icon as the child of the IconControl
+// eg, TagIconControl
