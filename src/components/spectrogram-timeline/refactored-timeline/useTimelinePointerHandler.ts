@@ -59,6 +59,8 @@ export function useTimelinePointerHandler({
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   const [draggingRectPos, setDraggingRectPos] = useState<{ x: number; y: number } | null>(null);
+  // Track the last snapped shadow position for DAR
+  const lastSnappedShadowRef = useRef<{ timestamp: number; trackIndex: number } | null>(null);
 
   const openContextMenu = (position: { x: number; y: number }, info: any) => {
     setContextMenuPosition(position);
@@ -170,19 +172,7 @@ export function useTimelinePointerHandler({
         // Convert dx to time delta
         const timeDelta = (dx / tracksWidth) * windowDuration;
         const newTimestamp = Math.max(0, Math.min(totalDuration - rect.duration, dragStartRef.current.timestamp + timeDelta));
-        // Do NOT update trackIndex during drag; keep it at the original track
-        if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: dragStartRef.current.trackIndex });
-        e.cancelBubble = true;
-      },
-      onDragEnd: (e: any) => {
-        if (!dragStartRef.current) return;
-        // Use the last drag position for snapping
-        const x = draggingRectPos ? draggingRectPos.x : e.target.x();
-        const y = draggingRectPos ? draggingRectPos.y : e.target.y();
-        const dx = x - dragStartRef.current.x;
-        const timeDelta = (dx / tracksWidth) * windowDuration;
-        const newTimestamp = Math.max(0, Math.min(totalDuration - rect.duration, dragStartRef.current.timestamp + timeDelta));
-        // Use the full geometry object for snapping
+        // Snap y to track
         const geometry = {
           windowStart,
           windowDuration,
@@ -194,14 +184,23 @@ export function useTimelinePointerHandler({
           totalDuration,
         };
         const snappedTrackIndex = snapYToTrackIndex(y, geometry);
-        // Debug log for drag end snapping
-        console.log('[DRAGEND DEBUG]', {
-          x, y, dx, timeDelta, newTimestamp, snappedTrackIndex, geometry
-        });
-        if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: snappedTrackIndex });
+        // Store the last snapped shadow position for DAR
+        lastSnappedShadowRef.current = { timestamp: newTimestamp, trackIndex: snappedTrackIndex };
+        // Do NOT update trackIndex during drag; keep it at the original track
+        if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: dragStartRef.current.trackIndex });
+        e.cancelBubble = true;
+      },
+      onDragEnd: (e: any) => {
+        // Always DAR using the last snapped shadow position
+        const snapped = lastSnappedShadowRef.current;
+        if (!snapped) return;
+        // Debug log for DAR drop
+        console.log('[DAR DEBUG] onDragEnd using last shadow position:', snapped);
+        if (onRectMove) onRectMove(id, { ...snapped, destroyAndRespawn: true });
         setDraggingId(null);
         dragStartRef.current = null;
         setDraggingRectPos(null);
+        lastSnappedShadowRef.current = null;
         e.cancelBubble = true;
       },
       onResizeStart: (e: any, edge: 'start' | 'end') => {

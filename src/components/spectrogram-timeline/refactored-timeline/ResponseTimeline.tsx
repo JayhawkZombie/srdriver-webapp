@@ -136,9 +136,28 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     ...geometry,
     responses,
     onBackgroundClick: handleTracksClick,
-    onRectMove: (id, { timestamp, trackIndex }) => {
-      console.log('[DEBUG] onRectMove', { id, timestamp, trackIndex });
-      updateTimelineResponse(id, { timestamp, trackIndex });
+    onRectMove: (id, { timestamp, trackIndex, destroyAndRespawn }) => {
+      if (destroyAndRespawn) {
+        // Destroy-and-respawn logic
+        const oldRect = responses.find(r => r.id === id);
+        if (!oldRect) return;
+        // Remove the old rect
+        const newResponses = responses.filter(r => r.id !== id);
+        // Add a new rect with the same data but updated timestamp and trackIndex
+        const newRect = {
+          ...oldRect,
+          id: crypto.randomUUID(), // Optionally keep the same id if you want
+          timestamp,
+          trackIndex,
+        };
+        const finalResponses = [...newResponses, newRect];
+        console.log('[DAR DEBUG] Destroyed rect:', oldRect);
+        console.log('[DAR DEBUG] Spawned new rect:', newRect);
+        setTimelineResponses(finalResponses);
+      } else {
+        console.log('[DEBUG] onRectMove', { id, timestamp, trackIndex });
+        updateTimelineResponse(id, { timestamp, trackIndex });
+      }
     },
     onRectResize: (id, edge, newTimestamp, newDuration) => {
       if (edge === 'start') {
@@ -560,8 +579,10 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                       borderColor: palette.borderColor,
                       state: paletteState,
                     });
-                    // Snap x to timeline time
-                    const snappedX = ((draggingRect.timestamp - windowStart) / windowDuration) * tracksWidth + (x - draggingRect.x || 0);
+                    // Debug log for shadow rect rendering
+                    console.log('[SHADOW RECT DEBUG]', {
+                      x, y, snappedTrackIndex, snappedY, draggingId: pointerHandler.pointerState.draggingId
+                    });
                     return (
                       <ResponseRect
                         x={x}
@@ -569,8 +590,9 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                         width={(draggingRect.duration / windowDuration) * tracksWidth}
                         height={32}
                         color={color}
-                        borderColor={borderColor}
-                        opacity={0.25 * (opacity ?? 1)}
+                        borderColor="#ff00ff" // Magenta for high contrast
+                        borderWidth={4} // Make border thick (add to ResponseRect if needed)
+                        opacity={0.7 * (opacity ?? 1)} // More visible
                         selected={false}
                         hovered={false}
                         dragging={true}

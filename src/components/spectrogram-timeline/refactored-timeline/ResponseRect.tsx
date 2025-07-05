@@ -15,6 +15,7 @@ export interface ResponseRectProps {
   resizeEdge?: 'start' | 'end' | null;
   color?: string;
   borderColor?: string;
+  borderWidth?: number;
   opacity?: number;
   onPointerDown?: (e: any) => void;
   onPointerUp?: (e: any) => void;
@@ -33,7 +34,7 @@ export interface ResponseRectProps {
 
 export const ResponseRect: React.FC<ResponseRectProps> = ({
   x, y, width, height, selected, hovered, isGroupHovered, hoveredHandle, dragging, resizing, resizeEdge,
-  color, borderColor, opacity = 1,
+  color, borderColor, borderWidth, opacity = 1,
   onPointerDown, onPointerUp, onPointerMove,
   onDragStart, onDragMove, onDragEnd,
   onResizeStart, onResizeEnd, onContextMenu,
@@ -41,13 +42,13 @@ export const ResponseRect: React.FC<ResponseRectProps> = ({
 }) => {
   // Rect outline color logic
   let stroke = borderColor || '#2196f3';
-  let strokeWidth = 2;
+  let strokeWidth = borderWidth ?? 2;
   if (selected) {
     stroke = borderColor || '#4fc3f7';
-    strokeWidth = 3;
+    strokeWidth = borderWidth ?? 3;
   } else if (isGroupHovered || hovered) {
     stroke = borderColor || '#ffeb3b'; // High-contrast yellow
-    strokeWidth = 4;
+    strokeWidth = borderWidth ?? 4;
   }
 
   // Handle color logic
