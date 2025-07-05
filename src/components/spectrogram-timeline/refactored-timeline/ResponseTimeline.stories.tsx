@@ -1,9 +1,16 @@
-import React, { useRef, useState } from "react";
+import React from "react";
 import ResponseTimeline from "./ResponseTimeline";
 import { PlaybackProvider, usePlayback } from "./PlaybackContext";
 import { usePlaybackAutoAdvance } from "../../../hooks/usePlaybackAutoAdvance";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
 import { useDeleteTimelineResponse, useAddTimelineResponse } from '../../../store/appStore';
+import { FakeDeviceControllerProvider } from '../../../stories/FakeDeviceControllerProvider';
+
+// Minimal type for context menu info
+interface ContextMenuInfo {
+  responseId?: string;
+  [key: string]: unknown;
+}
 
 function PlaybackAutoAdvanceEnabler() {
   usePlaybackAutoAdvance(true);
@@ -49,7 +56,7 @@ export const Basic = () => {
       key: 'delete',
       text: 'Delete Response',
       icon: 'trash',
-      onClick: (info: any) => {
+      onClick: (info: ContextMenuInfo) => {
         if (info.responseId) deleteResponse(info.responseId);
       },
     },
@@ -57,7 +64,7 @@ export const Basic = () => {
       key: 'log',
       text: 'Log Info',
       icon: 'console',
-      onClick: (info: any) => {
+      onClick: (info: ContextMenuInfo) => {
         // eslint-disable-next-line no-console
         console.log('Context menu info:', info);
       },
@@ -70,10 +77,12 @@ export const Basic = () => {
     },
   ];
   return (
-    <PlaybackProvider>
-      <PlaybackAutoAdvanceEnabler />
-      <PlaybackAutoStart />
-      <ResponseTimeline actions={actions} />
-    </PlaybackProvider>
+    <FakeDeviceControllerProvider>
+      <PlaybackProvider>
+        <PlaybackAutoAdvanceEnabler />
+        <PlaybackAutoStart />
+        <ResponseTimeline actions={actions} />
+      </PlaybackProvider>
+    </FakeDeviceControllerProvider>
   );
 }; 

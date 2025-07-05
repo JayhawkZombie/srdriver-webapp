@@ -150,6 +150,16 @@ export type DeviceUserPrefs = {
 };
 
 // --- AppState ---
+export interface TrackTarget {
+  type: 'device' | 'group' | 'other';
+  id: string;
+}
+
+export interface TracksState {
+  mapping: { [trackIndex: number]: TrackTarget | undefined };
+  // Add more per-track config here as needed
+}
+
 export interface AppState {
   audio: {
     data: AudioDataState;
@@ -160,8 +170,9 @@ export interface AppState {
   timeline: {
     responses: TimelineResponse[];
   };
-  devices: string[]; // still an array of device IDs for ordering, but all maps below are keyed by browserId
-  deviceMetadata: { [browserId: string]: DeviceMetadata }; // now keyed by browserId
+  tracks: TracksState;
+  devices: string[];
+  deviceMetadata: { [browserId: string]: DeviceMetadata };
   deviceState: { [browserId: string]: DeviceUIState };
   deviceConnection: { [browserId: string]: DeviceConnectionStatus };
   deviceData: { [browserId: string]: DeviceDataBlob };
@@ -201,6 +212,10 @@ const initialDeviceState: { [id: string]: DeviceUIState } = {};
 const initialDeviceConnection: { [id: string]: DeviceConnectionStatus } = {};
 const initialDeviceData: { [id: string]: DeviceDataBlob } = {};
 const initialDeviceUserPrefs: DeviceUserPrefs = {};
+const NUM_TRACKS = 3; // Adjust as needed for your app
+const initialTracks: TracksState = {
+  mapping: Object.fromEntries(Array.from({ length: NUM_TRACKS }, (_, i) => [i, undefined])),
+};
 
 export const useAppStore = create<AppState & {
   setAudioData: (data: { waveform: number[]; duration: number }) => void;
@@ -218,6 +233,7 @@ export const useAppStore = create<AppState & {
   updateDeviceTypeInfo: (id: string, typeInfo: Partial<DeviceTypeInfo>) => void;
   setDeviceGroup: (id: string, group: string | null) => void;
   setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
+  setTrackTarget: (trackIndex: number, target: TrackTarget) => void;
   hydrated: boolean;
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
@@ -228,6 +244,7 @@ export const useAppStore = create<AppState & {
     playback: initialPlayback,
     ui: initialUI,
     timeline: initialTimeline,
+    tracks: initialTracks,
     devices: [],
     deviceMetadata: initialDeviceMetadata,
     deviceState: initialDeviceState,
@@ -351,6 +368,12 @@ export const useAppStore = create<AppState & {
     setDeviceUserPrefs: (browserId, prefs) => set(state => ({
       deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
     })),
+    setTrackTarget: (trackIndex, target) => set(state => ({
+      tracks: {
+        ...state.tracks,
+        mapping: { ...state.tracks.mapping, [trackIndex]: target },
+      },
+    })),
   }))
 ); 
 
@@ -360,6 +383,33 @@ export const useAddTimelineResponse = () => useAppStore(state => state.addTimeli
 export const useUpdateTimelineResponse = () => useAppStore(state => state.updateTimelineResponse);
 export const useDeleteTimelineResponse = () => useAppStore(state => state.deleteTimelineResponse);
 export const useSetTimelineResponses = () => useAppStore(state => state.setTimelineResponses);
+
+export const useTrackTargets = () => useAppStore(state => state.tracks.mapping);
+export const useSetTrackTarget = () => useAppStore(state => state.setTrackTarget);
+
+// Selector to get the target for a specific track index
+export const useTrackTarget = (trackIndex: number) => useAppStore(state => state.tracks.mapping[trackIndex]);
+
+// Helper to clear a track's target
+export const useClearTrackTarget = () => {
+  const setTrackTarget = useSetTrackTarget();
+  return (trackIndex: number) => setTrackTarget(trackIndex, undefined as any);
+};
+
+// Helper to set multiple track targets at once
+export const useSetTrackTargets = () => {
+  return (mapping: { [trackIndex: number]: import('./appStore').TrackTarget }) =>
+    useAppStore.setState(state => ({
+      tracks: {
+        ...state.tracks,
+        mapping: { ...state.tracks.mapping, ...mapping },
+      },
+    }));
+};
+
+// Selector to get all track indices with assigned targets
+export const useAssignedTrackIndices = () =>
+  useAppStore(state => Object.keys(state.tracks.mapping).map(Number));
 
 export const useDeviceMetadata = (browserId: string) =>
   useAppStore(state => state.deviceMetadata[browserId]);

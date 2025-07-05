@@ -15,6 +15,7 @@ export interface ResponseRectProps {
   resizeEdge?: 'start' | 'end' | null;
   color?: string;
   borderColor?: string;
+  opacity?: number;
   onPointerDown?: (e: any) => void;
   onPointerUp?: (e: any) => void;
   onPointerMove?: (e: any) => void;
@@ -32,7 +33,7 @@ export interface ResponseRectProps {
 
 export const ResponseRect: React.FC<ResponseRectProps> = ({
   x, y, width, height, selected, hovered, isGroupHovered, hoveredHandle, dragging, resizing, resizeEdge,
-  color, borderColor,
+  color, borderColor, opacity = 1,
   onPointerDown, onPointerUp, onPointerMove,
   onDragStart, onDragMove, onDragEnd,
   onResizeStart, onResizeEnd, onContextMenu,
@@ -64,6 +65,7 @@ export const ResponseRect: React.FC<ResponseRectProps> = ({
     <Group
       x={x}
       y={y}
+      opacity={opacity}
       onMouseDown={onPointerDown}
       onMouseUp={onPointerUp}
       onMouseMove={onPointerMove}
@@ -83,6 +85,7 @@ export const ResponseRect: React.FC<ResponseRectProps> = ({
         cornerRadius={4}
         stroke={stroke}
         strokeWidth={strokeWidth}
+        opacity={opacity}
       />
       {/* Resize handles */}
       {(selected || hovered || resizing) && (

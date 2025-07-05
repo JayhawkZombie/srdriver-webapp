@@ -16,8 +16,12 @@ import {
   useAddTimelineResponse,
   useUpdateTimelineResponse,
   useSetTimelineResponses,
+  useTrackTargets,
+  useSetTrackTarget,
 } from "../../../store/appStore";
 import { ResponseRect } from './ResponseRect';
+import { useDeviceControllerContext } from '../../../controllers/DeviceControllerContext';
+import { useAppStore } from '../../../store/appStore';
 
 export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAction[] }) {
   const responses = useTimelineResponses();
@@ -25,6 +29,10 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
   const updateTimelineResponse = useUpdateTimelineResponse();
   const setTimelineResponses = useSetTimelineResponses();
   const { totalDuration } = usePlayback();
+  const trackTargets = useTrackTargets();
+  const setTrackTarget = useSetTrackTarget();
+  const { devices } = useDeviceControllerContext();
+  const deviceMetadata = useAppStore(state => state.deviceMetadata);
 
   // Responsive sizing for tracks area only
   const aspectRatio = 16 / 5;
@@ -274,11 +282,29 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     >
       {/* Timeline row: labels + tracks */}
       <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", maxWidth: 1200 }}>
-        {/* Labels column, vertically centered with tracks */}
+        {/* Labels column, now with dropdowns */}
         <div style={{ width: labelsWidth, minWidth: 80, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: tracksHeight, marginRight: 8 }}>
           {[...Array(numTracks)].map((_, i) => (
             <div key={i} style={{ height: trackHeight, marginTop: i === 0 ? tracksTopOffset : trackGap, color: '#fff', display: 'flex', alignItems: 'center', fontSize: 16, fontFamily: 'monospace' }}>
-              Track {i + 1}
+              <select
+                value={trackTargets[i]?.type === 'device' ? trackTargets[i]?.id : ''}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val) {
+                    setTrackTarget(i, { type: 'device', id: val });
+                  } else {
+                    setTrackTarget(i, undefined as any);
+                  }
+                }}
+                style={{ minWidth: 120, padding: 4, borderRadius: 4 }}
+              >
+                <option value="">Unassigned</option>
+                {Object.values(deviceMetadata).map(device => (
+                  <option key={device.browserId} value={device.browserId}>
+                    {device.name || device.browserId}
+                  </option>
+                ))}
+              </select>
             </div>
           ))}
         </div>
@@ -346,17 +372,38 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                     </>
                   );
                 })()}
-                {/* Track backgrounds */}
-                {[...Array(numTracks)].map((_, i) => (
-                  <Track
-                    key={i}
-                    y={tracksTopOffset + i * (trackHeight + trackGap)}
-                    height={trackHeight}
-                    label={`Track ${i + 1}`}
-                    width={tracksWidth}
-                    listening={false}
-                  />
-                ))}
+                {/* Track backgrounds and overlays */}
+                {[...Array(numTracks)].map((_, i) => {
+                  const isTrackAssigned = !!trackTargets[i];
+                  const y = tracksTopOffset + i * (trackHeight + trackGap);
+                  return (
+                    <React.Fragment key={i}>
+                      <Track
+                        y={y}
+                        height={trackHeight}
+                        label={``}
+                        width={tracksWidth}
+                        listening={false}
+                        style={{
+                          opacity: isTrackAssigned ? 1 : 0.4,
+                          filter: isTrackAssigned ? 'none' : 'grayscale(80%)',
+                        }}
+                      />
+                      {!isTrackAssigned && (
+                        <KonvaText
+                          x={tracksWidth / 2 - 150}
+                          y={y + trackHeight / 2 - 18}
+                          text="Unassigned"
+                          fontSize={24}
+                          fill="#bbb"
+                          fontStyle="bold"
+                          width={300}
+                          align="center"
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
                 {/* Playhead line */}
                 <Line
                   points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
@@ -366,22 +413,22 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                 />
                 {/* Response rects */}
                 {responses.map(rect => {
-                  const x = ((rect.timestamp - windowStart) / windowDuration) * tracksWidth;
-                  const y = tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16;
-                  const width = (rect.duration / windowDuration) * tracksWidth;
-                  const height = 32;
-                  // Use orange for active rects
-                  const isActive = activeRectIds.includes(rect.id);
-                  const { color, borderColor } = isActive
-                    ? { color: '#ff9800', borderColor: '#ff9800' }
-                    : getRectColors(rect.intent);
+                  const isTrackAssigned = !!trackTargets[rect.trackIndex];
+                  const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
+                  // Use muted color for unassigned tracks
+                  const { color, borderColor } = !isTrackAssigned
+                    ? { color: '#444', borderColor: '#888' }
+                    : isActive
+                      ? { color: '#ff9800', borderColor: '#ff9800' }
+                      : getRectColors(rect.intent);
                   const rectProps = {
-                    x,
-                    y,
-                    width,
-                    height,
+                    x: ((rect.timestamp - windowStart) / windowDuration) * tracksWidth,
+                    y: tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16,
+                    width: (rect.duration / windowDuration) * tracksWidth,
+                    height: 32,
                     color,
                     borderColor,
+                    opacity: isTrackAssigned ? 1 : 0.4,
                     ...pointerHandler.getRectProps(rect.id),
                     onContextMenu: (e: any) => handleRectContextMenu(rect, e),
                   };
