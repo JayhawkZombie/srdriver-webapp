@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { getTimelinePointerInfo } from "./timelineMath";
+import { getTimelinePointerInfo, snapYToTrackIndex } from "./timelineMath";
 
 /**
  * useTimelinePointerHandler
@@ -57,6 +57,8 @@ export function useTimelinePointerHandler({
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [contextMenuInfo, setContextMenuInfo] = useState<any>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  const [draggingRectPos, setDraggingRectPos] = useState<{ x: number; y: number } | null>(null);
 
   const openContextMenu = (position: { x: number; y: number }, info: any) => {
     setContextMenuPosition(position);
@@ -161,32 +163,45 @@ export function useTimelinePointerHandler({
       },
       onDragMove: (e: any) => {
         if (!dragStartRef.current) return;
-        const dx = e.target.x() - dragStartRef.current.x;
-        const dy = e.target.y() - dragStartRef.current.y;
+        const x = e.target.x();
+        const y = e.target.y();
+        setDraggingRectPos({ x, y });
+        const dx = x - dragStartRef.current.x;
         // Convert dx to time delta
         const timeDelta = (dx / tracksWidth) * windowDuration;
-        // Do NOT snap trackIndex while dragging; just store the floating Y offset
         const newTimestamp = Math.max(0, Math.min(totalDuration - rect.duration, dragStartRef.current.timestamp + timeDelta));
-        // Keep trackIndex as original during drag
+        // Do NOT update trackIndex during drag; keep it at the original track
         if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: dragStartRef.current.trackIndex });
         e.cancelBubble = true;
       },
       onDragEnd: (e: any) => {
         if (!dragStartRef.current) return;
-        // On drop, snap to nearest track
-        const dy = e.target.y() - dragStartRef.current.y;
-        // Snap to nearest track based on absolute Y position, not just delta
-        const absoluteY = e.target.y();
-        const snappedTrackIndex = Math.max(0, Math.min(numTracks - 1, Math.round((absoluteY - tracksTopOffset) / (trackHeight + trackGap))));
-        const dx = e.target.x() - dragStartRef.current.x;
+        // Use the last drag position for snapping
+        const x = draggingRectPos ? draggingRectPos.x : e.target.x();
+        const y = draggingRectPos ? draggingRectPos.y : e.target.y();
+        const dx = x - dragStartRef.current.x;
         const timeDelta = (dx / tracksWidth) * windowDuration;
         const newTimestamp = Math.max(0, Math.min(totalDuration - rect.duration, dragStartRef.current.timestamp + timeDelta));
-        // Debug logs for snapping
-        console.log('[DRAG END] absoluteY:', absoluteY, 'raw track:', (absoluteY - tracksTopOffset) / (trackHeight + trackGap), 'snappedTrackIndex:', snappedTrackIndex);
-        console.log('[DRAG END] newTimestamp:', newTimestamp, 'final trackIndex:', snappedTrackIndex);
+        // Use the full geometry object for snapping
+        const geometry = {
+          windowStart,
+          windowDuration,
+          tracksWidth,
+          tracksTopOffset,
+          trackHeight,
+          trackGap,
+          numTracks,
+          totalDuration,
+        };
+        const snappedTrackIndex = snapYToTrackIndex(y, geometry);
+        // Debug log for drag end snapping
+        console.log('[DRAGEND DEBUG]', {
+          x, y, dx, timeDelta, newTimestamp, snappedTrackIndex, geometry
+        });
         if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: snappedTrackIndex });
         setDraggingId(null);
         dragStartRef.current = null;
+        setDraggingRectPos(null);
         e.cancelBubble = true;
       },
       onResizeStart: (e: any, edge: 'start' | 'end') => {
@@ -250,6 +265,7 @@ export function useTimelinePointerHandler({
       draggingId,
       resizing,
     },
+    draggingRectPos,
     isContextMenuOpen,
     contextMenuPosition,
     contextMenuInfo,

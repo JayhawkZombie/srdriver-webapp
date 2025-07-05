@@ -69,11 +69,11 @@ export const ResponseRect: React.FC<ResponseRectProps> = ({
       onMouseDown={onPointerDown}
       onMouseUp={onPointerUp}
       onMouseMove={onPointerMove}
-      onDragStart={onDragStart}
+      onDragStart={e => { console.log('onDragStart'); onDragStart?.(e); }}
       onDragMove={onDragMove}
-      onDragEnd={onDragEnd}
+      onDragEnd={e => { console.log('onDragEnd'); onDragEnd?.(e); }}
       onContextMenu={onContextMenu}
-      draggable={!!onDragMove}
+      draggable={true}
       onMouseEnter={onGroupMouseEnter}
       onMouseLeave={onGroupMouseLeave}
     >

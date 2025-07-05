@@ -299,6 +299,16 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     const trackIndex = snapYToTrackIndex(y, geometry);
     const defaultDuration = 1;
     const timestamp = Math.max(0, Math.min(time, geometry.totalDuration - defaultDuration));
+
+    // Debug log: log everything relevant for diagnosing drop/shadow/geometry issues
+    console.log('[DROP DEBUG]', {
+      x, y, time, trackIndex, timestamp,
+      dragShadow,
+      geometry: { ...geometry },
+      boundingRect,
+      placing: { timestamp, trackIndex },
+    });
+
     addTimelineResponse({
       id: crypto.randomUUID(),
       timestamp,
@@ -308,6 +318,12 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
       triggered: false,
     });
     setDragShadow(null);
+
+    // --- ALTERNATIVE: Destroy original rect and spawn a new one at the shadow position ---
+    // If you want to implement this for dragging existing rects:
+    // 1. Remove the original rect from state (by id)
+    // 2. Add a new rect with the same data, but with timestamp/trackIndex from the shadow
+    // This is not implemented here, but can be added if needed for a workaround.
   };
 
   const handleDragLeave = () => setDragShadow(null);
@@ -500,7 +516,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                     };
                     return <ResponseRect key={rect.id} {...rectProps} />;
                   })}
-                  {/* Shadow rect for drag-over */}
+                  {/* Shadow rect for drag-over from palette */}
                   {dragShadow && palettes[dragShadow.paletteName] && (
                     (() => {
                       const palette = palettes[dragShadow.paletteName];
@@ -528,6 +544,39 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                       );
                     })()
                   )}
+                  {/* Shadow rect for dragging existing rect */}
+                  {pointerHandler.pointerState.draggingId && pointerHandler.draggingRectPos && (() => {
+                    const draggingRect = responses.find(r => r.id === pointerHandler.pointerState.draggingId);
+                    if (!draggingRect) return null;
+                    const { x, y } = pointerHandler.draggingRectPos;
+                    // Snap y to nearest track based on current drag position
+                    const snappedTrackIndex = snapYToTrackIndex(y, geometry);
+                    const snappedY = trackIndexToCenterY(snappedTrackIndex, geometry) - 16;
+                    const paletteName = draggingRect.data?.paletteName || 'demo';
+                    const palette = palettes[paletteName] || palettes['demo'] || Object.values(palettes)[0];
+                    const paletteState = palette.states.selected || { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
+                    const { color, borderColor, opacity } = getPaletteColor({
+                      baseColor: palette.baseColor,
+                      borderColor: palette.borderColor,
+                      state: paletteState,
+                    });
+                    // Snap x to timeline time
+                    const snappedX = ((draggingRect.timestamp - windowStart) / windowDuration) * tracksWidth + (x - draggingRect.x || 0);
+                    return (
+                      <ResponseRect
+                        x={x}
+                        y={snappedY}
+                        width={(draggingRect.duration / windowDuration) * tracksWidth}
+                        height={32}
+                        color={color}
+                        borderColor={borderColor}
+                        opacity={0.25 * (opacity ?? 1)}
+                        selected={false}
+                        hovered={false}
+                        dragging={true}
+                      />
+                    );
+                  })()}
                 </Layer>
               </Stage>
               <TimelineContextMenu
