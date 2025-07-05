@@ -38,10 +38,6 @@ function renderMenuActions(actions: TimelineMenuAction[] = [], info: any) {
 }
 
 const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, position, info, onClose, menuRef, actions }) => {
-  console.log('context menu', actions);
-  if (isOpen) {
-    console.log('[TimelineContextMenu] Rendering at', position, 'with info', info);
-  }
   if (!isOpen || !position) return null;
   return createPortal(
     <>

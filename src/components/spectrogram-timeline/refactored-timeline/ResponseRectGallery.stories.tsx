@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { Stage, Layer } from "react-konva";
 import { ResponseRect } from "./ResponseRect";
-import { Icon, Card } from "@blueprintjs/core";
-import SliderControl from "./SliderControl";
+import { Card } from "@blueprintjs/core";
+import { PaletteStateEditor } from "./PaletteStateEditor";
 
 export default {
   title: "Timeline/ResponseRectGallery",
@@ -57,6 +57,10 @@ function shiftHue(hex: string, degree: number) {
   const { h, s, l } = hexToHSL(hex);
   return hslToHex((h + degree) % 360, s, l);
 }
+function shiftLightness(hex: string, delta: number) {
+  const { h, s, l } = hexToHSL(hex);
+  return hslToHex(h, s, Math.max(0, Math.min(100, l + delta)));
+}
 
 function RectPaletteStatePreviewTool({
   label,
@@ -102,20 +106,17 @@ function RectPaletteStatePreviewTool({
         </Stage>
         <div style={{ color: "#fff", fontSize: 15, marginTop: 6, textAlign: "center" }}>{label}</div>
         {showSliders ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, width: '100%' }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon icon="tint" intent="primary" style={{ marginRight: 2 }} />
-              <SliderControl min={-100} max={100} step={1} value={hue!} onChange={setHue!} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon icon="box" intent="primary" style={{ marginRight: 2 }} />
-              <SliderControl min={-100} max={100} step={1} value={borderHue!} onChange={setBorderHue!} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Icon icon="contrast" intent="primary" style={{ marginRight: 2 }} />
-              <SliderControl min={0} max={1} step={0.01} value={opacity!} onChange={setOpacity!} />
-            </div>
-          </div>
+          <PaletteStateEditor
+            label={label}
+            hue={hue ?? 0}
+            setHue={setHue!}
+            borderHue={borderHue ?? 0}
+            setBorderHue={setBorderHue!}
+            opacity={opacity ?? 1}
+            setOpacity={setOpacity!}
+            color={color}
+            borderColor={borderColor}
+          />
         ) : (
           <div style={{ height: 8 }} />
         )}
@@ -136,14 +137,14 @@ function PaletteSection({
   const [baseColor, setBaseColor] = useState(defaultBase);
   const [borderColor, setBorderColor] = useState(borderBase);
   // Hue shift state for each rect state
-  const [hueHovered, setHueHovered] = useState(60);
-  const [hueSelected, setHueSelected] = useState(120);
-  const [hueActive, setHueActive] = useState(200);
-  const [hueUnassigned, setHueUnassigned] = useState(300);
-  const [borderHueHovered, setBorderHueHovered] = useState(60);
-  const [borderHueSelected, setBorderHueSelected] = useState(120);
-  const [borderHueActive, setBorderHueActive] = useState(200);
-  const [borderHueUnassigned, setBorderHueUnassigned] = useState(300);
+  const [hueHovered, setHueHovered] = useState(30);
+  const [hueSelected, setHueSelected] = useState(-30);
+  const [hueActive, setHueActive] = useState(60);
+  const [hueUnassigned, setHueUnassigned] = useState(-60);
+  const [borderHueHovered, setBorderHueHovered] = useState(20);
+  const [borderHueSelected, setBorderHueSelected] = useState(-20);
+  const [borderHueActive, setBorderHueActive] = useState(40);
+  const [borderHueUnassigned, setBorderHueUnassigned] = useState(-40);
   const [opacityHovered, setOpacityHovered] = useState(1);
   const [opacitySelected, setOpacitySelected] = useState(1);
   const [opacityActive, setOpacityActive] = useState(1);
@@ -200,8 +201,8 @@ function PaletteSection({
     },
     {
       label: "Hovered",
-      color: shiftHue(baseColor, hueHovered * 0.3),
-      borderColor: shiftHue(borderColor, borderHueHovered * 0.3),
+      color: shiftHue(baseColor, hueHovered * 1.2),
+      borderColor: shiftLightness(borderColor, borderHueHovered),
       stateProps: { hovered: true },
       hue: hueHovered,
       setHue: setHueHovered,
@@ -213,8 +214,8 @@ function PaletteSection({
     },
     {
       label: "Selected",
-      color: shiftHue(baseColor, hueSelected * 0.3),
-      borderColor: shiftHue(borderColor, borderHueSelected * 0.3),
+      color: shiftHue(baseColor, hueSelected * 1.2),
+      borderColor: shiftLightness(borderColor, borderHueSelected),
       stateProps: { selected: true },
       hue: hueSelected,
       setHue: setHueSelected,
@@ -226,8 +227,8 @@ function PaletteSection({
     },
     {
       label: "Active",
-      color: shiftHue(baseColor, hueActive * 0.3),
-      borderColor: shiftHue(borderColor, borderHueActive * 0.3),
+      color: shiftHue(baseColor, hueActive * 1.2),
+      borderColor: shiftLightness(borderColor, borderHueActive),
       stateProps: {},
       hue: hueActive,
       setHue: setHueActive,
@@ -239,8 +240,8 @@ function PaletteSection({
     },
     {
       label: "Unassigned",
-      color: shiftHue(baseColor, hueUnassigned * 0.3),
-      borderColor: shiftHue(borderColor, borderHueUnassigned * 0.3),
+      color: shiftHue(baseColor, hueUnassigned * 1.2),
+      borderColor: shiftLightness(borderColor, borderHueUnassigned),
       stateProps: { opacity: opacityUnassigned },
       hue: hueUnassigned,
       setHue: setHueUnassigned,

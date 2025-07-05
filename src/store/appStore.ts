@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { StateCreator } from 'zustand';
 import { set as idbSet, get as idbGet } from 'idb-keyval';
+import type { ResponseRectPalette } from '../types/ResponseRectPalette';
+import { responseRectPalettes } from '../constants/responseRectPalettes';
 
 // --- Generic IndexedDB middleware ---
 export function persistWithIndexedDB<T extends object>(key: string, config: StateCreator<T>): StateCreator<T> {
@@ -178,6 +180,7 @@ export interface AppState {
   deviceData: { [browserId: string]: DeviceDataBlob };
   deviceUserPrefs: { [browserId: string]: DeviceUserPrefs[string] };
   hydrated: boolean;
+  palettes: Record<string, ResponseRectPalette>;
   // Add other groups as needed
 }
 
@@ -235,6 +238,9 @@ export const useAppStore = create<AppState & {
   setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
   setTrackTarget: (trackIndex: number, target: TrackTarget) => void;
   hydrated: boolean;
+  setPalette: (name: string, palette: ResponseRectPalette) => void;
+  removePalette: (name: string) => void;
+  getPalette: (name?: string) => ResponseRectPalette;
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -252,6 +258,7 @@ export const useAppStore = create<AppState & {
     deviceData: initialDeviceData,
     deviceUserPrefs: initialDeviceUserPrefs,
     hydrated: false,
+    palettes: { ...responseRectPalettes },
     setAudioData: ({ waveform, duration }) => {
       set((state) => ({
         audio: {
@@ -374,6 +381,19 @@ export const useAppStore = create<AppState & {
         mapping: { ...state.tracks.mapping, [trackIndex]: target },
       },
     })),
+    setPalette: (name, palette) => set(state => ({
+      palettes: { ...state.palettes, [name]: palette },
+    })),
+    removePalette: (name) => set(state => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [name]: __, ...rest } = state.palettes;
+      return { palettes: rest };
+    }),
+    getPalette: (name) => {
+      const palettes = get().palettes;
+      if (!name) return palettes['led'] || Object.values(palettes)[0];
+      return palettes[name] || palettes['led'] || Object.values(palettes)[0];
+    },
   }))
 ); 
 

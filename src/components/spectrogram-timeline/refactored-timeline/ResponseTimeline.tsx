@@ -33,6 +33,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
   const setTrackTarget = useSetTrackTarget();
   const { devices } = useDeviceControllerContext();
   const deviceMetadata = useAppStore(state => state.deviceMetadata);
+  const palettes = useAppStore(state => state.palettes);
 
   // Responsive sizing for tracks area only
   const aspectRatio = 16 / 5;
@@ -418,20 +419,23 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                 {responses.map(rect => {
                   const isTrackAssigned = !!trackTargets[rect.trackIndex];
                   const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
-                  // Use muted color for unassigned tracks
-                  const { color, borderColor } = !isTrackAssigned
-                    ? { color: '#444', borderColor: '#888' }
-                    : isActive
-                      ? { color: '#ff9800', borderColor: '#ff9800' }
-                      : getRectColors(rect.intent);
+                  // Dynamic palette assignment: use rect.data.paletteName if present, else 'demo'
+                  const paletteName = rect.data?.paletteName || 'demo';
+                  const palette = palettes[paletteName] || palettes['demo'] || Object.values(palettes)[0];
+                  let paletteState;
+                  if (!isTrackAssigned) paletteState = palette.states.unassigned;
+                  else if (rect.selected) paletteState = palette.states.selected;
+                  else if (rect.hovered) paletteState = palette.states.hovered;
+                  else if (isActive) paletteState = palette.states.active;
+                  else paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
                   const rectProps = {
                     x: ((rect.timestamp - windowStart) / windowDuration) * tracksWidth,
                     y: tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16,
                     width: (rect.duration / windowDuration) * tracksWidth,
                     height: 32,
-                    color,
-                    borderColor,
-                    opacity: isTrackAssigned ? 1 : 0.4,
+                    color: paletteState.color,
+                    borderColor: paletteState.borderColor,
+                    opacity: paletteState.opacity,
                     ...pointerHandler.getRectProps(rect.id),
                     onContextMenu: (e: any) => handleRectContextMenu(rect, e),
                   };
