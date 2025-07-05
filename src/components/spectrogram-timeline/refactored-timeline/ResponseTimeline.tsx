@@ -106,9 +106,12 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     });
   }
 
-  // Find active rects (playhead is over them)
+  // Find active rects (playhead is over them) and track is assigned
   const activeRectIds = responses.filter(
-    r => currentTime >= r.timestamp && currentTime < r.timestamp + r.duration
+    r =>
+      currentTime >= r.timestamp &&
+      currentTime < r.timestamp + r.duration &&
+      !!trackTargets[r.trackIndex]
   ).map(r => r.id);
 
   // Calculate playhead X position
