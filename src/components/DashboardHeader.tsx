@@ -5,6 +5,7 @@ import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 import WorkspacesSharpIcon from "@mui/icons-material/WorkspacesSharp";
+import BugReportIcon from '@mui/icons-material/BugReport';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
 
 interface DashboardHeaderProps {
@@ -13,6 +14,7 @@ interface DashboardHeaderProps {
   onOpenConnectionDrawer?: () => void;
   onOpenLeftDrawer?: () => void;
   onOpenTestbedModal?: () => void;
+  onOpenLogDrawer?: () => void;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -20,7 +22,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onToggleMode,
   onOpenConnectionDrawer,
   onOpenLeftDrawer,
-  onOpenTestbedModal
+  onOpenTestbedModal,
+  onOpenLogDrawer,
 }) => {
   const { devices } = useDeviceControllerContext();
   const anyConnected = devices.some(d => d.isConnected);
@@ -70,6 +73,13 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               }}>
                 {anyConnected ? <PowerSettingsNewIcon /> : <HighlightOffIcon />}
               </span>
+            </IconButton>
+          </Tooltip>
+        )}
+        {onOpenLogDrawer && (
+          <Tooltip title="Open Log Drawer">
+            <IconButton color="inherit" onClick={onOpenLogDrawer} aria-label="Open Log Drawer">
+              <BugReportIcon />
             </IconButton>
           </Tooltip>
         )}

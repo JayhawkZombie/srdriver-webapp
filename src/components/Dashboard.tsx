@@ -7,6 +7,7 @@ import DashboardHeader from './DashboardHeader';
 import LightsConnectionCard from './controls/LightsConnectionCard';
 import TestbedModal from './testbed/TestbedModal';
 import TestHarnessContent from './testbed/TestHarnessContent';
+import { AppStateLogDrawer } from './spectrogram-timeline/refactored-timeline/AppStateLogDrawer';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -17,9 +18,11 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
   const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false);
   const [testbedModalOpen, setTestbedModalOpen] = useState(false);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
+  const [logDrawerOpen, setLogDrawerOpen] = useState(false);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', px: 0, py: 0 }}>
+      <AppStateLogDrawer isOpen={logDrawerOpen} onClose={() => setLogDrawerOpen(false)} />
       <Box sx={{ height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', mt: 0, pt: 0 }}>
         <DashboardHeader
           mode={mode}
@@ -27,6 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
           onOpenConnectionDrawer={() => setConnectionDrawerOpen(true)}
           onOpenLeftDrawer={() => setLeftDrawerOpen(true)}
           onOpenTestbedModal={() => setTestbedModalOpen(true)}
+          onOpenLogDrawer={() => setLogDrawerOpen(true)}
         />
       </Box>
       <Drawer

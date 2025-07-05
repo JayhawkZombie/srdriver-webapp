@@ -239,6 +239,15 @@ const initialTracks: TracksState = {
   },
 };
 
+export type LogEntry = {
+  id: string;
+  timestamp: number;
+  level: string;
+  category: string;
+  message: string;
+  data?: any;
+};
+
 export const useAppStore = create<AppState & {
   setAudioData: (data: { waveform: number[]; duration: number }) => void;
   addTimelineResponse: (resp: TimelineResponse) => void;
@@ -260,6 +269,11 @@ export const useAppStore = create<AppState & {
   setPalette: (name: string, palette: ResponseRectPalette) => void;
   removePalette: (name: string) => void;
   getPalette: (name?: string) => ResponseRectPalette;
+  logs: LogEntry[];
+  addLog: (level: string, category: string, message: string, data?: any) => void;
+  clearLogs: () => void;
+  getLogsByCategory: (category: string) => LogEntry[];
+  getLogsByLevel: (level: string) => LogEntry[];
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -278,6 +292,11 @@ export const useAppStore = create<AppState & {
     deviceUserPrefs: initialDeviceUserPrefs,
     hydrated: false,
     palettes: { ...responseRectPalettes },
+    logs: [
+      { id: '1', timestamp: Date.now(), level: 'info', category: 'timeline', message: 'Timeline loaded' },
+      { id: '2', timestamp: Date.now(), level: 'warn', category: 'leds', message: 'LEDs not responding' },
+      { id: '3', timestamp: Date.now(), level: 'error', category: 'audio', message: 'Audio device error', data: { code: 500 } },
+    ],
     setAudioData: ({ waveform, duration }) => {
       set((state) => ({
         audio: {
@@ -413,6 +432,15 @@ export const useAppStore = create<AppState & {
       if (!name) return palettes['led'] || Object.values(palettes)[0];
       return palettes[name] || palettes['led'] || Object.values(palettes)[0];
     },
+    addLog: (level, category, message, data) => set(state => ({
+      logs: [
+        ...state.logs,
+        { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data },
+      ],
+    })),
+    clearLogs: () => set({ logs: [] }),
+    getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
+    getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
   }))
 ); 
 

@@ -22,6 +22,7 @@ import { useAppStore } from '../../../store/appStore';
 import { ResponseTypeDragBar } from "./ResponseTypeDragBar";
 import { getPaletteColor } from "./colorUtils";
 import type { KonvaEventObject } from 'konva/lib/Node';
+import { useAppStateLogger } from '../../../store/useAppStateLogger';
 
 export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAction[] }) {
   const responses = useTimelineResponses();
@@ -33,6 +34,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
   const setTrackTarget = useSetTrackTarget();
   const deviceMetadata = useAppStore(state => state.deviceMetadata);
   const palettes = useAppStore(state => state.palettes);
+  const log = useAppStateLogger('timeline');
 
   // Responsive sizing for tracks area only
   const aspectRatio = 16 / 5;
@@ -151,11 +153,11 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
           trackIndex,
         };
         const finalResponses = [...newResponses, newRect];
-        console.log('[DAR DEBUG] Destroyed rect:', oldRect);
-        console.log('[DAR DEBUG] Spawned new rect:', newRect);
+        log.info('DAR: Destroyed rect', oldRect);
+        log.info('DAR: Spawned new rect', newRect);
         setTimelineResponses(finalResponses);
       } else {
-        console.log('[DEBUG] onRectMove', { id, timestamp, trackIndex });
+        log.info('onRectMove', { id, timestamp, trackIndex });
         updateTimelineResponse(id, { timestamp, trackIndex });
       }
     },
@@ -234,22 +236,6 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
       type: 'rect',
     });
   };
-
-  // Map intent to color/borderColor
-  function getRectColors(intent?: string) {
-    switch (intent) {
-      case 'error':
-        return { color: '#ff5252', borderColor: '#b71c1c' };
-      case 'success':
-        return { color: '#69f0ae', borderColor: '#1b5e20' };
-      case 'warning':
-        return { color: '#ffe082', borderColor: '#ffb300' };
-      case 'info':
-        return { color: '#4fc3f7', borderColor: '#01579b' };
-      default:
-        return { color: '#2196f3', borderColor: '#fff' };
-    }
-  }
 
   // Add rect on background click
   const handleStageClick = (e: any) => {
@@ -578,10 +564,6 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                       baseColor: palette.baseColor,
                       borderColor: palette.borderColor,
                       state: paletteState,
-                    });
-                    // Debug log for shadow rect rendering
-                    console.log('[SHADOW RECT DEBUG]', {
-                      x, y, snappedTrackIndex, snappedY, draggingId: pointerHandler.pointerState.draggingId
                     });
                     return (
                       <ResponseRect
