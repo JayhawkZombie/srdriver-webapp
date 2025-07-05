@@ -4,10 +4,14 @@
 import type { AppState } from './appStore';
 
 // Audio selectors
-export const selectWaveform = (state: AppState) => state.audio.analysis.waveform;
-export const selectAudioBuffer = (state: AppState) => state.audio.data.analysis?.audioBuffer;
+export const selectWaveform = (state: AppState, type?: string) => {
+  if (type && state.audio.analysis.waveforms) {
+    return state.audio.analysis.waveforms[type] || [];
+  }
+  return state.audio.analysis.waveform;
+};
 export const selectDuration = (state: AppState) =>
-  state.audio.data.analysis?.audioBuffer?.duration ?? state.audio.analysis.duration;
+  state.audio.analysis.duration ?? 0;
 export const selectBarData = (state: AppState) => state.audio.analysis.barData;
 
 // Playback selectors
@@ -16,4 +20,7 @@ export const selectIsPlaying = (state: AppState) => state.playback.isPlaying;
 export const selectTotalDuration = (state: AppState) => state.playback.totalDuration;
 
 // UI selectors
-export const selectWindowSec = (state: AppState) => state.ui.windowSec; 
+export const selectWindowSec = (state: AppState) => state.ui.windowSec;
+
+// Select a specific waveform type from the store
+export const selectWaveformOfType = (type: string) => (state: AppState) => state.audio.analysis.waveforms?.[type] || []; 

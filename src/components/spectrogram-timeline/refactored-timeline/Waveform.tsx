@@ -9,11 +9,12 @@ interface WaveformProps {
   width: number;
   height: number;
   showPeakTrace?: boolean;
+  waveformType?: string;
 }
 
-const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace }) => {
+const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, waveformType }) => {
   // Use selectors for waveform data and duration
-  const waveformData = useAppStore(selectWaveform);
+  const waveformData = useAppStore((state) => selectWaveform(state, waveformType));
   const duration = useAppStore(selectDuration);
   // Playback state
   const { currentTime, seek } = usePlayback();

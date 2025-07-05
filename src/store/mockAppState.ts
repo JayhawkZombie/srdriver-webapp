@@ -8,15 +8,21 @@ import {
   makeScreenshotLikeBarData,
 } from "./mockAudioData";
 
-export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar" | "beatBar" | "screenshotBar" = "sine"): AppState {
-  let waveform, barData;
+type WaveformType = 'sine' | 'noise';
+type FakeAppStateType = WaveformType | "randomBar" | "sineBar" | "beatBar" | "screenshotBar";
+
+export function getFakeAppState(type: FakeAppStateType = "sine"): AppState {
+  // Always populate all waveform types
+  const waveforms: Record<WaveformType, number[]> = {
+    sine: makeSineWave(256),
+    noise: makeNoise(256),
+    // Add more waveform types here as needed
+  };
+  // Set the default waveform to the requested type (for backward compatibility)
+  const waveform = waveforms[type as WaveformType] || waveforms.sine;
+
+  let barData;
   switch (type) {
-    case "sine":
-      waveform = makeSineWave(256);
-      break;
-    case "noise":
-      waveform = makeNoise(256);
-      break;
     case "randomBar":
       barData = makeRandomBarData(64);
       break;
@@ -30,12 +36,14 @@ export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar"
       barData = makeScreenshotLikeBarData(400);
       break;
     default:
-      waveform = makeSineWave(256);
+      // No special barData
+      break;
   }
   return {
     audio: {
       analysis: {
-        waveform,
+        waveform, // default/legacy
+        waveforms, // all types
         barData,
         duration: 4,
         fftSequence: [],
@@ -112,5 +120,23 @@ export function getFakeAppState(type: "sine" | "noise" | "randomBar" | "sineBar"
       mapping: { 0: undefined, 1: undefined, 2: undefined },
     },
     hydrated: true,
+    rectTemplates: {
+      'led-beat': {
+        id: 'led-beat',
+        name: 'LED Beat',
+        type: 'led',
+        defaultDuration: 1,
+        defaultData: { pattern: 'beat', color: '#00ff00' },
+        paletteName: 'lightPulse',
+      },
+      'led-wave': {
+        id: 'led-wave',
+        name: 'LED Wave',
+        type: 'led',
+        defaultDuration: 2,
+        defaultData: { pattern: 'wave', color: '#0000ff' },
+        paletteName: 'singleFirePattern',
+      },
+    },
   };
 } 

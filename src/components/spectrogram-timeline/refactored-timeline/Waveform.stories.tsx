@@ -7,10 +7,6 @@ export default {
   title: "RefactoredTimeline/Waveform",
 };
 
-// Helper to generate mock waveform data
-const makeSineWave = (length: number) => Array.from({ length }, (_, i) => Math.sin((i / length) * 4 * Math.PI));
-const makeNoise = (length: number) => Array.from({ length }, () => Math.random() * 2 - 1);
-
 export const Sine = () => (
   <FakeAppStateStoryProvider mockType="sine">
     <PlaybackProvider>

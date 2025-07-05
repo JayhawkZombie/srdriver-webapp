@@ -2,10 +2,7 @@ import React from "react";
 import TimelineHeader from "./TimelineHeader";
 import ResponseTimeline from "./ResponseTimeline";
 import { PlaybackProvider } from "./PlaybackContext";
-import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
 import { usePlaybackAutoAdvance } from "../../../hooks/usePlaybackAutoAdvance";
-import { DeviceControllerProvider } from "../../../controllers/DeviceControllerContext";
-import { FakeDeviceControllerProvider } from "../../../stories/FakeDeviceControllerProvider";
 import { Mixer } from '../../../controllers/Mixer';
 import type { TimelineMenuAction } from "./TimelineContextMenu";
 
@@ -15,27 +12,23 @@ export default {
 
 export const WithFakeAudioData = () => {
     return (
-        <FakeDeviceControllerProvider>  
-                <FakeAppStateStoryProvider mockType="screenshotBar">
-                    <PlaybackProvider totalDuration={15}>
-                        <PlaybackAutoAdvanceEnabler />
-                        <div
-                            style={{
-                                width: "100%",
-                                maxWidth: 900,
-                                margin: "0 auto",
-                                background: "#181818",
-                                padding: 24,
-                                minHeight: 320,
-                            }}
-                        >
-                            <TimelineHeader />
-                            <div style={{ height: 24 }} />
-                            <ResponseTimeline />
-                        </div>
-                    </PlaybackProvider>
-                </FakeAppStateStoryProvider>
-        </FakeDeviceControllerProvider>
+      <PlaybackProvider totalDuration={15}>
+          <PlaybackAutoAdvanceEnabler />
+          <div
+              style={{
+                  width: "100%",
+                  maxWidth: 900,
+                  margin: "0 auto",
+                  background: "#181818",
+                  padding: 24,
+                  minHeight: 320,
+              }}
+          >
+              <TimelineHeader />
+              <div style={{ height: 24 }} />
+              <ResponseTimeline />
+          </div>
+      </PlaybackProvider>
     );
 };
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Button, InputGroup, NumericInput, Popover, Position, Card, Collapse, MenuItem } from '@blueprintjs/core';
+import { Button, InputGroup, NumericInput, Popover, Position, Card, Collapse } from '@blueprintjs/core';
+import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import Chip from '@mui/material/Chip';

@@ -91,6 +91,7 @@ export interface AudioDataAnalysis {
   waveform?: number[];
   duration?: number;
   barData?: number[];
+  waveforms?: Record<string, number[]>;
 }
 
 export interface AudioDataState {
