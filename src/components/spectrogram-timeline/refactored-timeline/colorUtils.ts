@@ -1,4 +1,7 @@
-// Color utilities for palette-driven rects
+// Color math utilities for palette editing and rendering
+export function clamp(val: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, val));
+}
 
 export function hexToHSL(hex: string) {
   hex = hex.replace('#', '');
@@ -47,7 +50,12 @@ export function shiftHue(hex: string, degree: number) {
 
 export function shiftLightness(hex: string, delta: number) {
   const { h, s, l } = hexToHSL(hex);
-  return hslToHex(h, s, Math.max(0, Math.min(100, l + delta)));
+  return hslToHex(h, s, clamp(l + delta, 0, 100));
+}
+
+export function shiftBrightness(hex: string, delta: number) {
+  // Brightness is just lightness in HSL
+  return shiftLightness(hex, delta);
 }
 
 // Main palette color resolver

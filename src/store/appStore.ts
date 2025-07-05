@@ -28,10 +28,20 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
         }
       }
       set((state: T) => ({ ...state, hydrated: true } as T));
-      console.log('[Zustand] Hydration complete. deviceMetadata:', _get().deviceMetadata);
+      const current = _get();
+      if (
+        typeof current === 'object' &&
+        current !== null &&
+        'deviceMetadata' in current &&
+        typeof (current as { deviceMetadata?: unknown }).deviceMetadata === 'object'
+      ) {
+        console.log('[Zustand] Hydration complete. deviceMetadata:', (current as { deviceMetadata: unknown }).deviceMetadata);
+      } else {
+        console.log('[Zustand] Hydration complete.');
+      }
     });
-    const setAndPersist: typeof set = (fnOrObj) => {
-      set(fnOrObj);
+    const setAndPersist: typeof set = (fnOrObj: unknown) => {
+      set(fnOrObj as T);
       const state = _get() as unknown as AppState;
       // Deep clone and remove audioBuffer before persisting
       const stateToPersist = {
@@ -59,7 +69,7 @@ export interface TimelineResponse {
   timestamp: number;
   duration: number;
   trackIndex: number;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   triggered: boolean;
   intent?: string; // e.g., 'primary', 'error', 'success', etc.
 }
@@ -140,7 +150,7 @@ export type DeviceConnectionStatus = {
 };
 
 export type DeviceDataBlob = {
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 export type DeviceUserPrefs = {
@@ -181,6 +191,7 @@ export interface AppState {
   deviceUserPrefs: { [browserId: string]: DeviceUserPrefs[string] };
   hydrated: boolean;
   palettes: Record<string, ResponseRectPalette>;
+  rectTemplates: Record<string, RectTemplate>;
   // Add other groups as needed
 }
 
@@ -230,7 +241,6 @@ const initialDeviceState: { [id: string]: DeviceUIState } = {};
 const initialDeviceConnection: { [id: string]: DeviceConnectionStatus } = {};
 const initialDeviceData: { [id: string]: DeviceDataBlob } = {};
 const initialDeviceUserPrefs: DeviceUserPrefs = {};
-const NUM_TRACKS = 3; // Adjust as needed for your app
 const initialTracks: TracksState = {
   mapping: {
     0: { type: 'device', id: 'mock-device-1' },
@@ -245,7 +255,16 @@ export type LogEntry = {
   level: string;
   category: string;
   message: string;
-  data?: any;
+  data?: unknown;
+};
+
+export type RectTemplate = {
+  id: string;
+  name: string;
+  type: string;
+  defaultDuration: number;
+  defaultData: Record<string, unknown>;
+  paletteName: string;
 };
 
 export const useAppStore = create<AppState & {
@@ -264,16 +283,23 @@ export const useAppStore = create<AppState & {
   updateDeviceTypeInfo: (id: string, typeInfo: Partial<DeviceTypeInfo>) => void;
   setDeviceGroup: (id: string, group: string | null) => void;
   setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
-  setTrackTarget: (trackIndex: number, target: TrackTarget) => void;
+  setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => void;
   hydrated: boolean;
   setPalette: (name: string, palette: ResponseRectPalette) => void;
   removePalette: (name: string) => void;
   getPalette: (name?: string) => ResponseRectPalette;
   logs: LogEntry[];
-  addLog: (level: string, category: string, message: string, data?: any) => void;
+  addLog: (level: string, category: string, message: string, data?: unknown) => void;
   clearLogs: () => void;
   getLogsByCategory: (category: string) => LogEntry[];
   getLogsByLevel: (level: string) => LogEntry[];
+  maxLogCount: number;
+  rectTemplates: Record<string, RectTemplate>;
+  addRectTemplate: (template: RectTemplate) => void;
+  updateRectTemplate: (id: string, update: Partial<RectTemplate>) => void;
+  deleteRectTemplate: (id: string) => void;
+  getRectTemplate: (id: string) => RectTemplate | undefined;
+  getRectTemplates: () => RectTemplate[];
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -292,11 +318,30 @@ export const useAppStore = create<AppState & {
     deviceUserPrefs: initialDeviceUserPrefs,
     hydrated: false,
     palettes: { ...responseRectPalettes },
+    rectTemplates: {
+      'led-beat': {
+        id: 'led-beat',
+        name: 'LED Beat',
+        type: 'led',
+        defaultDuration: 1,
+        defaultData: { pattern: 'beat', color: '#00ff00' },
+        paletteName: 'lightPulse',
+      },
+      'led-wave': {
+        id: 'led-wave',
+        name: 'LED Wave',
+        type: 'led',
+        defaultDuration: 2,
+        defaultData: { pattern: 'wave', color: '#0000ff' },
+        paletteName: 'singleFirePattern',
+      },
+    },
     logs: [
       { id: '1', timestamp: Date.now(), level: 'info', category: 'timeline', message: 'Timeline loaded' },
       { id: '2', timestamp: Date.now(), level: 'warn', category: 'leds', message: 'LEDs not responding' },
       { id: '3', timestamp: Date.now(), level: 'error', category: 'audio', message: 'Audio device error', data: { code: 500 } },
     ],
+    maxLogCount: 200,
     setAudioData: ({ waveform, duration }) => {
       set((state) => ({
         audio: {
@@ -410,7 +455,7 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-    setDeviceUserPrefs: (browserId, prefs) => set(state => ({
+    setDeviceUserPrefs: (browserId: string, prefs: Partial<DeviceUserPrefs[string]>) => set(state => ({
       deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
     })),
     setTrackTarget: (trackIndex, target) => set(state => ({
@@ -432,15 +477,32 @@ export const useAppStore = create<AppState & {
       if (!name) return palettes['led'] || Object.values(palettes)[0];
       return palettes[name] || palettes['led'] || Object.values(palettes)[0];
     },
-    addLog: (level, category, message, data) => set(state => ({
-      logs: [
-        ...state.logs,
-        { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data },
-      ],
-    })),
+    addLog: (level, category, message, data) => set(state => {
+      const max = state.maxLogCount || 200;
+      const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
+      const logs = [...state.logs, newLog];
+      // Cap logs at maxLogCount
+      const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
+      return { logs: cappedLogs };
+    }),
     clearLogs: () => set({ logs: [] }),
     getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
     getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
+    addRectTemplate: (template) => set(state => ({
+      rectTemplates: { ...state.rectTemplates, [template.id]: template },
+    })),
+    updateRectTemplate: (id, update) => set(state => ({
+      rectTemplates: {
+        ...state.rectTemplates,
+        [id]: { ...state.rectTemplates[id], ...update },
+      },
+    })),
+    deleteRectTemplate: (id) => set(state => {
+      const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
+      return { rectTemplates: rest };
+    }),
+    getRectTemplate: (id) => get().rectTemplates[id],
+    getRectTemplates: () => Object.values(get().rectTemplates),
   }))
 ); 
 
@@ -460,7 +522,7 @@ export const useTrackTarget = (trackIndex: number) => useAppStore(state => state
 // Helper to clear a track's target
 export const useClearTrackTarget = () => {
   const setTrackTarget = useSetTrackTarget();
-  return (trackIndex: number) => setTrackTarget(trackIndex, undefined as any);
+  return (trackIndex: number) => setTrackTarget(trackIndex, undefined);
 };
 
 // Helper to set multiple track targets at once

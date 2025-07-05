@@ -55,9 +55,9 @@ export const AppStateLogDrawer: React.FC<AppStateLogDrawerProps> = ({ isOpen, on
           {sortedLogs.map(log => (
             <div key={log.id} style={{ borderBottom: '1px solid #eee', padding: 8, display: 'flex', flexDirection: 'row', alignItems: 'flex-start' }}>
               {/* Left column: timestamp, tags */}
-              <div style={{ minWidth: 90, maxWidth: 110, textAlign: 'right', marginRight: 12 }}>
+              <div style={{ minWidth: 90, maxWidth: 110, textAlign: 'left', marginRight: 12 }}>
                 <div style={{ color: '#888', fontSize: 12, marginBottom: 2 }}>{formatTime(log.timestamp)}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
                   <Tag minimal intent={log.level === 'error' ? 'danger' : log.level === 'warn' ? 'warning' : 'none'} style={{ fontSize: 11, padding: '0 6px', marginBottom: 2 }}>
                     {log.level.toUpperCase()}
                   </Tag>
