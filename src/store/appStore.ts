@@ -173,6 +173,20 @@ export interface TracksState {
   // Add more per-track config here as needed
 }
 
+export interface TemplateType {
+  value: string;
+  label: string;
+}
+
+export interface RectTemplate {
+  id: string;
+  name: string;
+  type: string;
+  defaultDuration: number;
+  defaultData: Record<string, unknown>;
+  paletteName: string;
+}
+
 export interface AppState {
   audio: {
     data: AudioDataState;
@@ -193,6 +207,7 @@ export interface AppState {
   hydrated: boolean;
   palettes: Record<string, ResponseRectPalette>;
   rectTemplates: Record<string, RectTemplate>;
+  templateTypes: TemplateType[];
   // Add other groups as needed
 }
 
@@ -259,15 +274,6 @@ export type LogEntry = {
   data?: unknown;
 };
 
-export type RectTemplate = {
-  id: string;
-  name: string;
-  type: string;
-  defaultDuration: number;
-  defaultData: Record<string, unknown>;
-  paletteName: string;
-};
-
 export const useAppStore = create<AppState & {
   setAudioData: (data: { waveform: number[]; duration: number }) => void;
   addTimelineResponse: (resp: TimelineResponse) => void;
@@ -301,6 +307,9 @@ export const useAppStore = create<AppState & {
   deleteRectTemplate: (id: string) => void;
   getRectTemplate: (id: string) => RectTemplate | undefined;
   getRectTemplates: () => RectTemplate[];
+  addTemplateType: (type: TemplateType) => void;
+  removeTemplateType: (value: string) => void;
+  updateTemplateType: (value: string, update: Partial<TemplateType>) => void;
 }>(
   persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -337,6 +346,13 @@ export const useAppStore = create<AppState & {
         paletteName: 'singleFirePattern',
       },
     },
+    templateTypes: [
+      { value: 'pulse', label: 'Pulse' },
+      { value: 'pattern', label: 'Pattern' },
+      { value: 'cue', label: 'Cue' },
+      { value: 'settings', label: 'Settings Change' },
+      { value: 'led', label: 'LED' },
+    ],
     logs: [
       { id: '1', timestamp: Date.now(), level: 'info', category: 'timeline', message: 'Timeline loaded' },
       { id: '2', timestamp: Date.now(), level: 'warn', category: 'leds', message: 'LEDs not responding' },
@@ -504,6 +520,15 @@ export const useAppStore = create<AppState & {
     }),
     getRectTemplate: (id) => get().rectTemplates[id],
     getRectTemplates: () => Object.values(get().rectTemplates),
+    addTemplateType: (type) => set(state => ({
+      templateTypes: [...state.templateTypes, type],
+    })),
+    removeTemplateType: (value) => set(state => ({
+      templateTypes: state.templateTypes.filter(t => t.value !== value),
+    })),
+    updateTemplateType: (value, update) => set(state => ({
+      templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+    })),
   }))
 ); 
 
@@ -550,4 +575,13 @@ export const useDeviceConnection = (browserId: string) =>
 export const useDeviceUserPrefs = (browserId: string) =>
   useAppStore(state => state.deviceUserPrefs[browserId]);
 
-export const useHydrated = () => useAppStore(state => state.hydrated); 
+export const useHydrated = () => useAppStore(state => state.hydrated);
+
+export const useAddTemplateType = () => useAppStore(state => state.addTemplateType);
+export const useRemoveTemplateType = () => useAppStore(state => state.removeTemplateType);
+
+// Selector for all template types
+export const selectTemplateTypes = (state: AppState) => state.templateTypes;
+
+// Hook for updateTemplateType
+export const useUpdateTemplateType = () => useAppStore(state => state.updateTemplateType); 

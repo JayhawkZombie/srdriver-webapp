@@ -138,5 +138,12 @@ export function getFakeAppState(type: FakeAppStateType = "sine"): AppState {
         paletteName: 'singleFirePattern',
       },
     },
+    templateTypes: [
+      { value: 'pulse', label: 'Pulse' },
+      { value: 'pattern', label: 'Pattern' },
+      { value: 'cue', label: 'Cue' },
+      { value: 'settings', label: 'Settings Change' },
+      { value: 'led', label: 'LED' },
+    ],
   };
 } 

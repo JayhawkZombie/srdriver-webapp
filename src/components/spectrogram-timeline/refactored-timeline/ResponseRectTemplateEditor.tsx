@@ -10,7 +10,7 @@ import { Stage, Layer } from 'react-konva';
 import { ResponseRect } from './ResponseRect';
 import { ResponsePaletteEditor } from './ResponsePaletteEditor';
 import type { RectTemplate } from '../../../store/appStore';
-import { useAppStore } from '../../../store/appStore';
+import { useAppStore, selectTemplateTypes, useAddTemplateType, useUpdateTemplateType, useRemoveTemplateType } from '../../../store/appStore';
 
 // Extend RectTemplate locally to allow tags and notes
 type RectTemplateWithMeta = RectTemplate & { tags?: string[]; notes?: string };
@@ -20,21 +20,22 @@ export interface ResponseRectTemplateEditorProps {
   onSave: (template: RectTemplateWithMeta) => void;
 }
 
-const typeOptions = [
-  { value: 'pulse', label: 'Pulse' },
-  { value: 'pattern', label: 'Pattern' },
-  { value: 'cue', label: 'Cue' },
-  { value: 'settings', label: 'Settings Change' },
-  { value: 'led', label: 'LED' },
-];
-
 export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProps> = ({ template, onSave }) => {
   const palettes = useAppStore(state => state.palettes);
+  const templateTypes = useAppStore(selectTemplateTypes);
+  const addTemplateType = useAddTemplateType();
+  const updateTemplateType = useUpdateTemplateType();
+  const removeTemplateType = useRemoveTemplateType();
   const [local, setLocal] = useState<RectTemplateWithMeta>({ ...template, defaultData: { ...template.defaultData } });
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [showNotes, setShowNotes] = useState(false);
   const [tagInput, setTagInput] = useState('');
+  const [addingType, setAddingType] = useState(false);
+  const [newTypeLabel, setNewTypeLabel] = useState('');
+  const [newTypeValue, setNewTypeValue] = useState('');
+  const [editTypeValue, setEditTypeValue] = useState<string | null>(null);
+  const [editTypeLabel, setEditTypeLabel] = useState('');
 
   // Helper: tags as array
   const tags: string[] = (local.tags as string[]) || [];
@@ -75,30 +76,107 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
     setLocal(l => ({ ...l, tags: tags.filter((t: string) => t !== tag) }));
   };
 
+  // Helper to get the label for the current type
+  const typeLabel = templateTypes.find(t => t.value === local.type)?.label || local.type;
+
   return (
     <Card style={{ maxWidth: 420, margin: '0 auto', padding: 16, borderRadius: 12, boxShadow: '0 2px 8px #0001' }}>
-      {/* Header: Name, Type, Tags */}
+      {/* Header: Dynamic Type + Name, Type Dropdown, Tags */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <TextField
-          value={local.name}
-          onChange={e => handleChange('name', e.target.value)}
-          variant="standard"
-          size="small"
-          placeholder="Template Name"
-          InputProps={{ disableUnderline: true, style: { fontWeight: 600, fontSize: 18, minWidth: 120 } }}
-          sx={{ flex: 1, mr: 1, background: 'none' }}
-        />
-        <Select
-          value={local.type}
-          onChange={e => handleChange('type', e.target.value as string)}
-          size="small"
-          variant="standard"
-          sx={{ minWidth: 90, fontSize: 14 }}
-        >
-          {typeOptions.map(opt => (
-            <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-          ))}
-        </Select>
+        <h2 style={{ fontWeight: 600, fontSize: 20, flex: 1, margin: 0, padding: 0, lineHeight: 1.2 }}>
+          {typeLabel}{local.name ? `: ${local.name}` : ''}
+        </h2>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 120 }}>
+          <Select
+            value={local.type}
+            onChange={e => {
+              if (e.target.value === '__new__') {
+                setAddingType(true);
+                setNewTypeLabel('');
+                setNewTypeValue('');
+              } else {
+                handleChange('type', e.target.value as string);
+              }
+            }}
+            size="small"
+            variant="standard"
+            sx={{ minWidth: 90, fontSize: 14 }}
+          >
+            {templateTypes.map(opt => (
+              <MenuItem key={opt.value} value={opt.value}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {editTypeValue === opt.value ? (
+                    <>
+                      <TextField
+                        value={editTypeLabel}
+                        onChange={e => setEditTypeLabel(e.target.value)}
+                        size="small"
+                        variant="standard"
+                        sx={{ width: 80, fontSize: 14 }}
+                        onBlur={() => {
+                          updateTemplateType(opt.value, { label: editTypeLabel });
+                          setEditTypeValue(null);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            updateTemplateType(opt.value, { label: editTypeLabel });
+                            setEditTypeValue(null);
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <IconButton size="small" onClick={() => setEditTypeValue(null)}><span className="bp5-icon bp5-icon-cross" /></IconButton>
+                    </>
+                  ) : (
+                    <>
+                      <span>{opt.label}</span>
+                      <IconButton size="small" onClick={e => { e.stopPropagation(); setEditTypeValue(opt.value); setEditTypeLabel(opt.label); }} style={{ marginLeft: 2, padding: 2 }}>
+                        <span className="bp5-icon bp5-icon-edit" />
+                      </IconButton>
+                      <IconButton size="small" onClick={e => { e.stopPropagation(); removeTemplateType(opt.value); }} style={{ marginLeft: 2, padding: 2 }}>
+                        <span className="bp5-icon bp5-icon-trash" />
+                      </IconButton>
+                    </>
+                  )}
+                </span>
+              </MenuItem>
+            ))}
+            <MenuItem key="__new__" value="__new__" style={{ fontStyle: 'italic', color: '#137cbd' }}>+ New Type…</MenuItem>
+          </Select>
+          {addingType && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <TextField
+                value={newTypeLabel}
+                onChange={e => setNewTypeLabel(e.target.value)}
+                size="small"
+                variant="standard"
+                placeholder="Type label"
+                sx={{ width: 80, fontSize: 14 }}
+              />
+              <TextField
+                value={newTypeValue}
+                onChange={e => setNewTypeValue(e.target.value)}
+                size="small"
+                variant="standard"
+                placeholder="Type value"
+                sx={{ width: 60, fontSize: 14 }}
+              />
+              <Button
+                small
+                intent="primary"
+                disabled={!newTypeLabel || !newTypeValue || templateTypes.some(t => t.value === newTypeValue)}
+                onClick={() => {
+                  addTemplateType({ value: newTypeValue, label: newTypeLabel });
+                  setAddingType(false);
+                  setNewTypeLabel('');
+                  setNewTypeValue('');
+                  handleChange('type', newTypeValue);
+                }}
+              >Add</Button>
+              <Button small minimal onClick={() => setAddingType(false)}><span className="bp5-icon bp5-icon-cross" /></Button>
+            </div>
+          )}
+        </div>
       </div>
       {/* Tags */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
