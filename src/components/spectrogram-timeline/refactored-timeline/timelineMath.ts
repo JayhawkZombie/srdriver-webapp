@@ -103,4 +103,27 @@ export function getTimelinePointerInfo({
   const trackIndex = yToTrackIndex(y, geometry.trackHeight, geometry.trackGap, geometry.tracksTopOffset, geometry.numTracks);
   if (trackIndex < 0) return null;
   return { time, trackIndex };
+}
+
+/**
+ * Snap a Y position to the nearest valid track index (0-based, clamped).
+ * @param {number} y - The Y position in px.
+ * @param {TimelineGeometry} geometry - Timeline geometry.
+ * @returns {number} The nearest valid track index (0-based).
+ */
+export function snapYToTrackIndex(y: number, geometry: TimelineGeometry): number {
+  const { trackHeight, trackGap, tracksTopOffset, numTracks } = geometry;
+  const idx = Math.round((y - tracksTopOffset) / (trackHeight + trackGap));
+  return Math.max(0, Math.min(numTracks - 1, idx));
+}
+
+/**
+ * Get the vertical center Y position for a given track index.
+ * @param {number} trackIndex - The index of the track (0-based).
+ * @param {TimelineGeometry} geometry - Timeline geometry.
+ * @returns {number} The Y position (center) of the track.
+ */
+export function trackIndexToCenterY(trackIndex: number, geometry: TimelineGeometry): number {
+  const { trackHeight, trackGap, tracksTopOffset } = geometry;
+  return tracksTopOffset + trackIndex * (trackHeight + trackGap) + trackHeight / 2;
 } 

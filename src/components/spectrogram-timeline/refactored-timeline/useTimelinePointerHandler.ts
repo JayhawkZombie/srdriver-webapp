@@ -175,11 +175,15 @@ export function useTimelinePointerHandler({
         if (!dragStartRef.current) return;
         // On drop, snap to nearest track
         const dy = e.target.y() - dragStartRef.current.y;
-        const trackDelta = Math.round(dy / (trackHeight + trackGap));
-        const snappedTrackIndex = Math.max(0, Math.min(numTracks - 1, dragStartRef.current.trackIndex + trackDelta));
+        // Snap to nearest track based on absolute Y position, not just delta
+        const absoluteY = e.target.y();
+        const snappedTrackIndex = Math.max(0, Math.min(numTracks - 1, Math.round((absoluteY - tracksTopOffset) / (trackHeight + trackGap))));
         const dx = e.target.x() - dragStartRef.current.x;
         const timeDelta = (dx / tracksWidth) * windowDuration;
         const newTimestamp = Math.max(0, Math.min(totalDuration - rect.duration, dragStartRef.current.timestamp + timeDelta));
+        // Debug logs for snapping
+        console.log('[DRAG END] absoluteY:', absoluteY, 'raw track:', (absoluteY - tracksTopOffset) / (trackHeight + trackGap), 'snappedTrackIndex:', snappedTrackIndex);
+        console.log('[DRAG END] newTimestamp:', newTimestamp, 'final trackIndex:', snappedTrackIndex);
         if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: snappedTrackIndex });
         setDraggingId(null);
         dragStartRef.current = null;

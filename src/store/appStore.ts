@@ -210,14 +210,33 @@ const initialUI: UIState = {
 const initialTimeline = {
   responses: [],
 };
-const initialDeviceMetadata: { [id: string]: DeviceMetadata } = {};
+const initialDeviceMetadata: { [id: string]: DeviceMetadata } = {
+  'mock-device-1': {
+    browserId: 'mock-device-1',
+    name: 'Demo Device 1',
+    nickname: 'Demo Device 1',
+    group: '',
+    tags: [],
+    typeInfo: {
+      model: 'MockModel',
+      firmwareVersion: '1.0.0',
+      numLEDs: 60,
+      ledLayout: 'strip',
+      capabilities: ['led', 'pattern'],
+    },
+  },
+};
 const initialDeviceState: { [id: string]: DeviceUIState } = {};
 const initialDeviceConnection: { [id: string]: DeviceConnectionStatus } = {};
 const initialDeviceData: { [id: string]: DeviceDataBlob } = {};
 const initialDeviceUserPrefs: DeviceUserPrefs = {};
 const NUM_TRACKS = 3; // Adjust as needed for your app
 const initialTracks: TracksState = {
-  mapping: Object.fromEntries(Array.from({ length: NUM_TRACKS }, (_, i) => [i, undefined])),
+  mapping: {
+    0: { type: 'device', id: 'mock-device-1' },
+    1: undefined,
+    2: undefined,
+  },
 };
 
 export const useAppStore = create<AppState & {

@@ -1,16 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText } from "react-konva";
-import { timeToXWindow, xToTime, yToTrackIndex, clampResponseDuration, getTimelinePointerInfo } from "./timelineMath";
+import { timeToXWindow, clampResponseDuration, getTimelinePointerInfo, snapYToTrackIndex, trackIndexToCenterY } from "./timelineMath";
 import type { TimelineGeometry } from "./timelineMath";
 import { usePlayback } from "./PlaybackContext";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import Track from "./Track";
-import TracksColumn from "./TracksColumn";
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import DebugInfo from "./DebugInfo";
 import TimelineContextMenu from "./TimelineContextMenu";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
-import type { TimelineResponse } from "../../../store/appStore";
 import {
   useTimelineResponses,
   useAddTimelineResponse,
@@ -20,8 +18,10 @@ import {
   useSetTrackTarget,
 } from "../../../store/appStore";
 import { ResponseRect } from './ResponseRect';
-import { useDeviceControllerContext } from '../../../controllers/DeviceControllerContext';
 import { useAppStore } from '../../../store/appStore';
+import { ResponseTypeDragBar } from "./ResponseTypeDragBar";
+import { getPaletteColor } from "./colorUtils";
+import type { KonvaEventObject } from 'konva/lib/Node';
 
 export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAction[] }) {
   const responses = useTimelineResponses();
@@ -31,7 +31,6 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
   const { totalDuration } = usePlayback();
   const trackTargets = useTrackTargets();
   const setTrackTarget = useSetTrackTarget();
-  const { devices } = useDeviceControllerContext();
   const deviceMetadata = useAppStore(state => state.deviceMetadata);
   const palettes = useAppStore(state => state.palettes);
 
@@ -39,7 +38,6 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
   const aspectRatio = 16 / 5;
   const [tracksRef, { width: tracksWidth, height: tracksHeight }] = useMeasuredContainerSize({ aspectRatio, minWidth: 320, minHeight: 150 });
   const labelsWidth = Math.max(120, Math.min(240, (tracksWidth || 800) * 0.2));
-  const width = (tracksWidth || 800) + labelsWidth;
   const height = tracksHeight || 300;
   const trackHeight = (height - 32 - 2 * 8) / 3 - 8;
   const trackGap = 8;
@@ -269,228 +267,318 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
     console.log('[DEBUG] Added response:', { timestamp, duration: defaultDuration, trackIndex });
   };
 
+  // --- Drag-and-drop for palette rects ---
+  const [dragShadow, setDragShadow] = useState<null | {
+    paletteName: string;
+    time: number;
+    trackIndex: number;
+  }>(null);
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const paletteName = e.dataTransfer.getData("application/x-palette-type");
+    if (!paletteName) return;
+    const boundingRect = tracksRef.current?.getBoundingClientRect();
+    if (!boundingRect) return;
+    const x = e.clientX - boundingRect.left;
+    const y = e.clientY - boundingRect.top;
+    const time = geometry.windowStart + (x / geometry.tracksWidth) * geometry.windowDuration;
+    const trackIndex = snapYToTrackIndex(y, geometry);
+    setDragShadow({ paletteName, time, trackIndex });
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const paletteName = e.dataTransfer.getData("application/x-palette-type");
+    if (!paletteName) return;
+    const boundingRect = tracksRef.current?.getBoundingClientRect();
+    if (!boundingRect) return;
+    const x = e.clientX - boundingRect.left;
+    const y = e.clientY - boundingRect.top;
+    const time = geometry.windowStart + (x / geometry.tracksWidth) * geometry.windowDuration;
+    const trackIndex = snapYToTrackIndex(y, geometry);
+    const defaultDuration = 1;
+    const timestamp = Math.max(0, Math.min(time, geometry.totalDuration - defaultDuration));
+    addTimelineResponse({
+      id: crypto.randomUUID(),
+      timestamp,
+      duration: defaultDuration,
+      trackIndex,
+      data: { paletteName },
+      triggered: false,
+    });
+    setDragShadow(null);
+  };
+
+  const handleDragLeave = () => setDragShadow(null);
+
   return (
-    <div
-      style={{
-        width: "100%",
-        maxWidth: 1200,
-        margin: "40px auto",
-        background: "#222",
-        borderRadius: 12,
-        padding: 24,
-        boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-      }}
-    >
-      {/* Timeline row: labels + tracks */}
-      <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", maxWidth: 1200 }}>
-        {/* Labels column, now with dropdowns */}
-        <div style={{ width: labelsWidth, minWidth: 80, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: tracksHeight, marginRight: 8 }}>
-          {[...Array(numTracks)].map((_, i) => (
-            <div key={i} style={{ height: trackHeight, marginTop: i === 0 ? tracksTopOffset : trackGap, color: '#fff', display: 'flex', alignItems: 'center', fontSize: 16, fontFamily: 'monospace' }}>
-              <select
-                value={trackTargets[i]?.type === 'device' ? trackTargets[i]?.id : ''}
-                onChange={e => {
-                  const val = e.target.value;
-                  if (val) {
-                    setTrackTarget(i, { type: 'device', id: val });
-                  } else {
-                    setTrackTarget(i, undefined as any);
-                  }
-                }}
-                style={{ minWidth: 120, padding: 4, borderRadius: 4 }}
-              >
-                <option value="">Unassigned</option>
-                {Object.values(deviceMetadata).map(device => (
-                  <option key={device.browserId} value={device.browserId}>
-                    {device.name || device.browserId}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
-        {/* Tracks area with aspect ratio */}
-        <div
-          ref={tracksRef}
-          style={{ flex: 1, minWidth: 0, display: "flex" }}
-        >
+    <div style={{ width: '100%' }}>
+      <ResponseTypeDragBar />
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 1200,
+          margin: "40px auto",
+          background: "#222",
+          borderRadius: 12,
+          padding: 24,
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        {/* Timeline row: labels + tracks */}
+        <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", maxWidth: 1200 }}>
+          {/* Labels column, now with dropdowns */}
+          <div style={{ width: labelsWidth, minWidth: 80, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: tracksHeight, marginRight: 8 }}>
+            {[...Array(numTracks)].map((_, i) => {
+              const target = trackTargets[i];
+              let value = '';
+              if (target) {
+                if (target.type === 'device') value = target.id;
+                else value = target.id; // fallback for other types
+              }
+              return (
+                <div key={i} style={{ height: trackHeight, marginTop: i === 0 ? tracksTopOffset : trackGap, color: '#fff', display: 'flex', alignItems: 'center', fontSize: 16, fontFamily: 'monospace' }}>
+                  <select
+                    value={value}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val) {
+                        setTrackTarget(i, { type: 'device', id: val });
+                      } else {
+                        setTrackTarget(i, undefined as any);
+                      }
+                    }}
+                    style={{ minWidth: 120, padding: 4, borderRadius: 4 }}
+                  >
+                    <option value="">Unassigned</option>
+                    {Object.values(deviceMetadata).map(device => (
+                      <option key={device.browserId} value={device.browserId}>
+                        {device.name || device.browserId}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+          {/* Tracks area with aspect ratio */}
           <div
-            style={{ width: "100%", aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
+            ref={tracksRef}
+            style={{ flex: 1, minWidth: 0, display: "flex" }}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onDragLeave={handleDragLeave}
           >
-            <Stage
-              width={tracksWidth}
-              height={tracksHeight}
-              style={{ position: "absolute", left: 0, top: 0 }}
-              onClick={handleStageClick}
-              onContextMenu={handleStageContextMenu}
+            <div
+              style={{ width: "100%", aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
             >
-              <Layer>
-                {/* Background shape for hit testing */}
-                <Rect
-                  name="stage-bg"
-                  x={0}
-                  y={0}
-                  width={tracksWidth}
-                  height={tracksHeight}
-                  fill="rgba(0,0,0,0)"
-                  listening={true}
-                />
-                {/* Grid/tick lines */}
-                {(() => {
-                  const majorTickEvery = 1;
-                  const minorTickEvery = 0.2;
-                  const ticks = [];
-                  for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowStart + windowDuration; t += minorTickEvery) {
-                    const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
-                    const x = ((t - windowStart) / windowDuration) * tracksWidth;
-                    ticks.push({ t, x, isMajor });
-                  }
-                  return (
-                    <>
-                      {ticks.map(({ t, x, isMajor }) => (
-                        <React.Fragment key={t.toFixed(2)}>
-                          <Line
-                            points={[x, tracksTopOffset, x, tracksTopOffset + tracksTotalHeight]}
-                            stroke={isMajor ? "#fff" : "#888"}
-                            strokeWidth={isMajor ? 2 : 1}
-                            dash={isMajor ? undefined : [2, 4]}
-                          />
-                          {isMajor && (
-                            <KonvaText
-                              x={x + 2}
-                              y={tracksTopOffset - 22}
-                              text={t.toFixed(1)}
-                              fontSize={14}
-                              fill="#fff"
+              <Stage
+                width={tracksWidth}
+                height={tracksHeight}
+                style={{ position: "absolute", left: 0, top: 0 }}
+                onClick={handleStageClick}
+                onContextMenu={handleStageContextMenu}
+              >
+                <Layer>
+                  {/* Background shape for hit testing */}
+                  <Rect
+                    name="stage-bg"
+                    x={0}
+                    y={0}
+                    width={tracksWidth}
+                    height={tracksHeight}
+                    fill="rgba(0,0,0,0)"
+                    listening={true}
+                  />
+                  {/* Grid/tick lines */}
+                  {(() => {
+                    const majorTickEvery = 1;
+                    const minorTickEvery = 0.2;
+                    const ticks = [];
+                    for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowStart + windowDuration; t += minorTickEvery) {
+                      const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
+                      const x = ((t - windowStart) / windowDuration) * tracksWidth;
+                      ticks.push({ t, x, isMajor });
+                    }
+                    return (
+                      <>
+                        {ticks.map(({ t, x, isMajor }) => (
+                          <React.Fragment key={t.toFixed(2)}>
+                            <Line
+                              points={[x, tracksTopOffset, x, tracksTopOffset + tracksTotalHeight]}
+                              stroke={isMajor ? "#fff" : "#888"}
+                              strokeWidth={isMajor ? 2 : 1}
+                              dash={isMajor ? undefined : [2, 4]}
                             />
-                          )}
-                        </React.Fragment>
-                      ))}
-                      {/* Boundary lines */}
-                      <Line points={[0, tracksTopOffset, 0, tracksTopOffset + tracksTotalHeight]} stroke="#ffeb3b" strokeWidth={2} dash={[4, 2]} />
-                      <Line points={[tracksWidth, tracksTopOffset, tracksWidth, tracksTopOffset + tracksTotalHeight]} stroke="#00bcd4" strokeWidth={2} dash={[4, 2]} />
-                      <Line points={[tracksWidth/2, tracksTopOffset, tracksWidth/2, tracksTopOffset + tracksTotalHeight]} stroke="#fff176" strokeWidth={1} dash={[2, 2]} />
-                    </>
-                  );
-                })()}
-                {/* Track backgrounds and overlays */}
-                {[...Array(numTracks)].map((_, i) => {
-                  const isTrackAssigned = !!trackTargets[i];
-                  const y = tracksTopOffset + i * (trackHeight + trackGap);
-                  return (
-                    <React.Fragment key={i}>
-                      <Track
-                        y={y}
-                        height={trackHeight}
-                        label={``}
-                        width={tracksWidth}
-                        listening={false}
-                        style={{
-                          opacity: isTrackAssigned ? 1 : 0.4,
-                          filter: isTrackAssigned ? 'none' : 'grayscale(80%)',
-                        }}
-                      />
-                      {!isTrackAssigned && (
-                        <KonvaText
-                          x={tracksWidth / 2 - 150}
-                          y={y + trackHeight / 2 - 18}
-                          text="Unassigned"
-                          fontSize={24}
-                          fill="#bbb"
-                          fontStyle="bold"
-                          width={300}
-                          align="center"
+                            {isMajor && (
+                              <KonvaText
+                                x={x + 2}
+                                y={tracksTopOffset - 22}
+                                text={t.toFixed(1)}
+                                fontSize={14}
+                                fill="#fff"
+                              />
+                            )}
+                          </React.Fragment>
+                        ))}
+                        {/* Boundary lines */}
+                        <Line points={[0, tracksTopOffset, 0, tracksTopOffset + tracksTotalHeight]} stroke="#ffeb3b" strokeWidth={2} dash={[4, 2]} />
+                        <Line points={[tracksWidth, tracksTopOffset, tracksWidth, tracksTopOffset + tracksTotalHeight]} stroke="#00bcd4" strokeWidth={2} dash={[4, 2]} />
+                        <Line points={[tracksWidth/2, tracksTopOffset, tracksWidth/2, tracksTopOffset + tracksTotalHeight]} stroke="#fff176" strokeWidth={1} dash={[2, 2]} />
+                      </>
+                    );
+                  })()}
+                  {/* Track backgrounds and overlays */}
+                  {[...Array(numTracks)].map((_, i) => {
+                    const isTrackAssigned = !!trackTargets[i];
+                    const y = tracksTopOffset + i * (trackHeight + trackGap);
+                    return (
+                      <React.Fragment key={i}>
+                        <Track
+                          y={y}
+                          height={trackHeight}
+                          label={``}
+                          width={tracksWidth}
+                          listening={false}
+                          styleOverride={{ fill: isTrackAssigned ? undefined : '#23272f' }}
+                          showMidline={true}
                         />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-                {/* Playhead line */}
-                <Line
-                  points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
-                  stroke="#ffeb3b"
-                  strokeWidth={3}
-                  dash={[6, 4]}
-                />
-                {/* Response rects */}
-                {responses.map(rect => {
-                  const isTrackAssigned = !!trackTargets[rect.trackIndex];
-                  const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
-                  // Dynamic palette assignment: use rect.data.paletteName if present, else 'demo'
-                  const paletteName = rect.data?.paletteName || 'demo';
-                  const palette = palettes[paletteName] || palettes['demo'] || Object.values(palettes)[0];
-                  let paletteState;
-                  if (!isTrackAssigned) paletteState = palette.states.unassigned;
-                  else if (rect.selected) paletteState = palette.states.selected;
-                  else if (rect.hovered) paletteState = palette.states.hovered;
-                  else if (isActive) paletteState = palette.states.active;
-                  else paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
-                  const rectProps = {
-                    x: ((rect.timestamp - windowStart) / windowDuration) * tracksWidth,
-                    y: tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16,
-                    width: (rect.duration / windowDuration) * tracksWidth,
-                    height: 32,
-                    color: paletteState.color,
-                    borderColor: paletteState.borderColor,
-                    opacity: paletteState.opacity,
-                    ...pointerHandler.getRectProps(rect.id),
-                    onContextMenu: (e: any) => handleRectContextMenu(rect, e),
-                  };
-                  return <ResponseRect key={rect.id} {...rectProps} />;
-                })}
-              </Layer>
-            </Stage>
-            <TimelineContextMenu
-              isOpen={menu.open}
-              position={menu.position}
-              info={menu.info}
-              onClose={() => setMenu({ open: false, position: null, info: null, type: null })}
-              menuRef={menuRef}
-              actions={actions}
-            />
+                        {!isTrackAssigned && (
+                          <KonvaText
+                            x={tracksWidth / 2 - 150}
+                            y={y + trackHeight / 2 - 18}
+                            text="Unassigned"
+                            fontSize={24}
+                            fill="#bbb"
+                            fontStyle="bold"
+                            width={300}
+                            align="center"
+                          />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                  {/* Playhead line */}
+                  <Line
+                    points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
+                    stroke="#ffeb3b"
+                    strokeWidth={3}
+                    dash={[6, 4]}
+                  />
+                  {/* Response rects */}
+                  {responses.map(rect => {
+                    const isTrackAssigned = !!trackTargets[rect.trackIndex];
+                    const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
+                    // Dynamic palette assignment: use rect.data.paletteName if present, else 'demo'
+                    const paletteName = rect.data?.paletteName || 'demo';
+                    const palette = palettes[paletteName] || palettes['demo'] || Object.values(palettes)[0];
+                    let paletteState;
+                    if (!isTrackAssigned) paletteState = palette.states.unassigned;
+                    else if (pointerHandler.getRectProps(rect.id).selected) paletteState = palette.states.selected;
+                    else if (pointerHandler.getRectProps(rect.id).hovered) paletteState = palette.states.hovered;
+                    else if (isActive) paletteState = palette.states.active;
+                    else paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
+                    const { color, borderColor, opacity } = getPaletteColor({
+                      baseColor: palette.baseColor,
+                      borderColor: palette.borderColor,
+                      state: paletteState,
+                    });
+                    const rectProps = {
+                      x: ((rect.timestamp - windowStart) / windowDuration) * tracksWidth,
+                      y: tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16,
+                      width: (rect.duration / windowDuration) * tracksWidth,
+                      height: 32,
+                      color,
+                      borderColor,
+                      opacity,
+                      ...pointerHandler.getRectProps(rect.id),
+                      onContextMenu: (e: KonvaEventObject<PointerEvent>) => handleRectContextMenu(rect, e),
+                    };
+                    return <ResponseRect key={rect.id} {...rectProps} />;
+                  })}
+                  {/* Shadow rect for drag-over */}
+                  {dragShadow && palettes[dragShadow.paletteName] && (
+                    (() => {
+                      const palette = palettes[dragShadow.paletteName];
+                      const paletteState = palette.states.selected || { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
+                      const { color, borderColor, opacity } = getPaletteColor({
+                        baseColor: palette.baseColor,
+                        borderColor: palette.borderColor,
+                        state: paletteState,
+                      });
+                      const x = ((dragShadow.time - windowStart) / windowDuration) * tracksWidth;
+                      const y = trackIndexToCenterY(dragShadow.trackIndex, geometry) - 16;
+                      return (
+                        <ResponseRect
+                          x={x}
+                          y={y}
+                          width={tracksWidth * 0.15}
+                          height={32}
+                          color={color}
+                          borderColor={borderColor}
+                          opacity={0.35 * (opacity ?? 1)}
+                          selected={false}
+                          hovered={false}
+                          dragging={true}
+                        />
+                      );
+                    })()
+                  )}
+                </Layer>
+              </Stage>
+              <TimelineContextMenu
+                isOpen={menu.open}
+                position={menu.position}
+                info={menu.info}
+                onClose={() => setMenu({ open: false, position: null, info: null, type: null })}
+                menuRef={menuRef}
+                actions={actions}
+              />
+            </div>
           </div>
         </div>
-      </div>
-      {/* Info and controls below timeline */}
-      <div style={{ width: "100%", maxWidth: 1000, marginTop: 16 }}>
-        <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, textAlign: "center" }}>
-          windowStart: {windowStart.toFixed(2)} | windowEnd: {(windowStart + windowDuration).toFixed(2)} | playhead: {currentTime.toFixed(2)}
+        {/* Info and controls below timeline */}
+        <div style={{ width: "100%", maxWidth: 1000, marginTop: 16 }}>
+          <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, textAlign: "center" }}>
+            windowStart: {windowStart.toFixed(2)} | windowEnd: {(windowStart + windowDuration).toFixed(2)} | playhead: {currentTime.toFixed(2)}
+          </div>
+          <div style={{ color: "#fffde7", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
+            Responses: [
+            {responses.map(r => `{"id":${JSON.stringify(r.id)},"t":${r.timestamp.toFixed(2)},"d":${r.duration.toFixed(2)},"track":${r.trackIndex},"triggered":${r.triggered}}`).join(", ")}
+            ]
+          </div>
+          <div style={{ color: "#ff9800", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
+            Active rects: [{activeRectIds.join(", ")}]
+          </div>
+          <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 16, textAlign: "center" }}>
+            <label>
+              Window size (seconds):
+              <input
+                type="range"
+                min={1}
+                max={15}
+                step={0.1}
+                value={windowDuration}
+                onChange={e => setWindowDuration(Number(e.target.value))}
+                style={{ margin: "0 12px", verticalAlign: "middle" }}
+              />
+              <input
+                type="number"
+                min={1}
+                max={15}
+                step={0.1}
+                value={windowDuration}
+                onChange={e => setWindowDuration(Number(e.target.value))}
+                style={{ width: 60, marginLeft: 8 }}
+              />
+            </label>
+          </div>
+          <DebugInfo label="Pointer State" data={pointerHandler.pointerState} />
         </div>
-        <div style={{ color: "#fffde7", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
-          Responses: [
-          {responses.map(r => `{"id":${JSON.stringify(r.id)},"t":${r.timestamp.toFixed(2)},"d":${r.duration.toFixed(2)},"track":${r.trackIndex},"triggered":${r.triggered}}`).join(", ")}
-          ]
-        </div>
-        <div style={{ color: "#ff9800", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
-          Active rects: [{activeRectIds.join(", ")}]
-        </div>
-        <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 16, textAlign: "center" }}>
-          <label>
-            Window size (seconds):
-            <input
-              type="range"
-              min={1}
-              max={15}
-              step={0.1}
-              value={windowDuration}
-              onChange={e => setWindowDuration(Number(e.target.value))}
-              style={{ margin: "0 12px", verticalAlign: "middle" }}
-            />
-            <input
-              type="number"
-              min={1}
-              max={15}
-              step={0.1}
-              value={windowDuration}
-              onChange={e => setWindowDuration(Number(e.target.value))}
-              style={{ width: 60, marginLeft: 8 }}
-            />
-          </label>
-        </div>
-        <DebugInfo label="Pointer State" data={pointerHandler.pointerState} />
       </div>
     </div>
   );
