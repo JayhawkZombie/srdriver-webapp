@@ -19,10 +19,8 @@ export const Basic = () => (
             minHeight: 120,
         }}
     >
-        <FakeAppStateStoryProvider mockType="sine">
             <PlaybackProvider>
                 <TimelineHeader />
             </PlaybackProvider>
-        </FakeAppStateStoryProvider>
     </Box>
 );

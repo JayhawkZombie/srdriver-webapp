@@ -2,7 +2,6 @@ import React from "react";
 import { Stage, Layer } from "react-konva";
 import { Card } from "@blueprintjs/core";
 import { ResponseRect } from "./ResponseRect";
-import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
 import { useAppStore } from "../../../store/appStore";
 
 export default {
@@ -13,53 +12,9 @@ export default {
 const rectWidth = 120;
 const rectHeight = 32;
 
-const initialPalettes = {
-  lightPulse: {
-    baseColor: "#00e676",
-    borderColor: "#fff",
-    states: {
-      hovered: { color: "", borderColor: "", hue: 30, borderHue: 20, opacity: 1 },
-      selected: { color: "", borderColor: "", hue: -30, borderHue: -20, opacity: 1 },
-      active: { color: "", borderColor: "", hue: 60, borderHue: 40, opacity: 1 },
-      unassigned: { color: "", borderColor: "", hue: -60, borderHue: -40, opacity: 0.4 },
-    },
-  },
-  singleFirePattern: {
-    baseColor: "#2196f3",
-    borderColor: "#fff",
-    states: {
-      hovered: { color: "", borderColor: "", hue: 30, borderHue: 20, opacity: 1 },
-      selected: { color: "", borderColor: "", hue: -30, borderHue: -20, opacity: 1 },
-      active: { color: "", borderColor: "", hue: 60, borderHue: 40, opacity: 1 },
-      unassigned: { color: "", borderColor: "", hue: -60, borderHue: -40, opacity: 0.4 },
-    },
-  },
-  oneOffCue: {
-    baseColor: "#ffd600",
-    borderColor: "#fff",
-    states: {
-      hovered: { color: "", borderColor: "", hue: 30, borderHue: 20, opacity: 1 },
-      selected: { color: "", borderColor: "", hue: -30, borderHue: -20, opacity: 1 },
-      active: { color: "", borderColor: "", hue: 60, borderHue: 40, opacity: 1 },
-      unassigned: { color: "", borderColor: "", hue: -60, borderHue: -40, opacity: 0.4 },
-    },
-  },
-  changeSettings: {
-    baseColor: "#ff4081",
-    borderColor: "#fff",
-    states: {
-      hovered: { color: "", borderColor: "", hue: 30, borderHue: 20, opacity: 1 },
-      selected: { color: "", borderColor: "", hue: -30, borderHue: -20, opacity: 1 },
-      active: { color: "", borderColor: "", hue: 60, borderHue: 40, opacity: 1 },
-      unassigned: { color: "", borderColor: "", hue: -60, borderHue: -40, opacity: 0.4 },
-    },
-  },
-};
-
 export const Gallery = () => {
   const palettes = useAppStore(state => state.palettes);
   return (
-    <FakeAppStateStoryProvider initialState={{ palettes: initialPalettes }}>
       <div style={{ background: "#222", padding: 32, borderRadius: 12, minWidth: 400, maxWidth: 1200 }}>
         <h3 style={{ color: '#fff', margin: '16px 0 24px 0', fontWeight: 600 }}>Response Rect Types Gallery</h3>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(4, 1fr)`, gap: 32, justifyItems: "center", alignItems: "start" }}>
@@ -82,6 +37,5 @@ export const Gallery = () => {
           ))}
         </div>
       </div>
-    </FakeAppStateStoryProvider>
   );
 }; 

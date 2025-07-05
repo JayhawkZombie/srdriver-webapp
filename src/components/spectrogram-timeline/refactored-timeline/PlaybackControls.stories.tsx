@@ -2,7 +2,6 @@ import React from "react";
 import PlaybackControls from "./PlaybackControls";
 import { PlaybackProvider, usePlayback } from "./PlaybackContext";
 import Waveform from "./Waveform";
-import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
 import { useAppStore } from "../../../store/appStore";
 import { selectWaveform } from "../../../store/selectors";
 import { decodeAudioFile, getMonoPCMData } from '../../../controllers/audioChunker';
@@ -93,11 +92,9 @@ export const WithAudioUpload = () => {
     };
 
     return (
-        <FakeAppStateStoryProvider>
             <PlaybackProvider>
                 <Inner />
             </PlaybackProvider>
-        </FakeAppStateStoryProvider>
     );
 };
 

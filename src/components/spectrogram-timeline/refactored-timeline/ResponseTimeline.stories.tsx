@@ -86,12 +86,10 @@ export const Basic = () => {
     },
   ];
   return (
-    <FakeDeviceControllerProvider>
       <PlaybackProvider>
         <PlaybackAutoAdvanceEnabler />
         <PlaybackAutoStart />
         <ResponseTimeline actions={actions} />
       </PlaybackProvider>
-    </FakeDeviceControllerProvider>
   );
 };

@@ -5,7 +5,6 @@ import { Icon } from "@blueprintjs/core";
 import Slider from "@mui/material/Slider";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
 
 export default {
   title: "RefactoredTimeline/PlaybackContext",
@@ -69,9 +68,7 @@ function PlaybackControlsTest() {
 }
 
 export const BasicControls = () => (
-  <FakeAppStateStoryProvider mockType="sine">
     <PlaybackProvider totalDuration={15}>
       <PlaybackControlsTest />
     </PlaybackProvider>
-  </FakeAppStateStoryProvider>
 ); 

@@ -1,5 +1,7 @@
 import React from 'react';
 import { AppStateLogDrawer } from '../src/components/spectrogram-timeline/refactored-timeline/AppStateLogDrawer';
+import { FakeAppStateStoryProvider } from '../src/store/FakeAppStateStoryProvider';
+import { FakeDeviceControllerProvider } from '../src/stories/FakeDeviceControllerProvider';
 import "@blueprintjs/core/lib/css/blueprint.css";
 
 export const globalTypes = {
@@ -24,10 +26,15 @@ export const decorators = [
   (Story, context) => {
     const showLogDrawer = context.globals.showLogDrawer;
     return (
-      <>
-        <AppStateLogDrawer isOpen={!!showLogDrawer} onClose={() => {}} />
-        <Story />
-      </>
+        <FakeDeviceControllerProvider>
+            <FakeAppStateStoryProvider mockType="screenshotBar">
+                <AppStateLogDrawer
+                    isOpen={!!showLogDrawer}
+                    onClose={() => {}}
+                />
+                <Story />
+            </FakeAppStateStoryProvider>
+        </FakeDeviceControllerProvider>
     );
   },
 ];
