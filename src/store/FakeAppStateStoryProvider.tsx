@@ -26,6 +26,33 @@ export const FakeAppStateStoryProvider: React.FC<FakeAppStateStoryProviderProps>
         useAppStore.setState({ [key]: value });
       }
     }
+    // Inject demo timeline responses if not already present
+    const current = useAppStore.getState();
+    if (!current.timeline?.responses || current.timeline.responses.length === 0) {
+      useAppStore.setState({
+        timeline: {
+          ...current.timeline,
+          responses: [
+            {
+              id: "demo-pattern-17",
+              timestamp: 2,
+              duration: 1,
+              trackIndex: 0,
+              data: { patternId: 17, color: "#ff0", customArg: "demo" },
+              triggered: false,
+            },
+            {
+              id: "demo-unassigned",
+              timestamp: 4,
+              duration: 1.5,
+              trackIndex: 2,
+              data: { patternId: 99, color: "#0ff", customArg: "unassigned" },
+              triggered: false,
+            },
+          ],
+        },
+      });
+    }
   }, [initialState, mockType]);
   return <>{children}</>;
 }; 

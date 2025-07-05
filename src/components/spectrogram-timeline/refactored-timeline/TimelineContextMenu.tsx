@@ -6,7 +6,7 @@ export interface TimelineMenuAction {
   key: string;
   text: string;
   icon?: string;
-  onClick: (info: any) => void;
+  onClick?: (info: any) => void;
   disabled?: boolean;
   hidden?: boolean;
   submenu?: TimelineMenuAction[];
@@ -21,7 +21,24 @@ interface TimelineContextMenuProps {
   actions?: TimelineMenuAction[];
 }
 
+function renderMenuActions(actions: TimelineMenuAction[] = [], info: any) {
+  return actions.map(action =>
+    !action.hidden && (
+      <MenuItem
+        key={action.key}
+        text={action.text}
+        icon={action.icon as any}
+        disabled={action.disabled}
+        onClick={action.submenu ? undefined : () => action.onClick && action.onClick(info)}
+      >
+        {action.submenu && renderMenuActions(action.submenu, info)}
+      </MenuItem>
+    )
+  );
+}
+
 const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, position, info, onClose, menuRef, actions }) => {
+  console.log('context menu', actions);
   if (isOpen) {
     console.log('[TimelineContextMenu] Rendering at', position, 'with info', info);
   }
@@ -54,29 +71,7 @@ const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, posit
           {info?.duration !== undefined && info?.timestamp !== undefined && (
             <MenuItem text={`End: ${(info.timestamp + info.duration).toFixed(2)}`} disabled />
           )}
-          <MenuItem text="Actions">
-            {actions?.map(action =>
-              !action.hidden && (
-                <MenuItem
-                  key={action.key}
-                  text={action.text}
-                  icon={action.icon as any}
-                  disabled={action.disabled}
-                  onClick={() => action.onClick(info)}
-                >
-                  {action.submenu && action.submenu.map(sub => (
-                    <MenuItem
-                      key={sub.key}
-                      text={sub.text}
-                      icon={sub.icon as any}
-                      disabled={sub.disabled}
-                      onClick={() => sub.onClick(info)}
-                    />
-                  ))}
-                </MenuItem>
-              )
-            )}
-          </MenuItem>
+          {actions && renderMenuActions(actions, info)}
           <MenuItem text="Close" icon="cross" onClick={onClose} />
         </Menu>
       </div>

@@ -5,6 +5,7 @@ import { usePlaybackAutoAdvance } from "../../../hooks/usePlaybackAutoAdvance";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
 import { useDeleteTimelineResponse, useAddTimelineResponse } from '../../../store/appStore';
 import { FakeDeviceControllerProvider } from '../../../stories/FakeDeviceControllerProvider';
+import { Mixer } from '../../../controllers/Mixer';
 
 // Minimal type for context menu info
 interface ContextMenuInfo {
@@ -23,6 +24,14 @@ function PlaybackAutoStart() {
     if (!isPlaying) play();
   }, [isPlaying, play]);
   return null;
+}
+
+// Mock LedEngine for Storybook/demo
+class MockLedEngine {
+  firePattern(patternId: number, args: any) {
+    // eslint-disable-next-line no-console
+    console.log(`[MockLedEngine] firePattern called: patternId=`, patternId, 'args=', args);
+  }
 }
 
 export default {
@@ -85,4 +94,4 @@ export const Basic = () => {
       </PlaybackProvider>
     </FakeDeviceControllerProvider>
   );
-}; 
+};
