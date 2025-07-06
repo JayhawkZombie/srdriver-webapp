@@ -8,6 +8,69 @@ import type { BandData } from '../components/visuals/bandPlotUtils';
 // --- Storybook detection ---
 const isStorybook = Boolean(((window as unknown) as Record<string, unknown>).__STORYBOOK_ADDONS_CHANNEL__);
 
+// --- Utility: Safe deep merge for nested Zustand updates ---
+function safeMerge<T>(base: T, update: Partial<T>): T {
+  if (typeof base !== 'object' || base === null) return update as T;
+  const result = { ...base } as Record<string, unknown>;
+  for (const key in update) {
+    if (
+      Object.prototype.hasOwnProperty.call(update, key) &&
+      typeof update[key] === 'object' &&
+      update[key] !== null &&
+      typeof (base as Record<string, unknown>)[key] === 'object' &&
+      (base as Record<string, unknown>)[key] !== null
+    ) {
+      // Type-safe recursive call for nested objects
+      type Value = typeof base extends Record<string, unknown> ? typeof base[typeof key] : unknown;
+      result[key] = safeMerge(
+        (base as Record<string, unknown>)[key] as Value,
+        update[key] as Partial<Value>
+      );
+    } else {
+      result[key] = update[key];
+    }
+  }
+  return result as T;
+}
+
+// --- Utility: Ensure all top-level fields are present and correct type ---
+const initialTopLevel = {
+  timeline: { responses: [] },
+  logs: [],
+  palettes: {},
+  rectTemplates: {},
+  templateTypes: [],
+  tracks: { mapping: {} },
+  devices: [],
+  deviceMetadata: {},
+  deviceState: {},
+  deviceConnection: {},
+  deviceData: {},
+  deviceUserPrefs: {},
+  audio: { data: { metadata: null, analysis: null }, analysis: { summary: null } },
+  playback: { currentTime: 0, isPlaying: false, totalDuration: 0 },
+  ui: { windowSec: 4, showFirstDerivative: false, showSecondDerivative: false, showImpulses: true, showSustainedImpulses: false, onlySustained: false, showDetectionFunction: false },
+  hydrated: false,
+  waveformProgress: null,
+  fftProgress: null,
+  aubioProgress: null,
+  maxLogCount: 200,
+};
+
+function ensureTopLevelFields<T extends object>(state: T): T {
+  const merged = { ...initialTopLevel, ...state };
+  // Ensure timeline.responses is always an array
+  if (!merged.timeline || !Array.isArray(merged.timeline.responses)) {
+    merged.timeline = { responses: [] };
+  }
+  // Ensure logs is always an array
+  if (!Array.isArray(merged.logs)) {
+    merged.logs = [];
+  }
+  // Add more field checks as needed
+  return merged as T;
+}
+
 // --- General guard for large arrays in Zustand set ---
 function guardedSet<T extends object>(set: (fn: (state: T) => T | Partial<T>) => void) {
   return (fn: (state: T) => T | Partial<T>) => {
@@ -29,7 +92,8 @@ function guardedSet<T extends object>(set: (fn: (state: T) => T | Partial<T>) =>
     if (checkLargeArrays(nextState)) {
       return;
     }
-    set(fn);
+    // --- NEW: Ensure all top-level fields are present and correct type ---
+    set((prev: T) => ensureTopLevelFields(safeMerge(prev, nextState)));
   };
 }
 
@@ -1012,31 +1076,6 @@ function migrateDefaultData(data: unknown): Record<string, unknown> {
 
 // Selector for all rect templates
 export const selectRectTemplates = (state: AppState) => Object.values(state.rectTemplates);
-
-// --- Utility: Safe deep merge for nested Zustand updates ---
-function safeMerge<T>(base: T, update: Partial<T>): T {
-  if (typeof base !== 'object' || base === null) return update as T;
-  const result = { ...base } as Record<string, unknown>;
-  for (const key in update) {
-    if (
-      Object.prototype.hasOwnProperty.call(update, key) &&
-      typeof update[key] === 'object' &&
-      update[key] !== null &&
-      typeof (base as Record<string, unknown>)[key] === 'object' &&
-      (base as Record<string, unknown>)[key] !== null
-    ) {
-      // Type-safe recursive call for nested objects
-      type Value = typeof base extends Record<string, unknown> ? typeof base[typeof key] : unknown;
-      result[key] = safeMerge(
-        (base as Record<string, unknown>)[key] as Value,
-        update[key] as Partial<Value>
-      );
-    } else {
-      result[key] = update[key];
-    }
-  }
-  return result as T;
-}
 
 // Helper to ensure AudioDataAnalysis always has required fields
 function ensureAudioDataAnalysis(partial: Partial<AudioDataAnalysis>): AudioDataAnalysis {
