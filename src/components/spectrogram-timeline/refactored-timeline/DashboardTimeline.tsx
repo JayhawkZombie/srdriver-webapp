@@ -1,12 +1,11 @@
 import React, { useState } from "react";
 import styles from "./DashboardTimeline.module.css";
 import { PlaybackProvider, usePlayback } from "./PlaybackContext";
-import PlaybackControls from "./PlaybackControls";
 import TimelineHeader from "./TimelineHeader";
 import ResponseTimeline from "./ResponseTimeline";
 import BarWaveform from "./BarWaveform";
 import { useAppStore } from "../../../store/appStore";
-import { selectWindowSec, selectDuration } from "../../../store/appStore";
+import { selectWindowSec, selectDuration } from "../../../store/selectors";
 import {
     decodeAudioFile,
     getMonoPCMData,
@@ -14,6 +13,9 @@ import {
 import { workerManager } from "../../../controllers/workerManager";
 import { useAsyncWorkerJob } from "../../dev/useAsyncWorkerJob";
 import { ProgressBar, Button } from "@blueprintjs/core";
+import Waveform from "./Waveform";
+
+// DashboardTimeline is as stateless as possible: all audio/timeline state is managed in Zustand/appStore.
 
 const AudioUpload: React.FC<{ onAudioBuffer: (audioBuffer: AudioBuffer) => void }> = ({ onAudioBuffer }) => {
     const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -28,7 +30,19 @@ const AudioUpload: React.FC<{ onAudioBuffer: (audioBuffer: AudioBuffer) => void 
             setAudioBuffer(audioBuffer);
             onAudioBuffer(audioBuffer);
             const pcm = getMonoPCMData(audioBuffer);
-            setAudioData({ waveform: [], duration: audioBuffer.duration }); // Clear waveform for now
+            const req = {
+                type: 'waveform' as const,
+                pcmBuffer: pcm.buffer,
+                sampleRate: audioBuffer.sampleRate,
+                numPoints: 1000,
+            };
+            const result = await workerManager.enqueueJob<typeof req, { type: string; waveform?: number[] }>('waveform', req);
+            console.log("Worker result:", result);
+            if (result && result.type === 'waveformResult' && Array.isArray(result.waveform)) {
+                setAudioData({ waveform: result.waveform, duration: audioBuffer.duration });
+            } else {
+                console.error("No waveform returned from worker!", result);
+            }
         }
     };
 
@@ -45,17 +59,23 @@ const AudioUpload: React.FC<{ onAudioBuffer: (audioBuffer: AudioBuffer) => void 
 };
 
 const WindowedWaveform: React.FC<{ waveform: number[]; width: number; height: number }> = ({ waveform, width, height }) => {
-    const windowSec = useAppStore(selectWindowSec);
-    const duration = useAppStore(selectDuration);
-    // Assume windowSec is the window size in seconds, and timeline shows [windowStart, windowStart+windowSec]
-    // For now, use windowStart = 0 (can be made reactive later)
+    const windowSec = useAppStore(selectWindowSec) ?? 0;
+    const duration = useAppStore(selectDuration) ?? 0;
+    // TODO: wire up real windowStart from timeline state if/when scrolling is added
     const windowStart = 0;
     const windowEnd = windowStart + windowSec;
     if (!waveform || waveform.length === 0 || !duration) return null;
     const startIdx = Math.floor((windowStart / duration) * waveform.length);
     const endIdx = Math.ceil((windowEnd / duration) * waveform.length);
     const windowedWaveform = waveform.slice(startIdx, endIdx);
-    return <div className={styles.waveform}><BarWaveform width={width} height={height} waveform={windowedWaveform} /></div>;
+    return <div className={styles.waveform}><BarWaveform width={width} height={height} data={windowedWaveform} /></div>;
+};
+
+// Helper to consume waveform data from Zustand
+const WaveformWithStore = (props: { width: number; height: number }) => {
+    const waveform = useAppStore((state) => state.audio.analysis?.waveform);
+    if (!Array.isArray(waveform) || waveform.length === 0) return null;
+    return <Waveform width={props.width} height={props.height} />;
 };
 
 export const DashboardTimeline: React.FC = () => {
@@ -102,19 +122,21 @@ export const DashboardTimeline: React.FC = () => {
                 </div>
                 <div className={styles.content}>
                     <AudioUpload onAudioBuffer={setAudioBuffer} />
-                    <Button intent="primary" onClick={handleAnalyze} disabled={!audioBuffer || loading} style={{ marginBottom: 12 }}>
-                        Analyze Audio
-                    </Button>
+                    {/* Full interactive waveform for the entire track, under audio upload */}
                     <div className={styles.waveform} style={{ minHeight: 80 }}>
                         {loading ? (
                             <ProgressBar animate stripes value={progress && progress.total ? progress.processed / progress.total : 0} intent="primary" style={{ height: 12, borderRadius: 6 }} />
                         ) : (
-                            <WindowedWaveform waveform={waveform} width={800} height={80} />
+                            <Waveform width={800} height={80} />
                         )}
                     </div>
-                    <div className={styles.controls}>
-                        <PlaybackControls />
-                    </div>
+                    <Button intent="primary" onClick={handleAnalyze} disabled={!audioBuffer || loading} style={{ marginBottom: 12 }}>
+                        Analyze Audio
+                    </Button>
+                    {/* Interactive waveform visualization below Analyze Audio button */}
+                    <WaveformWithStore width={800} height={80} />
+                    {/* Windowed waveform for the current timeline window, under playback controls */}
+                    <WindowedWaveform waveform={waveform} width={800} height={80} />
                     <div className={styles.timeline}>
                         <TimelineHeader />
                         <ResponseTimeline />

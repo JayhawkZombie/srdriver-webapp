@@ -20,7 +20,7 @@ export const selectIsPlaying = (state: AppState) => state.playback.isPlaying;
 export const selectTotalDuration = (state: AppState) => state.playback.totalDuration;
 
 // UI selectors
-export const selectWindowSec = (state: AppState) => state.ui.windowSec;
+export const selectWindowSec = (state: AppState) => state.ui.windowSec; 
 
 // Select a specific waveform type from the store
 export const selectWaveformOfType = (type: string) => (state: AppState) => state.audio.analysis.waveforms?.[type] || []; 

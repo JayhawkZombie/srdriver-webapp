@@ -1,23 +1,7 @@
 // workerManager.ts - Minimal worker manager for waveformWorker
 // Types (inline for now, move to types.ts if needed)
 
-type WorkerType = 'waveform';
-
-interface WaveformRequest {
-  type: 'waveform';
-  pcmBuffer: ArrayBuffer;
-  sampleRate: number;
-  numPoints: number;
-  jobId?: string;
-}
-
-interface WaveformResult {
-  type: 'waveformResult';
-  waveform: number[];
-  duration: number;
-  sampleRate: number;
-  jobId?: string;
-}
+type WorkerType = 'waveform' | 'fft' | 'aubio';
 
 interface WorkerJob<Request, Result> {
   jobId: string;
@@ -101,6 +85,8 @@ class WorkerHandle<Request, Result> {
 class WorkerManager {
   private handles: Record<WorkerType, WorkerHandle<any, any>> = {
     waveform: new WorkerHandle('../workers/waveformWorker.ts'),
+    fft: new WorkerHandle('../workers/audioWorker.ts'),
+    aubio: new WorkerHandle('../workers/aubioWorker.ts'),
   };
 
   enqueueJob<T, U>(type: WorkerType, request: T, onProgress?: (progress: { processed: number; total: number; jobId?: string }) => void): Promise<U> {

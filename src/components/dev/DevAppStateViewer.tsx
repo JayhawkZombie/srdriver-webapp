@@ -8,7 +8,7 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const DevAppStateViewer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const appState = useAppStore();
-  if (!isDev) return null;
+   if (!isDev) return null;
   return (
     <Drawer
       isOpen={isOpen}

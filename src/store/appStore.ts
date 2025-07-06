@@ -84,7 +84,7 @@ export interface AudioDataMetadata {
 }
 
 export interface AudioDataAnalysis {
-  fftSequence: (Float32Array | number[]);
+  fftSequence: Float32Array[] | number[][];
   normalizedFftSequence?: number[][];
   summary: Record<string, unknown> | null;
   bandDataArr?: Array<Record<string, unknown>>;
@@ -95,6 +95,8 @@ export interface AudioDataAnalysis {
   duration?: number;
   barData?: number[];
   waveforms?: Record<string, number[]>;
+  aubioEvents?: DetectionEvent[];
+  aubioError?: string;
 }
 
 export interface AudioDataState {
@@ -197,6 +199,8 @@ export interface RectTemplate {
   paletteName: string;
 }
 
+export type DetectionEvent = { time: number; strength?: number };
+
 export interface AppState {
   audio: {
     data: AudioDataState;
@@ -218,7 +222,47 @@ export interface AppState {
   palettes: Record<string, ResponseRectPalette>;
   rectTemplates: Record<string, RectTemplate>;
   templateTypes: TemplateType[];
-  // Add other groups as needed
+  waveformProgress: { processed: number; total: number; jobId?: string } | null;
+  logs: LogEntry[];
+  maxLogCount: number;
+  setAudioData: (data: { waveform: number[]; duration: number }) => void;
+  addTimelineResponse: (resp: TimelineResponse) => void;
+  updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => void;
+  deleteTimelineResponse: (id: string) => void;
+  setTimelineResponses: (responses: TimelineResponse[]) => void;
+  addDevice: (metadata: DeviceMetadata) => void;
+  removeDevice: (id: string) => void;
+  setDeviceMetadata: (id: string, metadata: DeviceMetadata) => void;
+  setDeviceNickname: (id: string, nickname: string) => void;
+  setDeviceState: (id: string, state: Partial<DeviceUIState>) => void;
+  setDeviceConnection: (id: string, status: Partial<DeviceConnectionStatus>) => void;
+  setDeviceData: (id: string, data: DeviceDataBlob) => void;
+  updateDeviceTypeInfo: (id: string, typeInfo: Partial<DeviceTypeInfo>) => void;
+  setDeviceGroup: (id: string, group: string | null) => void;
+  setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
+  setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => void;
+  setPalette: (name: string, palette: ResponseRectPalette) => void;
+  removePalette: (name: string) => void;
+  getPalette: (name?: string) => ResponseRectPalette;
+  addLog: (level: string, category: string, message: string, data?: unknown) => void;
+  clearLogs: () => void;
+  getLogsByCategory: (category: string) => LogEntry[];
+  getLogsByLevel: (level: string) => LogEntry[];
+  addRectTemplate: (template: RectTemplate) => void;
+  updateRectTemplate: (id: string, update: Partial<RectTemplate>) => void;
+  deleteRectTemplate: (id: string) => void;
+  getRectTemplate: (id: string) => RectTemplate | undefined;
+  getRectTemplates: () => RectTemplate[];
+  addTemplateType: (type: TemplateType) => void;
+  removeTemplateType: (value: string) => void;
+  updateTemplateType: (value: string, update: Partial<TemplateType>) => void;
+  setWaveformProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  fftProgress: { processed: number; total: number; jobId?: string } | null;
+  aubioProgress: { processed: number; total: number; jobId?: string } | null;
+  setFftProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  setAubioProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  setFftResult: (result: { fftSequence: Float32Array[] | number[][]; normalizedFftSequence?: number[][]; summary?: Record<string, unknown> }) => void;
+  setAubioResult: (result: { detectionFunction: number[]; times: number[]; events: DetectionEvent[]; error?: string }) => void;
 }
 
 // --- Initial state ---
@@ -286,6 +330,8 @@ export type LogEntry = {
 
 export const useAppStore = create<AppState & {
   setAudioData: (data: { waveform: number[]; duration: number }) => void;
+  setWaveformProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  waveformProgress: { processed: number; total: number; jobId?: string } | null;
   addTimelineResponse: (resp: TimelineResponse) => void;
   updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => void;
   deleteTimelineResponse: (id: string) => void;
@@ -364,6 +410,7 @@ export const useAppStore = create<AppState & {
           { value: 'settings', label: 'Settings Change' },
           { value: 'led', label: 'LED' },
         ],
+        waveformProgress: null,
         logs: [],
         maxLogCount: 200,
         setAudioData: ({ waveform, duration }) => set(state => ({
@@ -380,6 +427,7 @@ export const useAppStore = create<AppState & {
             totalDuration: duration,
           },
         })),
+        setWaveformProgress: (progress) => set(() => ({ waveformProgress: progress })),
         addTimelineResponse: (resp) => set(state => ({
           timeline: {
             ...state.timeline,
@@ -546,6 +594,33 @@ export const useAppStore = create<AppState & {
         updateTemplateType: (value, update) => set(state => ({
           templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
         })),
+        fftProgress: null,
+        aubioProgress: null,
+        setFftProgress: (progress) => set(() => ({ fftProgress: progress })),
+        setAubioProgress: (progress) => set(() => ({ aubioProgress: progress })),
+        setFftResult: (result) => set(state => ({
+          audio: {
+            ...state.audio,
+            analysis: {
+              ...state.audio.analysis,
+              fftSequence: result.fftSequence,
+              normalizedFftSequence: result.normalizedFftSequence,
+              summary: result.summary ?? state.audio.analysis.summary,
+            },
+          },
+        })),
+        setAubioResult: (result) => set(state => ({
+          audio: {
+            ...state.audio,
+            analysis: {
+              ...state.audio.analysis,
+              detectionFunction: result.detectionFunction,
+              detectionTimes: result.times,
+              aubioEvents: result.events,
+              aubioError: result.error,
+            },
+          },
+        })),
       })
     : persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
@@ -589,6 +664,7 @@ export const useAppStore = create<AppState & {
           { value: 'settings', label: 'Settings Change' },
           { value: 'led', label: 'LED' },
         ],
+        waveformProgress: null,
         logs: [],
         maxLogCount: 200,
         setAudioData: ({ waveform, duration }) => set(state => ({
@@ -770,6 +846,34 @@ export const useAppStore = create<AppState & {
         })),
         updateTemplateType: (value, update) => set(state => ({
           templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+    })),
+    setWaveformProgress: (progress) => set(() => ({ waveformProgress: progress })),
+    fftProgress: null,
+    aubioProgress: null,
+    setFftProgress: (progress) => set(() => ({ fftProgress: progress })),
+    setAubioProgress: (progress) => set(() => ({ aubioProgress: progress })),
+    setFftResult: (result) => set(state => ({
+      audio: {
+        ...state.audio,
+        analysis: {
+          ...state.audio.analysis,
+          fftSequence: result.fftSequence,
+          normalizedFftSequence: result.normalizedFftSequence,
+          summary: result.summary ?? state.audio.analysis.summary,
+        },
+      },
+    })),
+    setAubioResult: (result) => set(state => ({
+      audio: {
+        ...state.audio,
+        analysis: {
+          ...state.audio.analysis,
+          detectionFunction: result.detectionFunction,
+          detectionTimes: result.times,
+          aubioEvents: result.events,
+          aubioError: result.error,
+        },
+      },
     })),
   }))
 ); 
