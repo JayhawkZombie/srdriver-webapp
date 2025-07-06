@@ -153,7 +153,7 @@ const FFTSection = ({ pcm, sampleRate }: { pcm: Float32Array; sampleRate: number
 };
 
 const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
-  const { bandResults, bandProgress, isLoading, runDetection, error } = useDetectionData();
+  const { results, bandResults, bandProgress, isLoading, runDetection, error } = useDetectionData();
   const [selectedBand, setSelectedBand] = React.useState(0);
   // Windowing example: show first 15s
   const windowStart = 0;
@@ -164,6 +164,25 @@ const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
       <button onClick={runDetection} disabled={bands.length === 0 || isLoading}>
         Run Detection
       </button>
+      {/* PCM detection plot (always blue) */}
+      {results && results.detectionFunction && results.detectionFunction.length > 0 && results.times && (
+        <div style={{ width: 800, height: 100, marginTop: 16 }}>
+          <div style={{ color: '#4fc3f7', fontWeight: 500, marginBottom: 4, fontSize: 16 }}>PCM Detection</div>
+          <WindowedTimeSeriesPlot
+            yValues={logNormalize(results.detectionFunction)}
+            xValues={results.times}
+            eventTimes={results.events ? results.events.map((e: { time: number; strength?: number }) => e.time) : undefined}
+            windowStart={windowStart}
+            windowDuration={windowDuration}
+            width={800}
+            height={100}
+            color="#4fc3f7"
+            markerColor="red"
+            showAxes={true}
+            showTicks={true}
+          />
+        </div>
+      )}
       {/* Band selection bar and single band plot */}
       {bands.length > 0 && (
         <div style={{ width: 800, marginTop: 16 }}>
