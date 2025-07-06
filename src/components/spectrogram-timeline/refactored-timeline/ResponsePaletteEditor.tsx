@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useAppStore } from "../../../store/appStore";
 import { Card, Button, Popover, Position, Menu, MenuItem, Icon, Tooltip } from "@blueprintjs/core";
 import { Stage, Layer } from "react-konva";
@@ -7,6 +7,8 @@ import type { ResponseRectPalette } from '../../../types/ResponseRectPalette';
 import { shiftHue, shiftBrightness } from './colorUtils';
 import Slider from '@mui/material/Slider';
 import TextField from '@mui/material/TextField';
+import { UnifiedThemeContext } from '../../../context/UnifiedThemeContext';
+import Typography from '@mui/material/Typography';
 
 const rectWidth = 64;
 const rectHeight = 20;
@@ -17,6 +19,7 @@ interface ResponsePaletteEditorProps {
 }
 
 export const ResponsePaletteEditor: React.FC<ResponsePaletteEditorProps> = ({ onPaletteCreated, autoFocusNewPalette }) => {
+  const { mode } = useContext(UnifiedThemeContext) ?? { mode: 'light' };
   const palettes = useAppStore(state => state.palettes);
   const setPalette = useAppStore(state => state.setPalette);
   const [popoverOpen, setPopoverOpen] = useState<Record<string, boolean>>({});
@@ -74,28 +77,42 @@ export const ResponsePaletteEditor: React.FC<ResponsePaletteEditorProps> = ({ on
   };
 
   return (
-    <div style={{ minWidth: 240, maxWidth: 320, padding: '10px 14px 4px 14px', margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div style={{ width: '100%' }}>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>Response Palette Editor</div>
-        <Button icon="add" intent="primary" minimal style={{ marginBottom: 4, fontSize: 13, padding: '2px 6px' }} onClick={() => setCreatingPalette(v => !v)}>
-          {creatingPalette ? 'Cancel' : 'Create New Palette'}
-        </Button>
-        {creatingPalette && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '4px 0 8px 0' }}>
-            <input
-              ref={newPaletteInputRef}
-              value={newPaletteName}
-              onChange={e => setNewPaletteName(e.target.value)}
-              placeholder="New palette name"
-              style={{ padding: 3, borderRadius: 4, border: '1px solid #ccc', background: '#fff', color: '#222', minWidth: 80, fontSize: 13 }}
-              onKeyDown={e => { if (e.key === 'Enter') handleCreatePalette(); }}
-            />
-            <Button icon="floppy-disk" intent="success" small onClick={handleCreatePalette} disabled={!newPaletteName || !!palettes[newPaletteName]} style={{ fontSize: 12, padding: '2px 6px' }}>
-              Save
-            </Button>
-          </div>
-        )}
-      </div>
+    <div
+      className={mode === 'dark' ? 'bp5-dark' : ''}
+      style={{
+        minWidth: 240,
+        maxWidth: 320,
+        padding: 0,
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        background: 'none',
+        border: 'none',
+        boxShadow: 'none',
+      }}
+    >
+      <Typography variant="h6" style={{ fontWeight: 600, fontSize: 17, marginBottom: 4, fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' }}>
+        Response Palette Editor
+      </Typography>
+      <Button icon="add" intent="primary" minimal style={{ marginBottom: 4, fontSize: 13, padding: '2px 6px', fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' }} onClick={() => setCreatingPalette(v => !v)}>
+        {creatingPalette ? 'Cancel' : 'Create New Palette'}
+      </Button>
+      {creatingPalette && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '4px 0 8px 0' }}>
+          <input
+            ref={newPaletteInputRef}
+            value={newPaletteName}
+            onChange={e => setNewPaletteName(e.target.value)}
+            placeholder="New palette name"
+            style={{ padding: 3, borderRadius: 4, border: '1px solid #ccc', background: mode === 'dark' ? '#23272f' : '#fff', color: mode === 'dark' ? '#eee' : '#222', minWidth: 80, fontSize: 13, fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' }}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreatePalette(); }}
+          />
+          <Button icon="floppy-disk" intent="success" small onClick={handleCreatePalette} disabled={!newPaletteName || !!palettes[newPaletteName]} style={{ fontSize: 12, padding: '2px 6px', fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' }}>
+            Save
+          </Button>
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', alignItems: 'center' }}>
         {Object.entries(palettes).map(([paletteName, pal]) => {
           const popoverKey = `popover_${paletteName}`;
@@ -106,7 +123,9 @@ export const ResponsePaletteEditor: React.FC<ResponsePaletteEditorProps> = ({ on
               key={paletteName}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 8,
-                boxShadow: '0 1px 4px #0001', background: '#fff', border: '1px solid #f2f2f2',
+                boxShadow: '0 1px 4px #0001',
+                background: mode === 'dark' ? '#23272f' : 'var(--bp5-card-background-color, #fff)',
+                border: mode === 'dark' ? '1.5px solid #2c313a' : '1px solid var(--bp5-divider-black, #222)',
                 minHeight: 28, maxWidth: 260, width: '100%', marginBottom: 3
               }}
               elevation={0}
@@ -129,7 +148,7 @@ export const ResponsePaletteEditor: React.FC<ResponsePaletteEditorProps> = ({ on
                 onBlur={e => handleRename(paletteName, e.target.value)}
                 variant="standard"
                 size="small"
-                InputProps={{ disableUnderline: true, style: { fontWeight: 500, fontSize: 13, width: 90, padding: 0 } }}
+                InputProps={{ disableUnderline: true, style: { fontWeight: 500, fontSize: 13, width: 90, padding: 0, background: 'none', color: 'var(--bp5-text-color, #eee)', fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' } }}
                 sx={{ minWidth: 0, flex: 1, mr: 1, background: 'none' }}
               />
               <Popover
@@ -141,10 +160,11 @@ export const ResponsePaletteEditor: React.FC<ResponsePaletteEditorProps> = ({ on
                   return { ...filtered, [popoverKey]: typeof nextOpen === 'boolean' ? nextOpen : !!nextOpen };
                 })}
                 position={Position.RIGHT}
+                usePortal={true}
                 content={
                   <Menu style={{ minWidth: 320, maxWidth: 480, background: undefined, boxShadow: undefined }}>
                     <MenuItem text={<span style={{ display: 'flex', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, marginRight: 8 }}>Base color:</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, marginRight: 8, fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' }}>Base color:</span>
                       <input
                         type="color"
                         value={localPal.baseColor}

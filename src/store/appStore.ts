@@ -190,7 +190,7 @@ export interface RectTemplate {
   name: string;
   type: string;
   defaultDuration: number;
-  defaultData: TemplateDataField[];
+  defaultData: Record<string, unknown>;
   paletteName: string;
 }
 
@@ -341,10 +341,7 @@ export const useAppStore = create<AppState & {
         name: 'LED Beat',
         type: 'led',
         defaultDuration: 1,
-        defaultData: [
-          { key: 'pattern', value: 'beat' },
-          { key: 'color', value: '#00ff00' },
-        ],
+        defaultData: { pattern: 'beat', color: '#00ff00' },
         paletteName: 'lightPulse',
       },
       'led-wave': {
@@ -352,10 +349,7 @@ export const useAppStore = create<AppState & {
         name: 'LED Wave',
         type: 'led',
         defaultDuration: 2,
-        defaultData: [
-          { key: 'pattern', value: 'wave' },
-          { key: 'color', value: '#0000ff' },
-        ],
+        defaultData: { pattern: 'wave', color: '#0000ff' },
         paletteName: 'singleFirePattern',
       },
     },
@@ -612,10 +606,20 @@ export const selectTemplateTypes = (state: AppState) => state.templateTypes;
 export const useUpdateTemplateType = () => useAppStore(state => state.updateTemplateType);
 
 // Migration utility for old templates
-function migrateDefaultData(data: unknown): TemplateDataField[] {
-  if (Array.isArray(data)) return data as TemplateDataField[];
-  if (typeof data === 'object' && data !== null) {
-    return Object.entries(data as Record<string, unknown>).map(([key, value]) => ({ key, value }));
+function migrateDefaultData(data: unknown): Record<string, unknown> {
+  if (Array.isArray(data)) {
+    // Convert array of {key, value} to object
+    const obj: Record<string, unknown> = {};
+    data.forEach(item => {
+      if (item && typeof item === 'object' && 'key' in item && 'value' in item) {
+        const { key, value } = item as { key: string; value: unknown };
+        obj[key] = value;
+      }
+    });
+    return obj;
   }
-  return [];
+  if (typeof data === 'object' && data !== null) {
+    return data as Record<string, unknown>;
+  }
+  return {};
 } 

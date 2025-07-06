@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import EditableKeyValueTree from "./EditableKeyValueTree";
+import { Card, Elevation } from "@blueprintjs/core";
 
 export default {
     title: "Utility/EditableKeyValueTree",
@@ -23,75 +24,25 @@ const initialData = {
     ],
 };
 
-const initialLockMeta = {
-    pattern: { lockKey: false, lockValue: false },
-    color: { lockKey: true, lockValue: false },
-    settings: {
-        lockKey: false,
-        lockValue: false,
-        duration: { lockKey: false, lockValue: true },
-        nested: {
-            lockKey: false,
-            lockValue: false,
-            foo: { lockKey: false, lockValue: false },
-            arr: {},
-        },
-    },
-    list: {},
-};
-
-export const Default = () => {
+export const EditableVsReadOnly = () => {
     const [data, setData] = useState(initialData);
-    const [lockMeta, setLockMeta] = useState(initialLockMeta);
     return (
-        <div style={{ maxWidth: 600, fontFamily: "monospace", fontSize: 13 }}>
-            <EditableKeyValueTree
-                data={data}
-                lockMeta={lockMeta}
-                onDataChange={setData}
-                onLockMetaChange={setLockMeta}
-            />
-            <div
-                style={{
-                    display: "flex",
-                    gap: 24,
-                    marginTop: 16,
-                    maxHeight: 500,
-                    overflowY: "auto",
-                    backgroundColor: "#f5f5f5",
-                    padding: 16,
-                    borderRadius: 8,
-                }}
-            >
-                <div>
-                    <div
-                        style={{
-                            fontWeight: 700,
-                            fontSize: 13,
-                            marginBottom: 2,
-                        }}
-                    >
-                        data
-                    </div>
-                    <pre style={{ fontSize: 12, margin: 0 }}>
-                        {JSON.stringify(data, null, 2)}
-                    </pre>
-                </div>
-                <div>
-                    <div
-                        style={{
-                            fontWeight: 700,
-                            fontSize: 13,
-                            marginBottom: 2,
-                        }}
-                    >
-                        lockMeta
-                    </div>
-                    <pre style={{ fontSize: 12, margin: 0 }}>
-                        {JSON.stringify(lockMeta, null, 2)}
-                    </pre>
-                </div>
-            </div>
+        <div style={{ display: "flex", gap: 32, alignItems: "flex-start", padding: 24 }}>
+            <Card elevation={Elevation.TWO} style={{ maxWidth: 400, minWidth: 320, flex: 1, overflowX: "auto" }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "#137cbd" }}>Editable Tree</div>
+                <EditableKeyValueTree
+                    data={data}
+                    editable={true}
+                    onDataChange={newData => setData(newData as typeof initialData)}
+                />
+            </Card>
+            <Card elevation={Elevation.ONE} style={{ maxWidth: 400, minWidth: 320, flex: 1, overflowX: "auto", borderLeft: "2px solid #eee" }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "#888" }}>Read-Only Tree</div>
+                <EditableKeyValueTree
+                    data={data}
+                    editable={false}
+                />
+            </Card>
         </div>
     );
 };
