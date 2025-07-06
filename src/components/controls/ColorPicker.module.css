@@ -1,0 +1,16 @@
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border-radius: 0.25rem;
+    color: white;
+}
+
+.main .picker {
+    width: 100px;
+    height: 100px;
+}

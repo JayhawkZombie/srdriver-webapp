@@ -1,63 +1,37 @@
-import React, { useState } from 'react';
-import { Box, IconButton, Drawer, Typography, Tooltip } from '@mui/material';
-import BugReportIcon from '@mui/icons-material/BugReport';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import CloseIcon from '@mui/icons-material/Close';
+import React from 'react';
+import { Drawer } from '@blueprintjs/core';
 import { useAppStore } from '../../store/appStore';
+import Typography from '@mui/material/Typography';
+import AppStateStyleTreeNode from '../utility/AppStateStyleTreeNode';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const DevAppStateViewer: React.FC = () => {
-  const [open, setOpen] = useState(false);
+const DevAppStateViewer: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const appState = useAppStore();
-  const [copied, setCopied] = useState(false);
-
-  // Show the entire app state for debugging
-  const fullState = appState;
-
-  if (!isDev) return null;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(JSON.stringify(fullState, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  };
-
+   if (!isDev) return null;
   return (
-    <>
-      <Tooltip title="Show App State">
-        <IconButton
-          onClick={() => setOpen(true)}
-          sx={{ alignSelf: 'center', p: 0.5 }}
-          size="medium"
-        >
-          <BugReportIcon fontSize="medium" />
-        </IconButton>
-      </Tooltip>
-      <Drawer
-        anchor="right"
-        open={open}
-        onClose={() => setOpen(false)}
-        PaperProps={{ sx: { width: 400, p: 2, bgcolor: 'background.default' } }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="h6">App State</Typography>
-          <Box>
-            <Tooltip title={copied ? 'Copied!' : 'Copy to clipboard'}>
-              <IconButton onClick={handleCopy} size="small">
-                <ContentCopyIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <IconButton onClick={() => setOpen(false)} size="small">
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        </Box>
-        <Box sx={{ maxHeight: '80vh', overflow: 'auto', fontFamily: 'monospace', fontSize: 13, bgcolor: 'background.paper', p: 1, borderRadius: 1 }}>
-          <pre style={{ margin: 0 }}>{JSON.stringify(fullState, null, 2)}</pre>
-        </Box>
-      </Drawer>
-    </>
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title="App State Viewer"
+      size="30vw"
+      position="left"
+      style={{ top: 64, height: 'calc(100vh - 64px)' }}
+      portalClassName="dev-app-state-drawer-portal"
+    >
+      <div style={{ padding: 8, maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
+        <Typography variant="subtitle1" sx={{ color: '#888', fontWeight: 700, fontFamily: 'monospace', fontSize: 14, mb: 0.5 }}>
+          App State <span style={{ fontWeight: 400, fontSize: 12 }}>(expand/collapse sections below)</span>
+        </Typography>
+        <div>
+          {Object.entries(appState).map(([k, v]: [string, unknown]) => (
+            <div key={k} style={{ marginBottom: 0, borderBottom: '1px solid #eee', paddingBottom: 0 }}>
+              <AppStateStyleTreeNode label={k} value={v} depth={0} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Drawer>
   );
 };
 

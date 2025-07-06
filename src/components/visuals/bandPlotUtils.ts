@@ -1,4 +1,8 @@
-import { PlotData, PlotType, Dash } from 'plotly.js';
+// Generic band analysis math and types for audio visualization
+// This file is plotting-library-agnostic and can be used as a base for adapters/plugins for any visualization library.
+// To use with a specific plotting library, write an adapter that maps BandData to your chart's data format.
+
+// --- Data Types ---
 
 export interface BandData {
   band: { name: string; color: string };
@@ -52,7 +56,23 @@ interface GetBandPlotDataOptions {
 // UI scaling factor for impulse strengths (to make slider more user-friendly)
 const IMPULSE_UI_SCALING = 1000;
 
-function lightenColor(hex: string, amount = 0.5) {
+// --- Math/Utility Functions ---
+
+// Clamp a magnitude to dB range for visualization
+export function clampDB(m: number) {
+  return Math.max(-80, Math.min(0, 20 * Math.log10(Math.max(m, 1e-6))));
+}
+
+// Compute a percentile from an array
+export function percentile(arr: number[], p: number) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.floor(p * (sorted.length - 1));
+  return sorted[idx];
+}
+
+// Lighten a hex color by a given amount (0-1)
+export function lightenColor(hex: string, amount = 0.5) {
   const num = parseInt(hex.replace('#', ''), 16);
   let r = (num >> 16) + Math.round((255 - (num >> 16)) * amount);
   let g = ((num >> 8) & 0x00FF) + Math.round((255 - ((num >> 8) & 0x00FF)) * amount);
@@ -61,18 +81,10 @@ function lightenColor(hex: string, amount = 0.5) {
   return `rgb(${r},${g},${b})`;
 }
 
-// Helper to clamp dB values
-export function clampDB(m: number) {
-  return Math.max(-80, Math.min(0, 20 * Math.log10(Math.max(m, 1e-6))));
-}
-
-// Helper to compute percentile
-function percentile(arr: number[], p: number) {
-  if (!arr.length) return 0;
-  const sorted = [...arr].sort((a, b) => a - b);
-  const idx = Math.floor(p * (sorted.length - 1));
-  return sorted[idx];
-}
+// Example: Adapter function signature for a plotting library
+// export function toPlotData(bandData: BandData): YourPlotDataType[] {
+//   // Map BandData to your chart's data format here
+// }
 
 export function getBandPlotData({
   bandDataArr,

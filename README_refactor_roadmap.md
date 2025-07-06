@@ -103,4 +103,42 @@ A living checklist and roadmap for making the codebase more maintainable, scalab
 
 ---
 
+## 🛣️ Next Steps: Timeline Rect Editing & Pro Editor Features (Planned)
+
+### 1. Robust Response Rect Editing
+- [ ] **Rect Creation**: Click or drag to create a new response rect on a track (snap to grid/time if desired).
+- [ ] **Drag-and-Drop**: Drag rects horizontally (move in time) and vertically (move between tracks), with visual feedback.
+- [ ] **Resize Handles**: Add handles to both ends of each rect for resizing (mouse/touch drag, snap to grid/time).
+- [ ] **Selection & Multi-Selection**: Click to select, Shift/Ctrl-click for multi-select, with clear visual feedback.
+
+### 2. Keyboard Shortcuts (BlueprintJS Hotkeys)
+- [ ] Integrate BlueprintJS HotkeysProvider at the app/story level.
+- [ ] Add hotkeys for:
+    - Delete selected rect(s)
+    - Duplicate rect(s)
+    - Nudge left/right (arrow keys)
+    - Select all (Cmd/Ctrl+A)
+    - Deselect (Esc)
+    - (Optional) Play/pause, jump to next/prev rect, etc.
+
+### 3. State Management & Undo/Redo (Optional, but powerful)
+- [ ] Centralize rect state in Zustand or a dedicated context.
+- [ ] Add undo/redo stack for rect edits (simple array or library).
+- [ ] Expose actions for all rect operations (create, move, resize, delete, etc.)
+
+### 4. Visual Polish & UX
+- [ ] Add hover/drag/resize feedback (shadows, outlines, color changes).
+- [ ] Show time labels on rects (start/end).
+- [ ] (Optional) Add tooltips or context menus for rect actions.
+
+### 5. Prepare for LED/Playback Logic
+- [ ] Ensure rects have all needed metadata (start, end, track, type, etc.).
+- [ ] Add a simple effect or callback when playhead enters/exits a rect (for future LED logic).
+
+---
+
+**This is the foundation for a pro-level timeline editor!**
+- Once these are in place, adding planned light show/LED logic will be easy and fun.
+- Prioritize robust editing and hotkey UX first, then polish and extend.
+
 _Add new ideas below as they come up!_ 

@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AppBar, Toolbar, Typography, FormControlLabel, Switch, Tooltip } from '@mui/material';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import HighlightOffIcon from '@mui/icons-material/HighlightOff';
 import IconButton from '@mui/material/IconButton';
 import MenuIcon from '@mui/icons-material/Menu';
 import WorkspacesSharpIcon from "@mui/icons-material/WorkspacesSharp";
+import BugReportIcon from '@mui/icons-material/BugReport';
+import DeveloperModeIcon from '@mui/icons-material/DeveloperMode';
 import { useDeviceControllerContext } from '../controllers/DeviceControllerContext';
-import { useImpulseEvents } from '../context/ImpulseEventContext';
 
 interface DashboardHeaderProps {
   mode: 'light' | 'dark';
@@ -14,6 +15,8 @@ interface DashboardHeaderProps {
   onOpenConnectionDrawer?: () => void;
   onOpenLeftDrawer?: () => void;
   onOpenTestbedModal?: () => void;
+  onOpenLogDrawer?: () => void;
+  onOpenDevAppStateDrawer?: () => void;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -21,20 +24,13 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onToggleMode,
   onOpenConnectionDrawer,
   onOpenLeftDrawer,
-  onOpenTestbedModal
+  onOpenTestbedModal,
+  onOpenLogDrawer,
+  onOpenDevAppStateDrawer,
 }) => {
   const { devices } = useDeviceControllerContext();
   const anyConnected = devices.some(d => d.isConnected);
-  const { subscribe } = useImpulseEvents();
-  const [pulse, setPulse] = useState(false);
-
-  useEffect(() => {
-    const unsub = subscribe(() => {
-      setPulse(true);
-      setTimeout(() => setPulse(false), 300);
-    });
-    return unsub;
-  }, [subscribe]);
+  const [pulse] = useState(false);
 
   return (
     <AppBar position="sticky" elevation={2} sx={{ zIndex: 1201, top: 0 }}>
@@ -48,6 +44,13 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           >
             <MenuIcon />
           </IconButton>
+        )}
+        {process.env.NODE_ENV === 'development' && onOpenDevAppStateDrawer && (
+          <Tooltip title="Open App State Viewer">
+            <IconButton color="inherit" onClick={onOpenDevAppStateDrawer} aria-label="Open App State Viewer" sx={{ ml: 0, mr: 1 }}>
+              <DeveloperModeIcon />
+            </IconButton>
+          </Tooltip>
         )}
         <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
           SRDriver Dashboard
@@ -80,6 +83,13 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               }}>
                 {anyConnected ? <PowerSettingsNewIcon /> : <HighlightOffIcon />}
               </span>
+            </IconButton>
+          </Tooltip>
+        )}
+        {onOpenLogDrawer && (
+          <Tooltip title="Open Log Drawer">
+            <IconButton color="inherit" onClick={onOpenLogDrawer} aria-label="Open Log Drawer">
+              <BugReportIcon />
             </IconButton>
           </Tooltip>
         )}

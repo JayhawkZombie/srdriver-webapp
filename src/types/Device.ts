@@ -1,7 +1,6 @@
 import { WebSRDriverController } from '../controllers/WebSRDriverController';
 
 export interface Device {
-  id: string;
   name: string;
   controller: WebSRDriverController;
   isConnected: boolean;
@@ -18,7 +17,7 @@ export interface Device {
   rightSeriesCoefficients: [number, number, number];
   savedLeftSeriesCoefficients: [number, number, number];
   savedRightSeriesCoefficients: [number, number, number];
-  macOrId: string;
+  browserId: string;
   heartbeat?: {
     last: number | null;
     isAlive: boolean;

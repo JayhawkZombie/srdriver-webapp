@@ -1,6 +1,6 @@
 // Detection engine plugin system
 import aubio from 'aubiojs';
-import type { DetectionEvent } from '../components/upgrade/types';
+type DetectionEvent = { time: number; strength?: number };
 
 export interface DetectionResult {
   events: DetectionEvent[];
@@ -12,12 +12,13 @@ export interface DetectionEngine {
   detect(
     audioBuffer: Float32Array | { getChannelData: (ch: number) => Float32Array },
     sampleRate: number,
-    params: Record<string, unknown>
+    params: Record<string, unknown>,
+    onProgress?: (processed: number, total: number) => void
   ): Promise<DetectionResult> | DetectionResult;
 }
 
 export const aubioEngine: DetectionEngine = {
-  async detect(audioBuffer, sampleRate, params) {
+  async detect(audioBuffer, sampleRate, params, onProgress?: (processed: number, total: number) => void) {
     if (!audioBuffer || !sampleRate) return { events: [], detectionFunction: [], times: [] };
     const aubioModule = await aubio();
     const audioData: Float32Array = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
@@ -25,11 +26,14 @@ export const aubioEngine: DetectionEngine = {
     const bufferSize = typeof params?.bufferSize === 'number' ? params.bufferSize : 1024;
     const minDb = typeof params?.minDb === 'number' ? params.minDb : -60;
     const minDbDelta = typeof params?.minDbDelta === 'number' ? params.minDbDelta : 3;
-    const onset = new aubioModule.Onset(bufferSize, hopSize, sampleRate);
+    // @ts-expect-error: Runtime requires 4-argument Onset constructor ('default', bufferSize, hopSize, sampleRate)
+    const onset = new aubioModule.Onset('default', bufferSize, hopSize, sampleRate);
     const events: DetectionEvent[] = [];
     const frame = new Float32Array(hopSize);
     const nFrames = Math.floor(audioData.length / hopSize);
     let prevDb = null;
+    const detectionFunction: number[] = [];
+    const times: number[] = [];
     for (let i = 0; i < nFrames; i++) {
       for (let j = 0; j < hopSize; j++) {
         frame[j] = audioData[i * hopSize + j] || 0;
@@ -45,8 +49,17 @@ export const aubioEngine: DetectionEngine = {
         }
         prevDb = db;
       }
+      if (typeof onset.getDescriptor === 'function') {
+        detectionFunction.push(onset.getDescriptor());
+      } else {
+        detectionFunction.push(0);
+      }
+      times.push((i * hopSize) / sampleRate);
+      if (onProgress && (i % 500 === 0 || i === nFrames - 1)) {
+        onProgress(i + 1, nFrames);
+      }
     }
-    return { events, detectionFunction: [], times: [] };
+    return { events, detectionFunction, times };
   }
 };
 
