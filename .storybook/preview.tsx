@@ -30,10 +30,6 @@ export const globalTypes = {
             ],
         },
     },
-    initialGlobals: {
-        showLogDrawer: false,
-        showDevAppStateDrawer: false,
-    },
 };
 
 export const decorators = [

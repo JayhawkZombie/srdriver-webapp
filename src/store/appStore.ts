@@ -178,12 +178,19 @@ export interface TemplateType {
   label: string;
 }
 
+export interface TemplateDataField {
+  key: string;
+  value: unknown;
+  lockKey?: boolean;
+  lockValue?: boolean;
+}
+
 export interface RectTemplate {
   id: string;
   name: string;
   type: string;
   defaultDuration: number;
-  defaultData: Record<string, unknown>;
+  defaultData: TemplateDataField[];
   paletteName: string;
 }
 
@@ -334,7 +341,10 @@ export const useAppStore = create<AppState & {
         name: 'LED Beat',
         type: 'led',
         defaultDuration: 1,
-        defaultData: { pattern: 'beat', color: '#00ff00' },
+        defaultData: [
+          { key: 'pattern', value: 'beat' },
+          { key: 'color', value: '#00ff00' },
+        ],
         paletteName: 'lightPulse',
       },
       'led-wave': {
@@ -342,7 +352,10 @@ export const useAppStore = create<AppState & {
         name: 'LED Wave',
         type: 'led',
         defaultDuration: 2,
-        defaultData: { pattern: 'wave', color: '#0000ff' },
+        defaultData: [
+          { key: 'pattern', value: 'wave' },
+          { key: 'color', value: '#0000ff' },
+        ],
         paletteName: 'singleFirePattern',
       },
     },
@@ -506,12 +519,24 @@ export const useAppStore = create<AppState & {
     getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
     getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
     addRectTemplate: (template) => set(state => ({
-      rectTemplates: { ...state.rectTemplates, [template.id]: template },
+      rectTemplates: {
+        ...state.rectTemplates,
+        [template.id]: {
+          ...template,
+          defaultData: migrateDefaultData(template.defaultData),
+        },
+      },
     })),
     updateRectTemplate: (id, update) => set(state => ({
       rectTemplates: {
         ...state.rectTemplates,
-        [id]: { ...state.rectTemplates[id], ...update },
+        [id]: {
+          ...state.rectTemplates[id],
+          ...update,
+          defaultData: update.defaultData
+            ? migrateDefaultData(update.defaultData)
+            : state.rectTemplates[id].defaultData,
+        },
       },
     })),
     deleteRectTemplate: (id) => set(state => {
@@ -584,4 +609,13 @@ export const useRemoveTemplateType = () => useAppStore(state => state.removeTemp
 export const selectTemplateTypes = (state: AppState) => state.templateTypes;
 
 // Hook for updateTemplateType
-export const useUpdateTemplateType = () => useAppStore(state => state.updateTemplateType); 
+export const useUpdateTemplateType = () => useAppStore(state => state.updateTemplateType);
+
+// Migration utility for old templates
+function migrateDefaultData(data: unknown): TemplateDataField[] {
+  if (Array.isArray(data)) return data as TemplateDataField[];
+  if (typeof data === 'object' && data !== null) {
+    return Object.entries(data as Record<string, unknown>).map(([key, value]) => ({ key, value }));
+  }
+  return [];
+} 

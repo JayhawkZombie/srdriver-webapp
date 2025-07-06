@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, InputGroup, NumericInput, Popover, Position, Card, Collapse } from '@blueprintjs/core';
+import { Button, NumericInput, Popover, Position, Card, Collapse } from '@blueprintjs/core';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
@@ -11,6 +11,7 @@ import { ResponseRect } from './ResponseRect';
 import { ResponsePaletteEditor } from './ResponsePaletteEditor';
 import type { RectTemplate } from '../../../store/appStore';
 import { useAppStore, selectTemplateTypes, useAddTemplateType, useUpdateTemplateType, useRemoveTemplateType } from '../../../store/appStore';
+import LockableKeyValueEditor from '../../utility/LockableKeyValueEditor';
 
 // Extend RectTemplate locally to allow tags and notes
 type RectTemplateWithMeta = RectTemplate & { tags?: string[]; notes?: string };
@@ -27,8 +28,6 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
   const updateTemplateType = useUpdateTemplateType();
   const removeTemplateType = useRemoveTemplateType();
   const [local, setLocal] = useState<RectTemplateWithMeta>({ ...template, defaultData: { ...template.defaultData } });
-  const [newKey, setNewKey] = useState('');
-  const [newValue, setNewValue] = useState('');
   const [showNotes, setShowNotes] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [addingType, setAddingType] = useState(false);
@@ -47,22 +46,6 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
   // Handlers
   const handleChange = <K extends keyof RectTemplate>(field: K, value: RectTemplate[K]) => {
     setLocal(l => ({ ...l, [field]: value }));
-  };
-  const handleDataChange = (key: string, value: string) => {
-    setLocal(l => ({ ...l, defaultData: { ...l.defaultData, [key]: value } }));
-  };
-  const handleRemoveDataKey = (key: string) => {
-    setLocal(l => {
-      const rest = { ...l.defaultData };
-      delete rest[key];
-      return { ...l, defaultData: rest };
-    });
-  };
-  const handleAddDataKey = () => {
-    if (!newKey) return;
-    setLocal(l => ({ ...l, defaultData: { ...l.defaultData, [newKey]: newValue } }));
-    setNewKey('');
-    setNewValue('');
   };
   const handlePaletteCreated = (newName: string) => {
     setLocal(l => ({ ...l, paletteName: newName }));
@@ -254,18 +237,13 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
         </div>
         <div style={{ flex: 1 }}>
           <span style={{ fontWeight: 500, fontSize: 13 }}>Default Data:</span>
-          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 24px', gap: 4, marginTop: 2 }}>
-            {Object.entries(local.defaultData).map(([key, value]) => (
-              <React.Fragment key={key}>
-                <InputGroup value={key} disabled style={{ width: 90 }} />
-                <InputGroup value={String(value)} onChange={e => handleDataChange(key, e.target.value)} style={{ width: '100%' }} />
-                <IconButton size="small" onClick={() => handleRemoveDataKey(key)}><span className="bp5-icon bp5-icon-cross" /></IconButton>
-              </React.Fragment>
-            ))}
-            <InputGroup placeholder="Key" value={newKey} onChange={e => setNewKey(e.target.value)} style={{ width: 90 }} />
-            <InputGroup placeholder="Value" value={newValue} onChange={e => setNewValue(e.target.value)} style={{ width: '100%' }} />
-            <IconButton size="small" onClick={handleAddDataKey} disabled={!newKey}><span className="bp5-icon bp5-icon-plus" /></IconButton>
-          </div>
+          <LockableKeyValueEditor
+            fields={local.defaultData}
+            onChange={fields => setLocal(l => ({ ...l, defaultData: fields }))}
+            addable
+            removable
+            lockable={{ key: true, value: true }}
+          />
         </div>
       </div>
       {/* Advanced/Notes (Collapsible) */}
