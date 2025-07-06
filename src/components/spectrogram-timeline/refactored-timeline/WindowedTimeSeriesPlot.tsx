@@ -13,6 +13,8 @@ export interface WindowedTimeSeriesPlotProps {
   color?: string;
   markerColor?: string;
   playheadColor?: string;
+  showAxes?: boolean;
+  showTicks?: boolean;
 }
 
 const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
@@ -27,6 +29,8 @@ const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
   color = "#4fc3f7",
   markerColor = "red",
   playheadColor = "#ff1744",
+  showAxes = true,
+  showTicks = true,
 }) => {
   // Determine windowed indices
   let startIdx = 0, endIdx = yValues.length;
@@ -76,6 +80,8 @@ const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
         height={height}
         color={color}
         markerColor={markerColor}
+        showAxes={showAxes}
+        showTicks={showTicks}
       />
       {/* Playhead overlay using absolute div */}
       {typeof playheadX === "number" && (

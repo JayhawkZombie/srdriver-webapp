@@ -64,7 +64,7 @@ export const aubioEngine: DetectionEngine = {
 };
 
 export const spectralFluxEngine: DetectionEngine = {
-  detect(audioBuffer, sampleRate, params) {
+  detect(audioBuffer, sampleRate, params, onProgress?: (processed: number, total: number) => void) {
     if (!audioBuffer || !sampleRate) return { events: [], detectionFunction: [], times: [] };
     const audioData: Float32Array = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
     const hopSize = params?.hopSize as number || 512;
@@ -91,13 +91,16 @@ export const spectralFluxEngine: DetectionEngine = {
       }
       prevMag = mag;
       prevDb = db;
+      if (onProgress && (i % 500 === 0 || i === nFrames - 1)) {
+        onProgress(i + 1, nFrames);
+      }
     }
     return { events, detectionFunction, times };
   }
 };
 
 export const firstDerivativeEngine: DetectionEngine = {
-  detect(audioBuffer, sampleRate, params) {
+  detect(audioBuffer, sampleRate, params, onProgress?: (processed: number, total: number) => void) {
     if (!audioBuffer || !sampleRate) return { events: [], detectionFunction: [], times: [] };
     const audioData: Float32Array = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
     const hopSize = params?.hopSize as number || 512;
@@ -122,13 +125,16 @@ export const firstDerivativeEngine: DetectionEngine = {
       }
       prev = avg;
       prevDb = db;
+      if (onProgress && (i % 500 === 0 || i === nFrames - 1)) {
+        onProgress(i + 1, nFrames);
+      }
     }
     return { events, detectionFunction, times };
   }
 };
 
 export const secondDerivativeEngine: DetectionEngine = {
-  detect(audioBuffer, sampleRate, params) {
+  detect(audioBuffer, sampleRate, params, onProgress?: (processed: number, total: number) => void) {
     if (!audioBuffer || !sampleRate) return { events: [], detectionFunction: [], times: [] };
     const audioData: Float32Array = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
     const hopSize = params?.hopSize as number || 512;
@@ -155,13 +161,16 @@ export const secondDerivativeEngine: DetectionEngine = {
       prev = avg;
       prevDiff = diff;
       prevDb = db;
+      if (onProgress && (i % 500 === 0 || i === nFrames - 1)) {
+        onProgress(i + 1, nFrames);
+      }
     }
     return { events, detectionFunction, times };
   }
 };
 
 export const zScoreEngine: DetectionEngine = {
-  detect(audioBuffer, sampleRate, params) {
+  detect(audioBuffer, sampleRate, params, onProgress?: (processed: number, total: number) => void) {
     if (!audioBuffer || !sampleRate) return { events: [], detectionFunction: [], times: [] };
     const audioData: Float32Array = audioBuffer instanceof Float32Array ? audioBuffer : audioBuffer.getChannelData(0);
     const hopSize = params?.hopSize as number || 512;
@@ -191,6 +200,9 @@ export const zScoreEngine: DetectionEngine = {
         events.push({ time: times[i], strength: z });
       }
       prevDb = db;
+      if (onProgress && (i % 500 === 0 || i === nFrames - 1)) {
+        onProgress(i + 1, nFrames);
+      }
     }
     return { events, detectionFunction, times };
   }

@@ -6,7 +6,9 @@ import Waveform from "./Waveform";
 import { ProgressBar } from "@blueprintjs/core";
 import { PlaybackProvider } from "./PlaybackContext";
 import { WindowedTimeSeriesPlot } from "./WindowedTimeSeriesPlot";
+import { DetectionDataProvider, useDetectionData } from "./DetectionDataContext";
 import { detectionEngines } from "../../../workers/detectionEngines";
+import type { BandConfig } from "./DetectionDataContext";
 
 // BandData type (inline, matching worker output)
 type BandData = {
@@ -150,113 +152,76 @@ const FFTSection = ({ pcm, sampleRate }: { pcm: Float32Array; sampleRate: number
   );
 };
 
-const DetectionEngineSection = ({ pcm, sampleRate }: { pcm: Float32Array; sampleRate: number }) => {
-  const [engineKey, setEngineKey] = React.useState<string>('aubio');
-  const [result, setResult] = React.useState<null | { detectionFunction: number[]; times: number[]; events: { time: number; strength?: number }[]; error?: string }>(null);
-  const [bandResults, setBandResults] = React.useState<null | Array<{ detectionFunction: number[]; times: number[]; events: { time: number; strength?: number }[]; bandIdx: number }>>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | undefined>(undefined);
-  const engineOptions = Object.keys(detectionEngines);
-  const bandDataArr = useAppStore((s) => s.audio.analysis?.bandDataArr);
-
-  const handleRunDetection = async () => {
-    setIsLoading(true);
-    setError(undefined);
-    setResult(null);
-    setBandResults(null);
-    try {
-      const engine = detectionEngines[engineKey];
-      if (!engine) throw new Error('Engine not found');
-      // Run on full PCM
-      const res = await engine.detect(pcm, sampleRate, {}, undefined);
-      // Memoize log-normalized detection function for PCM
-      const normRes = {
-        ...res,
-        detectionFunction: logNormalize(res.detectionFunction)
-      };
-      setResult(normRes);
-      // Run on each band if available
-      if (bandDataArr && bandDataArr.length > 0) {
-        // For each band, run detection on band.magnitudes (convert to Float32Array)
-        const bandPromises = bandDataArr.map(async (band, i) => {
-          const bandPcm = Float32Array.from(band.magnitudes);
-          const bandRes = await engine.detect(bandPcm, sampleRate, {}, undefined);
-          // Memoize log-normalized detection function for each band
-          return { ...bandRes, detectionFunction: logNormalize(bandRes.detectionFunction), bandIdx: i };
-        });
-        const allBandResults = await Promise.all(bandPromises);
-        setBandResults(allBandResults);
-      }
-      setIsLoading(false);
-    } catch (e: unknown) {
-      let message = 'Error running detection';
-      if (isErrorWithMessage(e)) {
-        message = e.message;
-      }
-      setError(message);
-      setIsLoading(false);
-    }
-  };
-
+const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
+  const { bandResults, bandProgress, isLoading, runDetection, error } = useDetectionData();
+  const [selectedBand, setSelectedBand] = React.useState(0);
   // Windowing example: show first 15s
   const windowStart = 0;
   const windowDuration = 15;
-
   return (
     <div style={{ marginTop: 32 }}>
-      <h4>Detection Engine (Local State)</h4>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <label htmlFor="engine-select">Engine:</label>
-        <select id="engine-select" value={engineKey} onChange={e => setEngineKey(e.target.value)}>
-          {engineOptions.map(key => <option key={key} value={key}>{key}</option>)}
-        </select>
-        <button onClick={handleRunDetection}>Run Detection</button>
-      </div>
-      {/* Always show spinner when loading */}
-      {isLoading && (
-        <ProgressBar animate stripes style={{ margin: '16px 0', height: 10 }} />
-      )}
-      {result && result.detectionFunction && result.detectionFunction.length > 0 && result.times && (
-        <div style={{ width: 800, height: 100 }}>
-          <WindowedTimeSeriesPlot
-            yValues={result.detectionFunction}
-            xValues={result.times}
-            eventTimes={result.events ? result.events.map(e => e.time) : undefined}
-            windowStart={windowStart}
-            windowDuration={windowDuration}
-            width={800}
-            height={100}
-            color="#4fc3f7"
-            markerColor="red"
-          />
-        </div>
-      )}
-      {/* Show all band detection results on the same plot */}
-      {bandResults && bandResults.length > 0 && (
-        <div style={{ width: 800, height: 120, marginTop: 16 }}>
-          <div style={{ display: 'flex', gap: 16, marginBottom: 4 }}>
-            {bandResults.map((r, i) => (
-              <span key={i} style={{ color: BAND_COLORS[r.bandIdx % BAND_COLORS.length], fontSize: 12 }}>
-                {BAND_LABELS[r.bandIdx]?.name || `Band ${r.bandIdx+1}`}
-              </span>
+      <h4>Detection Engine (Context Demo)</h4>
+      <button onClick={runDetection} disabled={bands.length === 0 || isLoading}>
+        Run Detection
+      </button>
+      {/* Band selection bar and single band plot */}
+      {bands.length > 0 && (
+        <div style={{ width: 800, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            {bands.map((band, i) => (
+              <button
+                key={i}
+                onClick={() => setSelectedBand(i)}
+                style={{
+                  background: selectedBand === i ? band.color : 'transparent',
+                  color: selectedBand === i ? '#fff' : band.color,
+                  border: `1px solid ${band.color}`,
+                  borderRadius: 4,
+                  padding: '4px 12px',
+                  fontWeight: selectedBand === i ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  fontSize: 14,
+                  transition: 'background 0.2s, color 0.2s',
+                }}
+              >
+                {band.name}
+              </button>
             ))}
           </div>
-          <div style={{ position: 'relative', width: 800, height: 100 }}>
-            {bandResults.map((r, i) => (
-              <div key={i} style={{ position: 'absolute', left: 0, top: 0, width: 800, height: 100, pointerEvents: 'none' }}>
+          {/* Progress bar for selected band */}
+          {bandProgress[selectedBand] && bandProgress[selectedBand]!.total > 1 && bandProgress[selectedBand]!.processed < bandProgress[selectedBand]!.total ? (
+            <ProgressBar
+              animate
+              stripes
+              value={bandProgress[selectedBand]!.processed / bandProgress[selectedBand]!.total}
+              style={{ margin: '8px 0', width: 200, height: 8 }}
+            />
+          ) : isLoading ? (
+            <ProgressBar animate stripes style={{ margin: '8px 0', width: 200, height: 8 }} />
+          ) : null}
+          {/* Only show the selected band's plot */}
+          <div style={{ position: 'relative', width: 800, height: 120 }}>
+            {bandResults[selectedBand] && bandResults[selectedBand].detectionFunction && bandResults[selectedBand].times && (
+              <>
+                <div style={{ color: bands[selectedBand].color, fontWeight: 500, marginBottom: 4, fontSize: 16 }}>
+                  {bands[selectedBand].name}
+                </div>
                 <WindowedTimeSeriesPlot
-                  yValues={r.detectionFunction}
-                  xValues={r.times}
-                  eventTimes={r.events ? r.events.map(e => e.time) : undefined}
+                  yValues={logNormalize(bandResults[selectedBand].detectionFunction)}
+                  xValues={bandResults[selectedBand].times}
+                  eventTimes={bandResults[selectedBand].events ? bandResults[selectedBand].events.map((e: { time: number; strength?: number }) => e.time) : undefined}
                   windowStart={windowStart}
                   windowDuration={windowDuration}
                   width={800}
                   height={100}
-                  color={BAND_COLORS[r.bandIdx % BAND_COLORS.length]}
+                  color={bands[selectedBand].color}
                   markerColor="yellow"
+                  showAxes={true}
+                  showTicks={true}
                 />
-              </div>
-            ))}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -273,6 +238,9 @@ export const StoreDrivenWaveform = () => {
   const [sampleRate, setSampleRate] = React.useState<number | null>(null);
   const [localWaveform, setLocalWaveform] = React.useState<number[] | null>(null);
   const [localDuration, setLocalDuration] = React.useState<number | null>(null);
+  const bandDataArr = useAppStore((s) => s.audio.analysis?.bandDataArr) || [];
+  const engineOptions = Object.keys(detectionEngines);
+  const [selectedEngine, setSelectedEngine] = React.useState(engineOptions[0]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -302,6 +270,12 @@ export const StoreDrivenWaveform = () => {
     });
   };
 
+  const bandConfigs = bandDataArr ? bandDataArr.map((band, i) => ({
+    name: BAND_LABELS[i]?.name || `Band ${i+1}`,
+    pcm: Float32Array.from(band.magnitudes),
+    color: BAND_COLORS[i % BAND_COLORS.length],
+  })) : [];
+
   return (
     <PlaybackProvider>
       <div style={{ maxWidth: 800, margin: '2rem auto', padding: 16 }}>
@@ -317,12 +291,47 @@ export const StoreDrivenWaveform = () => {
         )}
         {localWaveform && localDuration && <WaveformWithLocal width={800} height={80} waveform={localWaveform} duration={localDuration} />}
         {pcm && sampleRate && <FFTSection pcm={pcm} sampleRate={sampleRate} />}
-        {pcm && sampleRate && <DetectionEngineSection pcm={pcm} sampleRate={sampleRate} />}
+        {pcm && sampleRate && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontWeight: 500, marginRight: 8 }}>Engine:</span>
+              {engineOptions.map((eng) => (
+                <button
+                  key={eng}
+                  onClick={() => setSelectedEngine(eng)}
+                  disabled={selectedEngine === eng}
+                  style={{
+                    background: selectedEngine === eng ? '#333' : 'transparent',
+                    color: selectedEngine === eng ? '#fff' : '#333',
+                    border: '1px solid #333',
+                    borderRadius: 4,
+                    padding: '4px 12px',
+                    fontWeight: selectedEngine === eng ? 'bold' : 'normal',
+                    cursor: selectedEngine === eng ? 'default' : 'pointer',
+                    marginRight: 4,
+                    outline: 'none',
+                    fontSize: 14,
+                    transition: 'background 0.2s, color 0.2s',
+                    opacity: selectedEngine === eng ? 1 : 0.8,
+                  }}
+                >
+                  {eng}
+                </button>
+              ))}
+            </div>
+            <DetectionDataProvider
+              engine={selectedEngine}
+              pcm={pcm}
+              sampleRate={sampleRate}
+              bands={bandConfigs}
+            >
+              <DetectionEngineSection
+                bands={bandConfigs}
+              />
+            </DetectionDataProvider>
+          </div>
+        )}
       </div>
     </PlaybackProvider>
   );
-};
-
-function isErrorWithMessage(e: unknown): e is { message: string } {
-  return typeof e === 'object' && e !== null && 'message' in e && typeof (e as { message?: unknown }).message === 'string';
-} 
+}; 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Stage, Layer, Line, Star } from "react-konva";
+import { Stage, Layer, Line, Star, Text } from "react-konva";
 
 interface TimeSeriesPlotWithEventsProps {
   yValues: number[];
@@ -9,6 +9,8 @@ interface TimeSeriesPlotWithEventsProps {
   height?: number;
   color?: string;
   markerColor?: string;
+  showAxes?: boolean;
+  showTicks?: boolean;
 }
 
 const TimeSeriesPlotWithEvents: React.FC<TimeSeriesPlotWithEventsProps> = ({
@@ -19,6 +21,8 @@ const TimeSeriesPlotWithEvents: React.FC<TimeSeriesPlotWithEventsProps> = ({
   height = 80,
   color = "#4fc3f7",
   markerColor = "red",
+  showAxes = true,
+  showTicks = true,
 }) => {
   if (!yValues || yValues.length === 0) return null;
   // Normalize Y
@@ -42,15 +46,85 @@ const TimeSeriesPlotWithEvents: React.FC<TimeSeriesPlotWithEventsProps> = ({
       eventIndices = eventTimes.map((et) => Math.round(et)).filter((i) => i >= 0 && i < yValues.length);
     }
   }
+  // Axes and ticks
+  const axisColor = '#bbb';
+  const tickLength = 6;
+  const fontSize = 12;
+  const yTicks = showTicks ? [0, 0.5, 1] : [];
+  // X ticks: 5 evenly spaced
+  const xTicks = showTicks ? Array.from({length: 5}, (_, i) => i / 4) : [];
   return (
     <Stage width={width} height={height}>
       <Layer>
-        <Line points={points} stroke={color} strokeWidth={2} />
+        {/* Y axis */}
+        {showAxes && (
+          <Line points={[40, 0, 40, height - 20]} stroke={axisColor} strokeWidth={1} />
+        )}
+        {/* X axis */}
+        {showAxes && (
+          <Line points={[40, height - 20, width, height - 20]} stroke={axisColor} strokeWidth={1} />
+        )}
+        {/* Y ticks and labels */}
+        {showTicks && yTicks.map((v, i) => (
+          <>
+            <Line
+              key={`ytick-${i}`}
+              points={[40 - tickLength, (1 - v) * (height - 20), 40, (1 - v) * (height - 20)]}
+              stroke={axisColor}
+              strokeWidth={1}
+            />
+            <Text
+              key={`ylabel-${i}`}
+              x={0}
+              y={(1 - v) * (height - 20) - fontSize / 2}
+              text={v.toString()}
+              fontSize={fontSize}
+              fill={axisColor}
+              width={38}
+              align="right"
+            />
+          </>
+        ))}
+        {/* X ticks and labels */}
+        {showTicks && xTicks.map((t, i) => {
+          const x = 40 + t * (width - 40);
+          let label = '';
+          if (xValues && xValues.length > 1) {
+            const idx = Math.round(t * (xValues.length - 1));
+            label = xValues[idx].toFixed(2);
+          } else {
+            const idx = Math.round(t * (yValues.length - 1));
+            label = idx.toString();
+          }
+          return (
+            <>
+              <Line
+                key={`xtick-${i}`}
+                points={[x, height - 20, x, height - 20 + tickLength]}
+                stroke={axisColor}
+                strokeWidth={1}
+              />
+              <Text
+                key={`xlabel-${i}`}
+                x={x - 20}
+                y={height - 20 + tickLength + 2}
+                text={label}
+                fontSize={fontSize}
+                fill={axisColor}
+                width={40}
+                align="center"
+              />
+            </>
+          );
+        })}
+        {/* Data line */}
+        <Line points={points.map((v, i) => i % 2 === 0 ? v + 40 : v)} stroke={color} strokeWidth={2} />
+        {/* Event markers */}
         {eventIndices.map((i, idx) => (
           <Star
             key={idx}
-            x={xs[i]}
-            y={height - norm[i] * (height - 2) - 1}
+            x={xs[i] + 40}
+            y={height - 20 - norm[i] * (height - 22)}
             numPoints={5}
             innerRadius={4}
             outerRadius={8}
