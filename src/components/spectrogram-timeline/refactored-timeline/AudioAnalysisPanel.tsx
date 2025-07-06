@@ -12,7 +12,7 @@ import {
 } from "./DetectionDataContext";
 import { AudioAnalysisProvider } from "./AudioAnalysisContext";
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
-import type { BandConfig } from "./DetectionDataContext";
+import type { BandConfig, DetectionResult } from "./DetectionDataTypes";
 
 // BandData type (inline, matching worker output)
 type BandData = {
@@ -194,30 +194,111 @@ const FFTSection = ({
     );
 };
 
-const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
+interface DetectionEngineSectionProps {
+    bands: BandConfig[];
+    pcm: Float32Array;
+    sampleRate: number;
+}
+
+const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSectionProps) => {
     const {
         results,
+        setResults,
         bandResults,
-        runDetection,
+        setBandResults,
+        progress,
+        setProgress,
+        bandProgress,
+        setBandProgress,
+        setIsLoading,
         error,
+        setError,
     } = useDetectionData();
     const [selectedBand, setSelectedBand] = React.useState(0);
     const { currentTime } = usePlayback();
     const windowDuration = 15;
     const windowStart = Math.max(0, currentTime - windowDuration / 2);
-    console.log("selectedBand", selectedBand, bandResults);
-    React.useEffect(() => {
-        console.log('DetectionEngineSection running with bands:', bands);
-    }, [bands]);
+    // Detection logic
+    const handleRunDetection = () => {
+        setIsLoading(true);
+        setError(undefined);
+        setResults(null);
+        setBandResults([]);
+        setProgress({ processed: 0, total: 1 });
+        setBandProgress(bands.map(() => ({ processed: 0, total: 1 })));
+        // PCM detection (main, not per-band)
+        workerManager.enqueueJob(
+            'aubio',
+            {
+                engine: 'aubio',
+                pcmBuffer: pcm.buffer,
+                pcmLength: pcm.length,
+                sampleRate,
+                bands: bands.map(band => ({
+                    name: band.name,
+                    color: band.color,
+                    pcmBuffer: band.pcm.buffer,
+                    pcmLength: band.pcm.length,
+                })),
+            },
+            (prog) => {
+                console.log('DetectionEngineSection: prog', prog);
+                setProgress(prog);
+            }
+        ).then((result) => {
+            console.log('DetectionEngineSection: result', result);
+            type MultiBandDetectionResult = { main: DetectionResult; bands: DetectionResult[] };
+            if (result && typeof result === 'object' && Array.isArray((result as MultiBandDetectionResult).bands)) {
+                setResults((result as MultiBandDetectionResult).main);
+                setBandResults((result as MultiBandDetectionResult).bands);
+            } else {
+                setResults(result as DetectionResult);
+            }
+            setIsLoading(false);
+        }).catch((err) => {
+            console.log('DetectionEngineSection: error', err);
+            setError(String(err));
+            setIsLoading(false);
+        });
+    };
     return (
         <div style={{ marginTop: 32 }}>
             <h4>Detection Engine (Context Demo)</h4>
             <button
-                onClick={runDetection}
+                onClick={handleRunDetection}
                 disabled={bands.length === 0}
             >
                 Run Detection
             </button>
+            {/* Detection progress bar (PCM) */}
+            {progress && progress.total > 0 && progress.processed < progress.total && (
+                <ProgressBar
+                    animate
+                    stripes
+                    value={progress.processed / progress.total}
+                    style={{ margin: "16px 0", height: 10, width: 400 }}
+                    intent="primary"
+                />
+            )}
+            {/* Per-band detection progress bars */}
+            {bandProgress && bandProgress.length > 0 && (
+                <div style={{ margin: '8px 0 16px 0', width: 400 }}>
+                    {bandProgress.map((bp, i) =>
+                        bp && bp.total > 0 && bp.processed < bp.total ? (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                                <span style={{ width: 80, fontSize: 12, color: bands[i]?.color || '#888', marginRight: 8 }}>{bands[i]?.name || `Band ${i+1}`}</span>
+                                <ProgressBar
+                                    animate
+                                    stripes
+                                    value={bp.processed / bp.total}
+                                    style={{ height: 8, flex: 1 }}
+                                    intent="primary"
+                                />
+                            </div>
+                        ) : null
+                    )}
+                </div>
+            )}
             {/* PCM detection plot (always blue) */}
             {results &&
                 results.detectionFunction &&
@@ -533,13 +614,8 @@ function AudioAnalysisPanelInner() {
                             </button>
                         ))}
                     </div>
-                    <DetectionDataProvider
-                        engine={selectedEngine}
-                        pcm={pcm}
-                        sampleRate={sampleRate}
-                        bands={bandConfigs}
-                    >
-                        <DetectionEngineSection bands={bandConfigs} />
+                    <DetectionDataProvider>
+                        <DetectionEngineSection bands={bandConfigs} pcm={pcm} sampleRate={sampleRate} />
                     </DetectionDataProvider>
                 </div>
             )}

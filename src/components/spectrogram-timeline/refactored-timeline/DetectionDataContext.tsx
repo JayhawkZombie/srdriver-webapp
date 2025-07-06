@@ -1,37 +1,15 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from "react";
-import { detectionEngines } from "../../../workers/detectionEngines";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
+import { logWorkerMessage } from '../../../store/appLogger';
+import type { DetectionDataContextValue, BandConfig, DetectionResult } from './DetectionDataTypes';
 
-// Types
-export interface BandConfig {
-  name: string;
-  pcm: Float32Array;
-  color: string;
-}
-export interface DetectionResult {
-  detectionFunction: number[];
-  times: number[];
-  events: { time: number; strength?: number }[];
-  error?: string;
-}
-export interface DetectionDataContextValue {
-  results: DetectionResult | null;
-  bandResults: DetectionResult[];
-  progress: { processed: number; total: number } | null;
-  bandProgress: Array<{ processed: number; total: number } | null>;
-  isLoading: boolean;
-  runDetection: () => void;
-  error?: string;
-}
+// Types moved to DetectionDataTypes.ts for Fast Refresh compliance
 
+// Only export components at the bottom for Fast Refresh compliance
 const DetectionDataContext = createContext<DetectionDataContextValue | undefined>(undefined);
 
-export const DetectionDataProvider: React.FC<{
-  engine: string;
-  pcm: Float32Array;
-  sampleRate: number;
-  bands?: BandConfig[];
+const DetectionDataProvider: React.FC<{
   children: React.ReactNode;
-}> = ({ engine, pcm, sampleRate, bands = [], children }) => {
+}> = ({ children }) => {
   const [results, setResults] = useState<DetectionResult | null>(null);
   const [bandResults, setBandResults] = useState<DetectionResult[]>([]);
   const [progress, setProgress] = useState<{ processed: number; total: number } | null>(null);
@@ -39,64 +17,20 @@ export const DetectionDataProvider: React.FC<{
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
-  const runDetection = useCallback(() => {
-    setIsLoading(true);
-    setError(undefined);
-    setResults(null);
-    setBandResults([]);
-    setProgress({ processed: 0, total: 1 });
-    setBandProgress(bands.map(() => ({ processed: 0, total: 1 })));
-    // PCM detection
-    const worker = new Worker(new URL("../../../workers/detectionWorker.ts", import.meta.url), { type: "module" });
-    worker.postMessage({ engine, pcm, sampleRate });
-    worker.onmessage = (e: MessageEvent) => {
-      if (e.data.type === 'progress') {
-        setProgress({ processed: e.data.processed, total: e.data.total });
-      } else if (e.data.type === 'done') {
-        setResults(e.data.result);
-        setIsLoading(false);
-        worker.terminate();
-      } else if (e.data.error) {
-        setError(e.data.error);
-        setIsLoading(false);
-        worker.terminate();
-      }
-    };
-    // Band detection
-    bands.forEach((band, i) => {
-      const bandWorker = new Worker(new URL("../../../workers/detectionWorker.ts", import.meta.url), { type: "module" });
-      bandWorker.postMessage({ engine, pcm: band.pcm, sampleRate });
-      bandWorker.onmessage = (e: MessageEvent) => {
-        if (e.data.type === 'progress') {
-          setBandProgress(prev => {
-            const next = [...prev];
-            next[i] = { processed: e.data.processed, total: e.data.total };
-            return next;
-          });
-        } else if (e.data.type === 'done') {
-          setBandResults(prev => {
-            const next = [...prev];
-            next[i] = e.data.result;
-            return next;
-          });
-          bandWorker.terminate();
-        } else if (e.data.error) {
-          setError(e.data.error);
-          bandWorker.terminate();
-        }
-      };
-    });
-  }, [engine, pcm, sampleRate, bands]);
-
   const value = useMemo(() => ({
     results,
+    setResults,
     bandResults,
+    setBandResults,
     progress,
+    setProgress,
     bandProgress,
+    setBandProgress,
     isLoading,
-    runDetection,
+    setIsLoading,
     error,
-  }), [results, bandResults, progress, bandProgress, isLoading, runDetection, error]);
+    setError,
+  }), [results, bandResults, progress, bandProgress, isLoading, error]);
 
   return (
     <DetectionDataContext.Provider value={value}>
@@ -105,8 +39,11 @@ export const DetectionDataProvider: React.FC<{
   );
 };
 
-export function useDetectionData() {
+function useDetectionData() {
   const ctx = useContext(DetectionDataContext);
   if (!ctx) throw new Error("useDetectionData must be used within a DetectionDataProvider");
   return ctx;
-} 
+}
+
+// Only export components here
+export { DetectionDataProvider, useDetectionData }; 
