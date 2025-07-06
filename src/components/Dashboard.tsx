@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   Box,
   Drawer as MuiDrawer,
@@ -11,15 +11,16 @@ import { AppStateLogDrawer } from './spectrogram-timeline/refactored-timeline/Ap
 import DevAppStateViewer from './dev/DevAppStateViewer';
 import { Card, Elevation, Drawer as BPDrawer, Position } from '@blueprintjs/core';
 import { ResponsePaletteEditor } from './spectrogram-timeline/refactored-timeline/ResponsePaletteEditor';
-import { ResponseRectTemplateEditor } from './spectrogram-timeline/refactored-timeline/ResponseRectTemplateEditor';
 import { ResponseRectToolbarGallery } from './spectrogram-timeline/refactored-timeline/ResponseRectToolbarGallery';
+import { UnifiedThemeContext } from '../context/UnifiedThemeContext';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
   onToggleMode: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
+const Dashboard: React.FC<DashboardProps> = ({ mode: _mode, onToggleMode }) => {
+  const { mode } = useContext(UnifiedThemeContext) ?? { mode: 'light' };
   const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false);
   const [testbedModalOpen, setTestbedModalOpen] = useState(false);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
@@ -51,7 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
         hasBackdrop={false}
         style={{ marginTop: 64, height: 'calc(100% - 64px)', top: 64 }}
       >
-        <div style={{ padding: 16 }}>
+        <div className={mode === 'dark' ? 'bp5-dark' : ''} style={{ padding: 16, minHeight: '100%', background: mode === 'dark' ? '#181c22' : '#fff' }}>
           <ResponsePaletteEditor />
           <ResponseRectToolbarGallery />
         </div>

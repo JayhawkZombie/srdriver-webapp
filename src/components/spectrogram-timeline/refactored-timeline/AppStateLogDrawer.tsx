@@ -36,7 +36,7 @@ export const AppStateLogDrawer: React.FC<AppStateLogDrawerProps> = ({ isOpen, on
       title="Application Log"
       size={Drawer.SIZE_LARGE}
       position="right"
-      style={{ top: 64, height: 'calc(100vh - 64px)' }}
+      style={{ top: 64, height: 'calc(100vh - 64px)', width: '35vw' }}
       portalClassName="app-log-drawer-portal"
     >
       <div style={{ padding: 16, paddingTop: 0 }}>

@@ -770,7 +770,7 @@ export const useAppStore = create<AppState & {
         })),
         updateTemplateType: (value, update) => set(state => ({
           templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
-        })),
+    })),
   }))
 ); 
 

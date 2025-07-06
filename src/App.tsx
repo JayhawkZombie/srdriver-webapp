@@ -11,9 +11,9 @@ import "@blueprintjs/core/lib/css/blueprint.css";
 const App = () => {
     return (
         <UnifiedThemeProvider>
-            <DeviceControllerProvider>
-                <ToastProvider>
-                    <GlobalToast />
+                    <DeviceControllerProvider>
+                        <ToastProvider>
+                            <GlobalToast />
                     <UnifiedThemeContext.Consumer>
                         {(value) => {
                             if (!value) return null;
@@ -21,8 +21,8 @@ const App = () => {
                             return <Dashboard mode={mode} onToggleMode={toggleMode} />;
                         }}
                     </UnifiedThemeContext.Consumer>
-                </ToastProvider>
-            </DeviceControllerProvider>
+                        </ToastProvider>
+                    </DeviceControllerProvider>
         </UnifiedThemeProvider>
     );
 };

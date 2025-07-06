@@ -162,75 +162,104 @@ export const ResponsePaletteEditor: React.FC<ResponsePaletteEditorProps> = ({ on
                 position={Position.RIGHT}
                 usePortal={true}
                 content={
-                  <Menu style={{ minWidth: 320, maxWidth: 480, background: undefined, boxShadow: undefined }}>
-                    <MenuItem text={<span style={{ display: 'flex', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, marginRight: 8, fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' }}>Base color:</span>
-                      <input
-                        type="color"
-                        value={localPal.baseColor}
-                        onChange={e => handlePaletteEdit(paletteName, { ...localPal, baseColor: e.target.value })}
-                        style={{ width: 36, height: 24, border: 'none', borderRadius: 6, background: 'none', marginRight: 12 }}
-                      />
-                      <Tooltip content="Save" position="top">
-                        <Button icon="floppy-disk" intent="primary" large minimal style={{ padding: '4px 8px' }} onClick={() => handleSave(paletteName)} />
-                      </Tooltip>
-                    </span>} disabled />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 8 }}>
-                      {Object.entries(localPal.states).map(([stateKey, state]) => {
-                        type StateKey = keyof typeof localPal.states;
-                        const sk = stateKey as StateKey;
-                        const s = state as { hue: number; borderHue: number; opacity: number; brightness?: number };
-                        const brightness = typeof s.brightness === 'number' ? s.brightness : 0;
-                        const previewColor = shiftBrightness(shiftHue(localPal.baseColor, s.hue), brightness);
-                        return (
-                          <Card key={stateKey} elevation={1} style={{ padding: 10, minWidth: 140, maxWidth: 220, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                              <div style={{ width: 24, height: 12, background: previewColor, border: '1.5px solid #fff', borderRadius: 3 }} />
-                              <span style={{ fontWeight: 500, fontSize: 13, color: previewColor }}>{stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}</span>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                              {/* Hue */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Tooltip content="Hue" position="top">
-                                  <Icon icon="tint" size={14} style={{ color: '#888' }} />
-                                </Tooltip>
-                                <div style={{ width: 32, margin: 0 }}>
-                                  <Slider size="small" min={-180} max={180} step={1} value={s.hue} onChange={(_, hue) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], hue: hue as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
+                  <div
+                    className={mode === 'dark' ? 'bp5-dark' : ''}
+                    style={{
+                      background: mode === 'dark'
+                        ? '#181c22'
+                        : 'var(--bp5-card-background-color, #fff)',
+                      borderRadius: 8,
+                      padding: 0,
+                      boxShadow: mode === 'dark' ? '0 2px 16px #000b' : '0 2px 16px #0002'
+                    }}
+                  >
+                    <Menu style={{
+                      minWidth: 320,
+                      maxWidth: 480,
+                      background: mode === 'dark' ? '#23272f' : 'var(--bp5-card-background-color, #fff)',
+                      boxShadow: 'none',
+                      borderRadius: 8,
+                      padding: 0
+                    }}>
+                      <MenuItem text={<span style={{ display: 'flex', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, marginRight: 8, fontFamily: 'JetBrains Mono, Fira Mono, Menlo, monospace' }}>Base color:</span>
+                        <input
+                          type="color"
+                          value={localPal.baseColor}
+                          onChange={e => handlePaletteEdit(paletteName, { ...localPal, baseColor: e.target.value })}
+                          style={{ width: 36, height: 24, border: 'none', borderRadius: 6, background: 'none', marginRight: 12 }}
+                        />
+                        <Tooltip content="Save" position="top">
+                          <Button icon="floppy-disk" intent="primary" large minimal style={{ padding: '4px 8px' }} onClick={() => handleSave(paletteName)} />
+                        </Tooltip>
+                      </span>} disabled />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 8 }}>
+                        {Object.entries(localPal.states).map(([stateKey, state]) => {
+                          type StateKey = keyof typeof localPal.states;
+                          const sk = stateKey as StateKey;
+                          const s = state as { hue: number; borderHue: number; opacity: number; brightness?: number };
+                          const brightness = typeof s.brightness === 'number' ? s.brightness : 0;
+                          const previewColor = shiftBrightness(shiftHue(localPal.baseColor, s.hue), brightness);
+                          return (
+                            <Card key={stateKey} elevation={1} style={{
+                              padding: 10,
+                              minWidth: 140,
+                              maxWidth: 220,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 6,
+                              background: mode === 'dark' ? '#23272f' : 'var(--bp5-card-background-color, #fff)',
+                              color: mode === 'dark' ? '#e6eaf3' : undefined,
+                              border: mode === 'dark' ? '1.5px solid #23272f' : undefined
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                                <div style={{ width: 24, height: 12, background: previewColor, border: '1.5px solid #fff', borderRadius: 3 }} />
+                                <span style={{ fontWeight: 500, fontSize: 13, color: previewColor }}>{stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}</span>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                                {/* Hue */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Tooltip content="Hue" position="top">
+                                    <Icon icon="tint" size={14} style={{ color: '#888' }} />
+                                  </Tooltip>
+                                  <div style={{ width: 32, margin: 0 }}>
+                                    <Slider size="small" min={-180} max={180} step={1} value={s.hue} onChange={(_, hue) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], hue: hue as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
+                                  </div>
+                                </div>
+                                {/* Border Hue */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Tooltip content="Border Hue" position="top">
+                                    <Icon icon="layout" size={14} style={{ color: '#888' }} />
+                                  </Tooltip>
+                                  <div style={{ width: 32, margin: 0 }}>
+                                    <Slider size="small" min={-180} max={180} step={1} value={s.borderHue} onChange={(_, borderHue) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], borderHue: borderHue as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
+                                  </div>
+                                </div>
+                                {/* Opacity */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Tooltip content="Opacity" position="top">
+                                    <Icon icon="eye-open" size={14} style={{ color: '#888' }} />
+                                  </Tooltip>
+                                  <div style={{ width: 32, margin: 0 }}>
+                                    <Slider size="small" min={0} max={1} step={0.01} value={s.opacity} onChange={(_, opacity) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], opacity: opacity as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
+                                  </div>
+                                </div>
+                                {/* Brightness */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Tooltip content="Brightness" position="top">
+                                    <Icon icon="contrast" size={14} style={{ color: '#888' }} />
+                                  </Tooltip>
+                                  <div style={{ width: 32, margin: 0 }}>
+                                    <Slider size="small" min={-50} max={50} step={1} value={brightness} onChange={(_, b) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], brightness: b as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
+                                  </div>
                                 </div>
                               </div>
-                              {/* Border Hue */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Tooltip content="Border Hue" position="top">
-                                  <Icon icon="layout" size={14} style={{ color: '#888' }} />
-                                </Tooltip>
-                                <div style={{ width: 32, margin: 0 }}>
-                                  <Slider size="small" min={-180} max={180} step={1} value={s.borderHue} onChange={(_, borderHue) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], borderHue: borderHue as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
-                                </div>
-                              </div>
-                              {/* Opacity */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Tooltip content="Opacity" position="top">
-                                  <Icon icon="eye-open" size={14} style={{ color: '#888' }} />
-                                </Tooltip>
-                                <div style={{ width: 32, margin: 0 }}>
-                                  <Slider size="small" min={0} max={1} step={0.01} value={s.opacity} onChange={(_, opacity) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], opacity: opacity as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
-                                </div>
-                              </div>
-                              {/* Brightness */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Tooltip content="Brightness" position="top">
-                                  <Icon icon="contrast" size={14} style={{ color: '#888' }} />
-                                </Tooltip>
-                                <div style={{ width: 32, margin: 0 }}>
-                                  <Slider size="small" min={-50} max={50} step={1} value={brightness} onChange={(_, b) => handlePaletteEdit(paletteName, { ...localPal, states: { ...localPal.states, [sk]: { ...localPal.states[sk], brightness: b as number } } })} sx={{ width: 32, minWidth: 0, p: 0 }} />
-                                </div>
-                              </div>
-                            </div>
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  </Menu>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </Menu>
+                  </div>
                 }
               >
                 <Button icon="edit" minimal small style={{ color: '#222', padding: 0, marginLeft: 'auto' }} />
