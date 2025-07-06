@@ -1,11 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React from "react";
 
 import { useAppStore } from "../../../store/appStore";
 import { workerManager } from "../../../controllers/workerManager";
-import {
-    decodeAudioFile,
-    getMonoPCMData,
-} from "../../../controllers/audioChunker";
 import Waveform from "./Waveform";
 import { ProgressBar } from "@blueprintjs/core";
 import { usePlayback } from "./PlaybackContext";
@@ -14,9 +10,9 @@ import {
     DetectionDataProvider,
     useDetectionData,
 } from "./DetectionDataContext";
-import { detectionEngines } from "../../../workers/detectionEngines";
+import { AudioAnalysisProvider } from "./AudioAnalysisContext";
+import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
 import type { BandConfig } from "./DetectionDataContext";
-import { bandpassFilterPCM } from "../../../utility/bandpassFilter";
 
 // BandData type (inline, matching worker output)
 type BandData = {
@@ -59,9 +55,6 @@ const BAND_LABELS = [
   { name: "Treble", color: "#756bb1" },
 ];
 
-// Utility: band colors for up to 5 bands
-const BAND_COLORS = ["#2b8cbe", "#41ab5d", "#fdae6b", "#d94801", "#756bb1"];
-
 // Utility: log-normalize an array for plotting
 function logNormalize(arr: number[]): number[] {
   const logArr = arr.map(v => Math.log10(Math.abs(v) + 1e-6));
@@ -73,9 +66,11 @@ function logNormalize(arr: number[]): number[] {
 const FFTSection = ({
     pcm,
     sampleRate,
+    onFftComplete,
 }: {
     pcm: Float32Array;
     sampleRate: number;
+    onFftComplete: () => void;
 }) => {
     const setFftProgress = useAppStore((s) => s.setFftProgress);
     const setFftResult = useAppStore((s) => s.setFftResult);
@@ -129,6 +124,7 @@ const FFTSection = ({
                 ) => {
                     setBandDataArr(e.data.bandDataArr);
                     worker.terminate();
+                    onFftComplete(); // Mark FFT as complete
                 };
             });
     };
@@ -202,8 +198,6 @@ const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
     const {
         results,
         bandResults,
-        bandProgress,
-        isLoading,
         runDetection,
         error,
     } = useDetectionData();
@@ -212,12 +206,15 @@ const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
     const windowDuration = 15;
     const windowStart = Math.max(0, currentTime - windowDuration / 2);
     console.log("selectedBand", selectedBand, bandResults);
+    React.useEffect(() => {
+        console.log('DetectionEngineSection running with bands:', bands);
+    }, [bands]);
     return (
         <div style={{ marginTop: 32 }}>
             <h4>Detection Engine (Context Demo)</h4>
             <button
                 onClick={runDetection}
-                disabled={bands.length === 0 || isLoading}
+                disabled={bands.length === 0}
             >
                 Run Detection
             </button>
@@ -293,27 +290,6 @@ const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
                             </button>
                         ))}
                     </div>
-                    {/* Progress bar for selected band */}
-                    {bandProgress[selectedBand] &&
-                    bandProgress[selectedBand]!.total > 1 &&
-                    bandProgress[selectedBand]!.processed <
-                        bandProgress[selectedBand]!.total ? (
-                        <ProgressBar
-                            animate
-                            stripes
-                            value={
-                                bandProgress[selectedBand]!.processed /
-                                bandProgress[selectedBand]!.total
-                            }
-                            style={{ margin: "8px 0", width: 200, height: 8 }}
-                        />
-                    ) : isLoading ? (
-                        <ProgressBar
-                            animate
-                            stripes
-                            style={{ margin: "8px 0", width: 200, height: 8 }}
-                        />
-                    ) : null}
                     {/* Only show the selected band's plot */}
                     <div
                         style={{
@@ -375,134 +351,6 @@ const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
     );
 };
 
-// Context for local audio analysis state
-type AudioAnalysisContextType = {
-    pcm: Float32Array | null;
-    sampleRate: number | null;
-    localWaveform: number[] | null;
-    localDuration: number | null;
-    bandConfigs: BandConfig[];
-    filtering: boolean;
-    selectedEngine: string;
-    engineOptions: string[];
-    handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    progress: { processed: number; total: number; jobId?: string } | null;
-    bandDataArr: BandData[];
-};
-
-const AudioAnalysisContext = createContext<AudioAnalysisContextType | null>(null);
-
-function useAudioAnalysis() {
-    const ctx = useContext(AudioAnalysisContext);
-    if (!ctx) throw new Error("useAudioAnalysis must be used within AudioAnalysisProvider");
-    return ctx;
-}
-
-type AudioAnalysisProviderProps = { children: React.ReactNode };
-
-// Helper type guard for waveform result
-function isWaveformResult(result: unknown): result is { waveform: number[]; duration: number; type: string } {
-    return (
-        typeof result === 'object' &&
-        result !== null &&
-        'type' in result &&
-        (result as { type: string }).type === 'waveformResult' &&
-        Array.isArray((result as { waveform?: unknown }).waveform)
-    );
-}
-
-function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
-    // Local state (was in AudioAnalysisPanel)
-    const setAudioData = useAppStore((s) => s.setAudioData);
-    const setWaveformProgress = useAppStore((s) => s.setWaveformProgress);
-    const progress = useAppStore((s) => s.waveformProgress);
-    const bandDataArr = (useAppStore((s) => s.audio.analysis?.bandDataArr) || []) as BandData[];
-    const engineOptions = Object.keys(detectionEngines);
-    const [pcm, setPcm] = useState<Float32Array | null>(null);
-    const [sampleRate, setSampleRate] = useState<number | null>(null);
-    const [localWaveform, setLocalWaveform] = useState<number[] | null>(null);
-    const [localDuration, setLocalDuration] = useState<number | null>(null);
-    const [selectedEngine, setSelectedEngine] = useState<string>(engineOptions[0]);
-    const [bandConfigs, setBandConfigs] = useState<BandConfig[]>([]);
-    const [filtering, setFiltering] = useState<boolean>(false);
-
-    // Band filtering effect
-    useEffect(() => {
-        if (!pcm || !sampleRate || !bandDataArr || bandDataArr.length === 0)
-            return;
-        setFiltering(true);
-        Promise.all(
-            bandDataArr.map(async (band, i) => ({
-                name: BAND_LABELS[i]?.name || `Band ${i + 1}`,
-                pcm: await bandpassFilterPCM(
-                    pcm,
-                    sampleRate,
-                    BAND_DEFS[i]?.freq || 1000,
-                    1
-                ), // Q=1, adjust as needed
-                color: BAND_COLORS[i % BAND_COLORS.length],
-            }))
-        ).then((configs: BandConfig[]) => {
-            setBandConfigs(configs);
-            setFiltering(false);
-        });
-    }, [pcm, sampleRate, bandDataArr]);
-
-    // File change handler
-    const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        if (!file) return;
-        const audioBuffer = await decodeAudioFile(file);
-        const pcmData = getMonoPCMData(audioBuffer);
-        setPcm(pcmData);
-        setSampleRate(audioBuffer.sampleRate);
-        setWaveformProgress({ processed: 0, total: 1000 });
-        workerManager
-            .enqueueJob(
-                "waveform",
-                {
-                    type: "waveform",
-                    pcmBuffer: pcmData.buffer,
-                    sampleRate: audioBuffer.sampleRate,
-                    numPoints: 1000,
-                },
-                (progress) => setWaveformProgress(progress)
-            )
-            .then((result) => {
-                if (isWaveformResult(result)) {
-                    setLocalWaveform(result.waveform);
-                    setLocalDuration(audioBuffer.duration);
-                    setAudioData({
-                        waveform: result.waveform.slice(0, 1000),
-                        duration: audioBuffer.duration,
-                    }); // Store only summary in Zustand
-                    setWaveformProgress(null);
-                }
-            });
-    }, [setAudioData, setWaveformProgress]);
-
-    const value: AudioAnalysisContextType = {
-        pcm,
-        sampleRate,
-        localWaveform,
-        localDuration,
-        bandConfigs,
-        filtering,
-        selectedEngine,
-        engineOptions,
-        handleFileChange,
-        progress,
-        bandDataArr,
-    };
-    return (
-        <AudioAnalysisContext.Provider value={value}>
-            {children}
-        </AudioAnalysisContext.Provider>
-    );
-}
-
-export { AudioAnalysisProvider, useAudioAnalysis };
-
 // Replace the default export function with the provider wrapping the panel
 export default function AudioAnalysisPanel() {
     return (
@@ -521,13 +369,66 @@ function AudioAnalysisPanelInner() {
         localWaveform,
         localDuration,
         bandConfigs,
+        setBandConfigs,
         filtering,
+        setFiltering,
         selectedEngine,
+        setSelectedEngine,
         engineOptions,
         handleFileChange,
         progress,
-        bandDataArr,
     } = useAudioAnalysis();
+    // Add a state to track if FFT is complete (must be inside component)
+    const [fftComplete, setFftComplete] = React.useState(false);
+    console.log('AudioAnalysisPanelInner: bandConfigs', bandConfigs, 'filtering', filtering);
+    React.useEffect(() => {
+        console.log('Panel: bandConfigs', bandConfigs, 'filtering', filtering);
+    }, [bandConfigs, filtering]);
+    React.useEffect(() => {
+        if (bandConfigs.length > 0 && !filtering) {
+            console.log('Band filtering complete, bandConfigs:', bandConfigs);
+        }
+    }, [bandConfigs, filtering]);
+
+    // Band filtering logic (same pattern as FFT)
+    const handleRunBandFiltering = () => {
+        if (!pcm || !sampleRate) return;
+        setFiltering(true);
+        const bandDefs = [
+            { name: "Sub Bass", freq: 60, q: 1, color: "#2b8cbe" },
+            { name: "Bass", freq: 120, q: 1, color: "#41ab5d" },
+            { name: "Low Mid", freq: 400, q: 1, color: "#fdae6b" },
+            { name: "Mid", freq: 1000, q: 1, color: "#d94801" },
+            { name: "High", freq: 4000, q: 1, color: "#756bb1" },
+            { name: "Presence", freq: 8000, q: 1, color: "#f03b20" },
+        ];
+        const req = {
+            pcmBuffer: pcm.buffer,
+            sampleRate,
+            bands: bandDefs
+        };
+        workerManager
+            .enqueueJob(
+                'bandFilter',
+                req,
+                // Optionally, add a progress callback here if you want to show progress
+                (progress) => {
+                    console.log('Band filtering progress:', progress);
+                }
+            )
+            .then((result) => {
+                const bandResult = result as { type: string; bands: { name: string; color: string; pcm: number[] }[] };
+                if (bandResult && bandResult.type === 'done' && Array.isArray(bandResult.bands)) {
+                    setBandConfigs(bandResult.bands.map((b) => ({
+                        name: b.name,
+                        pcm: Float32Array.from(b.pcm),
+                        color: b.color
+                    })));
+                }
+                setFiltering(false);
+            });
+    };
+
     return (
         <div style={{ maxWidth: 800, margin: "2rem auto", padding: 16 }}>
             <input
@@ -554,17 +455,47 @@ function AudioAnalysisPanelInner() {
                 />
             )}
             {pcm && sampleRate && (
-                <FFTSection pcm={pcm} sampleRate={sampleRate} />
+                <FFTSection pcm={pcm} sampleRate={sampleRate} onFftComplete={() => setFftComplete(true)} />
             )}
+            {/* Band Filtering Step */}
             {pcm && sampleRate && (
-                <div>
-                    <div
-                        style={{ display: "flex", gap: 8, marginBottom: 8 }}
+                <div style={{ margin: '24px 0' }}>
+                    <button
+                        onClick={handleRunBandFiltering}
+                        disabled={filtering || !fftComplete}
+                        style={{
+                            background: filtering || !fftComplete ? '#888' : '#333',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            padding: '8px 20px',
+                            fontWeight: 'bold',
+                            fontSize: 16,
+                            cursor: filtering || !fftComplete ? 'not-allowed' : 'pointer',
+                            marginBottom: 12,
+                        }}
                     >
+                        {filtering ? 'Filtering Bands...' : 'Run Band Filtering'}
+                    </button>
+                    {filtering && (
+                        <ProgressBar
+                            animate
+                            stripes
+                            value={0.5}
+                            intent="primary"
+                            style={{ height: 10, borderRadius: 6, marginTop: 8 }}
+                        />
+                    )}
+                </div>
+            )}
+            {/* Only show detection after band filtering is done */}
+            {pcm && sampleRate && bandConfigs.length > 0 && !filtering && (
+                <div>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                         <span style={{ fontWeight: 500, marginRight: 8 }}>
                             Engine:
                         </span>
-                        {engineOptions.map((eng) => (
+                        {engineOptions.map((eng: string) => (
                             <button
                                 key={eng}
                                 onClick={() => setSelectedEngine(eng)}
@@ -602,24 +533,14 @@ function AudioAnalysisPanelInner() {
                             </button>
                         ))}
                     </div>
-                    {filtering ? (
-                        <div style={{ margin: "16px 0", color: "#888" }}>
-                            Filtering bands...
-                        </div>
-                    ) : (
-                        bandConfigs.length > 0 && (
-                            <DetectionDataProvider
-                                engine={selectedEngine}
-                                pcm={pcm}
-                                sampleRate={sampleRate}
-                                bands={bandConfigs}
-                            >
-                                <DetectionEngineSection
-                                    bands={bandConfigs}
-                                />
-                            </DetectionDataProvider>
-                        )
-                    )}
+                    <DetectionDataProvider
+                        engine={selectedEngine}
+                        pcm={pcm}
+                        sampleRate={sampleRate}
+                        bands={bandConfigs}
+                    >
+                        <DetectionEngineSection bands={bandConfigs} />
+                    </DetectionDataProvider>
                 </div>
             )}
         </div>

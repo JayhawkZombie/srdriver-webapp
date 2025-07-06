@@ -754,7 +754,7 @@ export const useAppStore = create<AppState & {
         responses,
       },
     })),
-          addDevice: (metadata) => set(state => {
+    addDevice: (metadata) => set(state => {
       const prev = state.deviceMetadata[metadata.browserId] || {};
       return {
         devices: state.devices.includes(metadata.browserId)
@@ -773,7 +773,7 @@ export const useAppStore = create<AppState & {
         },
       };
     }),
-          removeDevice: (id) => set(state => {
+    removeDevice: (id) => set(state => {
       const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
       const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
       const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
@@ -788,10 +788,10 @@ export const useAppStore = create<AppState & {
         deviceUserPrefs: restPrefs,
       };
     }),
-          setDeviceMetadata: (browserId, metadata) => set(state => ({
+    setDeviceMetadata: (browserId, metadata) => set(state => ({
       deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
     })),
-          setDeviceNickname: (browserId, nickname) => set(state => ({
+    setDeviceNickname: (browserId, nickname) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
         [browserId]: {
@@ -800,16 +800,16 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-          setDeviceState: (browserId, update) => set(state => ({
+    setDeviceState: (browserId, update) => set(state => ({
       deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
     })),
-          setDeviceConnection: (browserId, update) => set(state => ({
+    setDeviceConnection: (browserId, update) => set(state => ({
       deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
     })),
-          setDeviceData: (browserId, data) => set(state => ({
+    setDeviceData: (browserId, data) => set(state => ({
       deviceData: { ...state.deviceData, [browserId]: data },
     })),
-          updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
+    updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
         [browserId]: {
@@ -818,7 +818,7 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-          setDeviceGroup: (browserId, group) => set(state => ({
+    setDeviceGroup: (browserId, group) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
         [browserId]: {
@@ -827,7 +827,7 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-          setDeviceUserPrefs: (browserId, prefs) => set(state => ({
+    setDeviceUserPrefs: (browserId, prefs) => set(state => ({
       deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
     })),
           setTrackTarget: (trackIndex, target) => set(state => ({

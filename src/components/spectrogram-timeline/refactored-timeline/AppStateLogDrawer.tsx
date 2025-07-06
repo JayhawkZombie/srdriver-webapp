@@ -36,7 +36,7 @@ export const AppStateLogDrawer: React.FC<AppStateLogDrawerProps> = ({ isOpen, on
       title="Application Log"
       size={Drawer.SIZE_LARGE}
       position="right"
-      style={{ top: 64, height: 'calc(100vh - 64px)', width: '35vw' }}
+      style={{ top: 64, height: 'calc(100vh - 64px)', width: '60vw' }}
       portalClassName="app-log-drawer-portal"
     >
       <div style={{ padding: 16, paddingTop: 0 }}>
@@ -68,7 +68,7 @@ export const AppStateLogDrawer: React.FC<AppStateLogDrawerProps> = ({ isOpen, on
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 500, marginBottom: 2 }}>{log.message}</div>
                 {log.data && (
-                  <pre style={{ fontSize: 10, background: '#f5f8fa', margin: 0, padding: 4 }}>
+                  <pre style={{ fontSize: 10, background: '#f5f8fa', color: '#000', margin: 0, padding: 4 }}>
                     {JSON.stringify(log.data, null, 2)}
                   </pre>
                 )}

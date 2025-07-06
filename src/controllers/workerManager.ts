@@ -1,7 +1,9 @@
 // workerManager.ts - Minimal worker manager for waveformWorker
 // Types (inline for now, move to types.ts if needed)
 
-type WorkerType = 'waveform' | 'fft' | 'aubio';
+import { logWorkerMessage } from '../store/appLogger';
+
+type WorkerType = 'waveform' | 'fft' | 'aubio' | 'bandFilter';
 
 interface WorkerJob<Request, Result> {
   jobId: string;
@@ -50,12 +52,18 @@ class WorkerHandle<Request, Result> {
   }
 
   private handleMessage(e: MessageEvent) {
-    // console.log(`handleMessage: ${JSON.stringify(e.data)}`);
-    console.log(`handleMessage: ${JSON.stringify(e.data.jobId)}`);
+    if (e.data && e.data.type === 'log') {
+      logWorkerMessage(e.data.message, e.data);
+      return;
+    }
     if (!this.activeJob) return;
     if (e.data && e.data.type === 'progress' && this.activeJob.onProgress) {
       this.activeJob.onProgress(e.data);
       return;
+    }
+    // Only log jobId for non-log messages
+    if (e.data && 'jobId' in e.data) {
+      console.log(`handleMessage: ${JSON.stringify(e.data.jobId)}`);
     }
     this.activeJob.resolve(e.data);
     this.activeJob = null;
@@ -88,6 +96,7 @@ class WorkerManager {
     waveform: new WorkerHandle('../workers/waveformWorker.ts'),
     fft: new WorkerHandle('../workers/audioWorker.ts'),
     aubio: new WorkerHandle('../workers/aubioWorker.ts'),
+    bandFilter: new WorkerHandle('../workers/bandFilterWorker.ts'),
   };
 
   enqueueJob<T, U>(type: WorkerType, request: T, onProgress?: (progress: { processed: number; total: number; jobId?: string }) => void): Promise<U> {
