@@ -1,4 +1,4 @@
-import React from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 import { useAppStore } from "../../../store/appStore";
 import { workerManager } from "../../../controllers/workerManager";
@@ -8,7 +8,7 @@ import {
 } from "../../../controllers/audioChunker";
 import Waveform from "./Waveform";
 import { ProgressBar } from "@blueprintjs/core";
-import { PlaybackProvider, usePlayback } from "./PlaybackContext";
+import { usePlayback } from "./PlaybackContext";
 import { WindowedTimeSeriesPlot } from "./WindowedTimeSeriesPlot";
 import {
     DetectionDataProvider,
@@ -375,28 +375,59 @@ const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
     );
 };
 
+// Context for local audio analysis state
+type AudioAnalysisContextType = {
+    pcm: Float32Array | null;
+    sampleRate: number | null;
+    localWaveform: number[] | null;
+    localDuration: number | null;
+    bandConfigs: BandConfig[];
+    filtering: boolean;
+    selectedEngine: string;
+    engineOptions: string[];
+    handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    progress: { processed: number; total: number; jobId?: string } | null;
+    bandDataArr: BandData[];
+};
 
-export default function AudioAnalysisPanel() {
+const AudioAnalysisContext = createContext<AudioAnalysisContextType | null>(null);
+
+function useAudioAnalysis() {
+    const ctx = useContext(AudioAnalysisContext);
+    if (!ctx) throw new Error("useAudioAnalysis must be used within AudioAnalysisProvider");
+    return ctx;
+}
+
+type AudioAnalysisProviderProps = { children: React.ReactNode };
+
+// Helper type guard for waveform result
+function isWaveformResult(result: unknown): result is { waveform: number[]; duration: number; type: string } {
+    return (
+        typeof result === 'object' &&
+        result !== null &&
+        'type' in result &&
+        (result as { type: string }).type === 'waveformResult' &&
+        Array.isArray((result as { waveform?: unknown }).waveform)
+    );
+}
+
+function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
+    // Local state (was in AudioAnalysisPanel)
     const setAudioData = useAppStore((s) => s.setAudioData);
     const setWaveformProgress = useAppStore((s) => s.setWaveformProgress);
     const progress = useAppStore((s) => s.waveformProgress);
-    const [pcm, setPcm] = React.useState<Float32Array | null>(null);
-    const [sampleRate, setSampleRate] = React.useState<number | null>(null);
-    const [localWaveform, setLocalWaveform] = React.useState<number[] | null>(
-        null
-    );
-    const [localDuration, setLocalDuration] = React.useState<number | null>(
-        null
-    );
-    const bandDataArr = useAppStore((s) => s.audio.analysis?.bandDataArr) || [];
+    const bandDataArr = (useAppStore((s) => s.audio.analysis?.bandDataArr) || []) as BandData[];
     const engineOptions = Object.keys(detectionEngines);
-    const [selectedEngine, setSelectedEngine] = React.useState(
-        engineOptions[0]
-    );
-    const [bandConfigs, setBandConfigs] = React.useState<BandConfig[]>([]);
-    const [filtering, setFiltering] = React.useState(false);
+    const [pcm, setPcm] = useState<Float32Array | null>(null);
+    const [sampleRate, setSampleRate] = useState<number | null>(null);
+    const [localWaveform, setLocalWaveform] = useState<number[] | null>(null);
+    const [localDuration, setLocalDuration] = useState<number | null>(null);
+    const [selectedEngine, setSelectedEngine] = useState<string>(engineOptions[0]);
+    const [bandConfigs, setBandConfigs] = useState<BandConfig[]>([]);
+    const [filtering, setFiltering] = useState<boolean>(false);
 
-    React.useEffect(() => {
+    // Band filtering effect
+    useEffect(() => {
         if (!pcm || !sampleRate || !bandDataArr || bandDataArr.length === 0)
             return;
         setFiltering(true);
@@ -411,13 +442,14 @@ export default function AudioAnalysisPanel() {
                 ), // Q=1, adjust as needed
                 color: BAND_COLORS[i % BAND_COLORS.length],
             }))
-        ).then((configs) => {
+        ).then((configs: BandConfig[]) => {
             setBandConfigs(configs);
             setFiltering(false);
         });
     }, [pcm, sampleRate, bandDataArr]);
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // File change handler
+    const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
         if (!file) return;
         const audioBuffer = await decodeAudioFile(file);
@@ -437,122 +469,160 @@ export default function AudioAnalysisPanel() {
                 (progress) => setWaveformProgress(progress)
             )
             .then((result) => {
-                const r = result as {
-                    type: string;
-                    waveform?: number[];
-                    duration?: number;
-                };
-                if (
-                    r &&
-                    r.type === "waveformResult" &&
-                    Array.isArray(r.waveform)
-                ) {
-                    setLocalWaveform(r.waveform);
+                if (isWaveformResult(result)) {
+                    setLocalWaveform(result.waveform);
                     setLocalDuration(audioBuffer.duration);
                     setAudioData({
-                        waveform: r.waveform.slice(0, 1000),
+                        waveform: result.waveform.slice(0, 1000),
                         duration: audioBuffer.duration,
                     }); // Store only summary in Zustand
                     setWaveformProgress(null);
                 }
             });
-    };
+    }, [setAudioData, setWaveformProgress]);
 
+    const value: AudioAnalysisContextType = {
+        pcm,
+        sampleRate,
+        localWaveform,
+        localDuration,
+        bandConfigs,
+        filtering,
+        selectedEngine,
+        engineOptions,
+        handleFileChange,
+        progress,
+        bandDataArr,
+    };
     return (
-            <div style={{ maxWidth: 800, margin: "2rem auto", padding: 16 }}>
-                <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleFileChange}
-                />
-                {progress &&
-                    progress.total > 0 &&
-                    progress.processed < progress.total && (
-                        <ProgressBar
-                            animate
-                            stripes
-                            value={progress.processed / progress.total}
-                            style={{ margin: "16px 0", height: 10 }}
-                        />
-                    )}
-                {localWaveform && localDuration && (
-                    <WaveformWithLocal
-                        width={800}
-                        height={80}
-                        waveform={localWaveform}
-                        duration={localDuration}
+        <AudioAnalysisContext.Provider value={value}>
+            {children}
+        </AudioAnalysisContext.Provider>
+    );
+}
+
+export { AudioAnalysisProvider, useAudioAnalysis };
+
+// Replace the default export function with the provider wrapping the panel
+export default function AudioAnalysisPanel() {
+    return (
+        <AudioAnalysisProvider>
+            <AudioAnalysisPanelInner />
+        </AudioAnalysisProvider>
+    );
+}
+
+// Move the original AudioAnalysisPanel implementation to AudioAnalysisPanelInner
+function AudioAnalysisPanelInner() {
+    // All state and handlers now come from context
+    const {
+        pcm,
+        sampleRate,
+        localWaveform,
+        localDuration,
+        bandConfigs,
+        filtering,
+        selectedEngine,
+        engineOptions,
+        handleFileChange,
+        progress,
+        bandDataArr,
+    } = useAudioAnalysis();
+    return (
+        <div style={{ maxWidth: 800, margin: "2rem auto", padding: 16 }}>
+            <input
+                type="file"
+                accept="audio/*"
+                onChange={handleFileChange}
+            />
+            {progress &&
+                progress.total > 0 &&
+                progress.processed < progress.total && (
+                    <ProgressBar
+                        animate
+                        stripes
+                        value={progress.processed / progress.total}
+                        style={{ margin: "16px 0", height: 10 }}
                     />
                 )}
-                {pcm && sampleRate && (
-                    <FFTSection pcm={pcm} sampleRate={sampleRate} />
-                )}
-                {pcm && sampleRate && (
-                    <div>
-                        <div
-                            style={{ display: "flex", gap: 8, marginBottom: 8 }}
-                        >
-                            <span style={{ fontWeight: 500, marginRight: 8 }}>
-                                Engine:
-                            </span>
-                            {engineOptions.map((eng) => (
-                                <button
-                                    key={eng}
-                                    onClick={() => setSelectedEngine(eng)}
-                                    disabled={selectedEngine === eng}
-                                    style={{
-                                        background:
-                                            selectedEngine === eng
-                                                ? "#333"
-                                                : "transparent",
-                                        color:
-                                            selectedEngine === eng
-                                                ? "#fff"
-                                                : "#333",
-                                        border: "1px solid #333",
-                                        borderRadius: 4,
-                                        padding: "4px 12px",
-                                        fontWeight:
-                                            selectedEngine === eng
-                                                ? "bold"
-                                                : "normal",
-                                        cursor:
-                                            selectedEngine === eng
-                                                ? "default"
-                                                : "pointer",
-                                        marginRight: 4,
-                                        outline: "none",
-                                        fontSize: 14,
-                                        transition:
-                                            "background 0.2s, color 0.2s",
-                                        opacity:
-                                            selectedEngine === eng ? 1 : 0.8,
-                                    }}
-                                >
-                                    {eng}
-                                </button>
-                            ))}
-                        </div>
-                        {filtering ? (
-                            <div style={{ margin: "16px 0", color: "#888" }}>
-                                Filtering bands...
-                            </div>
-                        ) : (
-                            bandConfigs.length > 0 && (
-                                <DetectionDataProvider
-                                    engine={selectedEngine}
-                                    pcm={pcm}
-                                    sampleRate={sampleRate}
-                                    bands={bandConfigs}
-                                >
-                                    <DetectionEngineSection
-                                        bands={bandConfigs}
-                                    />
-                                </DetectionDataProvider>
-                            )
-                        )}
+            {localWaveform && localDuration && (
+                <WaveformWithLocal
+                    width={800}
+                    height={80}
+                    waveform={localWaveform}
+                    duration={localDuration}
+                />
+            )}
+            {pcm && sampleRate && (
+                <FFTSection pcm={pcm} sampleRate={sampleRate} />
+            )}
+            {pcm && sampleRate && (
+                <div>
+                    <div
+                        style={{ display: "flex", gap: 8, marginBottom: 8 }}
+                    >
+                        <span style={{ fontWeight: 500, marginRight: 8 }}>
+                            Engine:
+                        </span>
+                        {engineOptions.map((eng) => (
+                            <button
+                                key={eng}
+                                onClick={() => setSelectedEngine(eng)}
+                                disabled={selectedEngine === eng}
+                                style={{
+                                    background:
+                                        selectedEngine === eng
+                                            ? "#333"
+                                            : "transparent",
+                                    color:
+                                        selectedEngine === eng
+                                            ? "#fff"
+                                            : "#333",
+                                    border: "1px solid #333",
+                                    borderRadius: 4,
+                                    padding: "4px 12px",
+                                    fontWeight:
+                                        selectedEngine === eng
+                                            ? "bold"
+                                            : "normal",
+                                    cursor:
+                                        selectedEngine === eng
+                                            ? "default"
+                                            : "pointer",
+                                    marginRight: 4,
+                                    outline: "none",
+                                    fontSize: 14,
+                                    transition:
+                                        "background 0.2s, color 0.2s",
+                                    opacity:
+                                        selectedEngine === eng ? 1 : 0.8,
+                                }}
+                            >
+                                {eng}
+                            </button>
+                        ))}
                     </div>
-                )}
-            </div>
+                    {filtering ? (
+                        <div style={{ margin: "16px 0", color: "#888" }}>
+                            Filtering bands...
+                        </div>
+                    ) : (
+                        bandConfigs.length > 0 && (
+                            <DetectionDataProvider
+                                engine={selectedEngine}
+                                pcm={pcm}
+                                sampleRate={sampleRate}
+                                bands={bandConfigs}
+                            >
+                                <DetectionEngineSection
+                                    bands={bandConfigs}
+                                />
+                            </DetectionDataProvider>
+                        )
+                    )}
+                </div>
+            )}
+        </div>
     );
-}; 
+} 
 
