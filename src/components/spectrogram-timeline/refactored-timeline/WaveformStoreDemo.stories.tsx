@@ -4,11 +4,12 @@ import { workerManager } from "../../../controllers/workerManager";
 import { decodeAudioFile, getMonoPCMData } from '../../../controllers/audioChunker';
 import Waveform from "./Waveform";
 import { ProgressBar } from "@blueprintjs/core";
-import { PlaybackProvider } from "./PlaybackContext";
+import { PlaybackProvider, usePlayback } from "./PlaybackContext";
 import { WindowedTimeSeriesPlot } from "./WindowedTimeSeriesPlot";
 import { DetectionDataProvider, useDetectionData } from "./DetectionDataContext";
 import { detectionEngines } from "../../../workers/detectionEngines";
 import type { BandConfig } from "./DetectionDataContext";
+import { bandpassFilterPCM } from '../../../utility/bandpassFilter';
 
 // BandData type (inline, matching worker output)
 type BandData = {
@@ -36,11 +37,14 @@ const WaveformWithLocal = (props: { width: number; height: number; waveform: num
   return <Waveform width={props.width} height={props.height} waveform={props.waveform} duration={props.duration} />;
 };
 
-// Example band definitions (bass, mid, treble)
+// Example band definitions (industry-standard splits)
 const BAND_DEFS = [
-  { name: "Bass", freq: 60, color: "#2b8cbe" },
-  { name: "Mid", freq: 1000, color: "#a6bddb" },
-  { name: "Treble", freq: 8000, color: "#f03b20" },
+  { name: "Sub Bass", freq: 60, color: "#2b8cbe" },      // 20–60 Hz
+  { name: "Bass", freq: 120, color: "#41ab5d" },         // 60–250 Hz
+  { name: "Low Mid", freq: 400, color: "#fdae6b" },      // 250–500 Hz
+  { name: "Mid", freq: 1000, color: "#d94801" },         // 500–2k Hz
+  { name: "High", freq: 4000, color: "#756bb1" },        // 2k–6k Hz
+  { name: "Presence", freq: 8000, color: "#f03b20" },    // 6k–20k Hz
 ];
 
 // 5-band definitions (example splits)
@@ -69,7 +73,9 @@ const FFTSection = ({ pcm, sampleRate }: { pcm: Float32Array; sampleRate: number
   const setBandDataArr = useAppStore((s) => s.setBandDataArr);
   const fftProgress = useAppStore((s) => s.fftProgress);
   const bandDataArr = useAppStore((s) => s.audio.analysis?.bandDataArr);
-  // Local state for full-res FFT (add back if needed for advanced overlays)
+  const { currentTime } = usePlayback();
+  const windowDuration = 15;
+  const windowStart = Math.max(0, currentTime - windowDuration / 2);
 
   const handleRunFFT = () => {
     setFftProgress({ processed: 0, total: 1 });
@@ -134,8 +140,8 @@ const FFTSection = ({ pcm, sampleRate }: { pcm: Float32Array; sampleRate: number
                 <div style={{ fontSize: 12, color: label.color }}>{label.name}</div>
                 <WindowedTimeSeriesPlot
                   yValues={data}
-                  windowStart={0}
-                  windowDuration={frames15s}
+                  windowStart={windowStart}
+                  windowDuration={windowDuration}
                   eventTimes={eventTimes}
                   width={800}
                   height={32}
@@ -155,9 +161,10 @@ const FFTSection = ({ pcm, sampleRate }: { pcm: Float32Array; sampleRate: number
 const DetectionEngineSection = ({ bands }: { bands: BandConfig[] }) => {
   const { results, bandResults, bandProgress, isLoading, runDetection, error } = useDetectionData();
   const [selectedBand, setSelectedBand] = React.useState(0);
-  // Windowing example: show first 15s
-  const windowStart = 0;
+  const { currentTime } = usePlayback();
   const windowDuration = 15;
+  const windowStart = Math.max(0, currentTime - windowDuration / 2);
+  console.log("selectedBand", selectedBand, bandResults);
   return (
     <div style={{ marginTop: 32 }}>
       <h4>Detection Engine (Context Demo)</h4>
@@ -260,6 +267,23 @@ export const StoreDrivenWaveform = () => {
   const bandDataArr = useAppStore((s) => s.audio.analysis?.bandDataArr) || [];
   const engineOptions = Object.keys(detectionEngines);
   const [selectedEngine, setSelectedEngine] = React.useState(engineOptions[0]);
+  const [bandConfigs, setBandConfigs] = React.useState<BandConfig[]>([]);
+  const [filtering, setFiltering] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!pcm || !sampleRate || !bandDataArr || bandDataArr.length === 0) return;
+    setFiltering(true);
+    Promise.all(
+      bandDataArr.map(async (band, i) => ({
+        name: BAND_LABELS[i]?.name || `Band ${i+1}`,
+        pcm: await bandpassFilterPCM(pcm, sampleRate, BAND_DEFS[i]?.freq || 1000, 1), // Q=1, adjust as needed
+        color: BAND_COLORS[i % BAND_COLORS.length],
+      }))
+    ).then((configs) => {
+      setBandConfigs(configs);
+      setFiltering(false);
+    });
+  }, [pcm, sampleRate, bandDataArr]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -288,12 +312,6 @@ export const StoreDrivenWaveform = () => {
       }
     });
   };
-
-  const bandConfigs = bandDataArr ? bandDataArr.map((band, i) => ({
-    name: BAND_LABELS[i]?.name || `Band ${i+1}`,
-    pcm: Float32Array.from(band.magnitudes),
-    color: BAND_COLORS[i % BAND_COLORS.length],
-  })) : [];
 
   return (
     <PlaybackProvider>
@@ -338,16 +356,20 @@ export const StoreDrivenWaveform = () => {
                 </button>
               ))}
             </div>
-            <DetectionDataProvider
-              engine={selectedEngine}
-              pcm={pcm}
-              sampleRate={sampleRate}
-              bands={bandConfigs}
-            >
-              <DetectionEngineSection
-                bands={bandConfigs}
-              />
-            </DetectionDataProvider>
+            {filtering ? (
+              <div style={{ margin: '16px 0', color: '#888' }}>Filtering bands...</div>
+            ) : (
+              bandConfigs.length > 0 && (
+                <DetectionDataProvider
+                  engine={selectedEngine}
+                  pcm={pcm}
+                  sampleRate={sampleRate}
+                  bands={bandConfigs}
+                >
+                  <DetectionEngineSection bands={bandConfigs} />
+                </DetectionDataProvider>
+              )
+            )}
           </div>
         )}
       </div>
