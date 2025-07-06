@@ -158,7 +158,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
         setTimelineResponses(finalResponses);
       } else {
         log.info('onRectMove', { id, timestamp, trackIndex });
-        updateTimelineResponse(id, { timestamp, trackIndex });
+      updateTimelineResponse(id, { timestamp, trackIndex });
       }
     },
     onRectResize: (id, edge, newTimestamp, newDuration) => {
@@ -336,24 +336,24 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
   return (
     <div style={{ width: '100%' }}>
       <ResponseTypeDragBar />
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 1200,
-          margin: "40px auto",
-          background: "#222",
-          borderRadius: 12,
-          padding: 24,
-          boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        {/* Timeline row: labels + tracks */}
-        <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", maxWidth: 1200 }}>
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 1200,
+        margin: "40px auto",
+        background: "#222",
+        borderRadius: 12,
+        padding: 24,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
+      {/* Timeline row: labels + tracks */}
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", maxWidth: 1200 }}>
           {/* Labels column, now with dropdowns */}
-          <div style={{ width: labelsWidth, minWidth: 80, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: tracksHeight, marginRight: 8 }}>
+        <div style={{ width: labelsWidth, minWidth: 80, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: tracksHeight, marginRight: 8 }}>
             {[...Array(numTracks)].map((_, i) => {
               const target = trackTargets[i];
               let value = '';
@@ -362,7 +362,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                 else value = target.id; // fallback for other types
               }
               return (
-                <div key={i} style={{ height: trackHeight, marginTop: i === 0 ? tracksTopOffset : trackGap, color: '#fff', display: 'flex', alignItems: 'center', fontSize: 16, fontFamily: 'monospace' }}>
+            <div key={i} style={{ height: trackHeight, marginTop: i === 0 ? tracksTopOffset : trackGap, color: '#fff', display: 'flex', alignItems: 'center', fontSize: 16, fontFamily: 'monospace' }}>
                   <select
                     value={value}
                     onChange={e => {
@@ -382,89 +382,89 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                       </option>
                     ))}
                   </select>
-                </div>
+            </div>
               );
             })}
-          </div>
-          {/* Tracks area with aspect ratio */}
-          <div
-            ref={tracksRef}
-            style={{ flex: 1, minWidth: 0, display: "flex" }}
+        </div>
+        {/* Tracks area with aspect ratio */}
+        <div
+          ref={tracksRef}
+          style={{ flex: 1, minWidth: 0, display: "flex" }}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onDragLeave={handleDragLeave}
+        >
+          <div
+            style={{ width: "100%", aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
           >
-            <div
-              style={{ width: "100%", aspectRatio: `${aspectRatio}`, minWidth: 320, minHeight: 150, background: "#181c22", borderRadius: 8, position: "relative" }}
+            <Stage
+              width={tracksWidth}
+              height={tracksHeight}
+              style={{ position: "absolute", left: 0, top: 0 }}
+              onClick={handleStageClick}
+              onContextMenu={handleStageContextMenu}
             >
-              <Stage
-                width={tracksWidth}
-                height={tracksHeight}
-                style={{ position: "absolute", left: 0, top: 0 }}
-                onClick={handleStageClick}
-                onContextMenu={handleStageContextMenu}
-              >
-                <Layer>
-                  {/* Background shape for hit testing */}
-                  <Rect
-                    name="stage-bg"
-                    x={0}
-                    y={0}
-                    width={tracksWidth}
-                    height={tracksHeight}
-                    fill="rgba(0,0,0,0)"
-                    listening={true}
-                  />
-                  {/* Grid/tick lines */}
-                  {(() => {
-                    const majorTickEvery = 1;
-                    const minorTickEvery = 0.2;
-                    const ticks = [];
-                    for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowStart + windowDuration; t += minorTickEvery) {
-                      const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
-                      const x = ((t - windowStart) / windowDuration) * tracksWidth;
-                      ticks.push({ t, x, isMajor });
-                    }
-                    return (
-                      <>
-                        {ticks.map(({ t, x, isMajor }) => (
-                          <React.Fragment key={t.toFixed(2)}>
-                            <Line
-                              points={[x, tracksTopOffset, x, tracksTopOffset + tracksTotalHeight]}
-                              stroke={isMajor ? "#fff" : "#888"}
-                              strokeWidth={isMajor ? 2 : 1}
-                              dash={isMajor ? undefined : [2, 4]}
+              <Layer>
+                {/* Background shape for hit testing */}
+                <Rect
+                  name="stage-bg"
+                  x={0}
+                  y={0}
+                  width={tracksWidth}
+                  height={tracksHeight}
+                  fill="rgba(0,0,0,0)"
+                  listening={true}
+                />
+                {/* Grid/tick lines */}
+                {(() => {
+                  const majorTickEvery = 1;
+                  const minorTickEvery = 0.2;
+                  const ticks = [];
+                  for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowStart + windowDuration; t += minorTickEvery) {
+                    const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
+                    const x = ((t - windowStart) / windowDuration) * tracksWidth;
+                    ticks.push({ t, x, isMajor });
+                  }
+                  return (
+                    <>
+                      {ticks.map(({ t, x, isMajor }) => (
+                        <React.Fragment key={t.toFixed(2)}>
+                          <Line
+                            points={[x, tracksTopOffset, x, tracksTopOffset + tracksTotalHeight]}
+                            stroke={isMajor ? "#fff" : "#888"}
+                            strokeWidth={isMajor ? 2 : 1}
+                            dash={isMajor ? undefined : [2, 4]}
+                          />
+                          {isMajor && (
+                            <KonvaText
+                              x={x + 2}
+                              y={tracksTopOffset - 22}
+                              text={t.toFixed(1)}
+                              fontSize={14}
+                              fill="#fff"
                             />
-                            {isMajor && (
-                              <KonvaText
-                                x={x + 2}
-                                y={tracksTopOffset - 22}
-                                text={t.toFixed(1)}
-                                fontSize={14}
-                                fill="#fff"
-                              />
-                            )}
-                          </React.Fragment>
-                        ))}
-                        {/* Boundary lines */}
-                        <Line points={[0, tracksTopOffset, 0, tracksTopOffset + tracksTotalHeight]} stroke="#ffeb3b" strokeWidth={2} dash={[4, 2]} />
-                        <Line points={[tracksWidth, tracksTopOffset, tracksWidth, tracksTopOffset + tracksTotalHeight]} stroke="#00bcd4" strokeWidth={2} dash={[4, 2]} />
-                        <Line points={[tracksWidth/2, tracksTopOffset, tracksWidth/2, tracksTopOffset + tracksTotalHeight]} stroke="#fff176" strokeWidth={1} dash={[2, 2]} />
-                      </>
-                    );
-                  })()}
+                          )}
+                        </React.Fragment>
+                      ))}
+                      {/* Boundary lines */}
+                      <Line points={[0, tracksTopOffset, 0, tracksTopOffset + tracksTotalHeight]} stroke="#ffeb3b" strokeWidth={2} dash={[4, 2]} />
+                      <Line points={[tracksWidth, tracksTopOffset, tracksWidth, tracksTopOffset + tracksTotalHeight]} stroke="#00bcd4" strokeWidth={2} dash={[4, 2]} />
+                      <Line points={[tracksWidth/2, tracksTopOffset, tracksWidth/2, tracksTopOffset + tracksTotalHeight]} stroke="#fff176" strokeWidth={1} dash={[2, 2]} />
+                    </>
+                  );
+                })()}
                   {/* Track backgrounds and overlays */}
                   {[...Array(numTracks)].map((_, i) => {
                     const isTrackAssigned = !!trackTargets[i];
                     const y = tracksTopOffset + i * (trackHeight + trackGap);
                     return (
                       <React.Fragment key={i}>
-                        <Track
+                  <Track
                           y={y}
-                          height={trackHeight}
+                    height={trackHeight}
                           label={``}
-                          width={tracksWidth}
-                          listening={false}
+                    width={tracksWidth}
+                    listening={false}
                           styleOverride={{ fill: isTrackAssigned ? undefined : '#23272f' }}
                           showMidline={true}
                         />
@@ -478,20 +478,20 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                             fontStyle="bold"
                             width={300}
                             align="center"
-                          />
+                  />
                         )}
                       </React.Fragment>
                     );
                   })}
-                  {/* Playhead line */}
-                  <Line
-                    points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
-                    stroke="#ffeb3b"
-                    strokeWidth={3}
-                    dash={[6, 4]}
-                  />
-                  {/* Response rects */}
-                  {responses.map(rect => {
+                {/* Playhead line */}
+                <Line
+                  points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
+                  stroke="#ffeb3b"
+                  strokeWidth={3}
+                  dash={[6, 4]}
+                />
+                {/* Response rects */}
+                {responses.map(rect => {
                     const isTrackAssigned = !!trackTargets[rect.trackIndex];
                     const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
                     // Dynamic palette assignment: use rect.data.paletteName if present, else 'demo'
@@ -508,19 +508,19 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                       borderColor: palette.borderColor,
                       state: paletteState,
                     });
-                    const rectProps = {
+                  const rectProps = {
                       x: ((rect.timestamp - windowStart) / windowDuration) * tracksWidth,
                       y: tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16,
                       width: (rect.duration / windowDuration) * tracksWidth,
                       height: 32,
-                      color,
-                      borderColor,
+                    color,
+                    borderColor,
                       opacity,
-                      ...pointerHandler.getRectProps(rect.id),
+                    ...pointerHandler.getRectProps(rect.id),
                       onContextMenu: (e: KonvaEventObject<PointerEvent>) => handleRectContextMenu(rect, e),
-                    };
-                    return <ResponseRect key={rect.id} {...rectProps} />;
-                  })}
+                  };
+                  return <ResponseRect key={rect.id} {...rectProps} />;
+                })}
                   {/* Shadow rect for drag-over from palette */}
                   {dragShadow && palettes[dragShadow.paletteName] && (
                     (() => {
@@ -581,56 +581,56 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
                       />
                     );
                   })()}
-                </Layer>
-              </Stage>
-              <TimelineContextMenu
-                isOpen={menu.open}
-                position={menu.position}
-                info={menu.info}
-                onClose={() => setMenu({ open: false, position: null, info: null, type: null })}
-                menuRef={menuRef}
-                actions={actions}
-              />
-            </div>
+              </Layer>
+            </Stage>
+            <TimelineContextMenu
+              isOpen={menu.open}
+              position={menu.position}
+              info={menu.info}
+              onClose={() => setMenu({ open: false, position: null, info: null, type: null })}
+              menuRef={menuRef}
+              actions={actions}
+            />
           </div>
         </div>
-        {/* Info and controls below timeline */}
-        <div style={{ width: "100%", maxWidth: 1000, marginTop: 16 }}>
-          <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, textAlign: "center" }}>
-            windowStart: {windowStart.toFixed(2)} | windowEnd: {(windowStart + windowDuration).toFixed(2)} | playhead: {currentTime.toFixed(2)}
-          </div>
-          <div style={{ color: "#fffde7", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
-            Responses: [
-            {responses.map(r => `{"id":${JSON.stringify(r.id)},"t":${r.timestamp.toFixed(2)},"d":${r.duration.toFixed(2)},"track":${r.trackIndex},"triggered":${r.triggered}}`).join(", ")}
-            ]
-          </div>
-          <div style={{ color: "#ff9800", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
-            Active rects: [{activeRectIds.join(", ")}]
-          </div>
-          <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 16, textAlign: "center" }}>
-            <label>
-              Window size (seconds):
-              <input
-                type="range"
-                min={1}
-                max={15}
-                step={0.1}
-                value={windowDuration}
-                onChange={e => setWindowDuration(Number(e.target.value))}
-                style={{ margin: "0 12px", verticalAlign: "middle" }}
-              />
-              <input
-                type="number"
-                min={1}
-                max={15}
-                step={0.1}
-                value={windowDuration}
-                onChange={e => setWindowDuration(Number(e.target.value))}
-                style={{ width: 60, marginLeft: 8 }}
-              />
-            </label>
-          </div>
-          <DebugInfo label="Pointer State" data={pointerHandler.pointerState} />
+      </div>
+      {/* Info and controls below timeline */}
+      <div style={{ width: "100%", maxWidth: 1000, marginTop: 16 }}>
+        <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, textAlign: "center" }}>
+          windowStart: {windowStart.toFixed(2)} | windowEnd: {(windowStart + windowDuration).toFixed(2)} | playhead: {currentTime.toFixed(2)}
+        </div>
+        <div style={{ color: "#fffde7", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
+          Responses: [
+          {responses.map(r => `{"id":${JSON.stringify(r.id)},"t":${r.timestamp.toFixed(2)},"d":${r.duration.toFixed(2)},"track":${r.trackIndex},"triggered":${r.triggered}}`).join(", ")}
+          ]
+        </div>
+        <div style={{ color: "#ff9800", fontFamily: "monospace", fontSize: 15, marginTop: 4, textAlign: "center" }}>
+          Active rects: [{activeRectIds.join(", ")}]
+        </div>
+        <div style={{ color: "#fff", fontFamily: "monospace", fontSize: 16, marginTop: 16, textAlign: "center" }}>
+          <label>
+            Window size (seconds):
+            <input
+              type="range"
+              min={1}
+              max={15}
+              step={0.1}
+              value={windowDuration}
+              onChange={e => setWindowDuration(Number(e.target.value))}
+              style={{ margin: "0 12px", verticalAlign: "middle" }}
+            />
+            <input
+              type="number"
+              min={1}
+              max={15}
+              step={0.1}
+              value={windowDuration}
+              onChange={e => setWindowDuration(Number(e.target.value))}
+              style={{ width: 60, marginLeft: 8 }}
+            />
+          </label>
+        </div>
+        <DebugInfo label="Pointer State" data={pointerHandler.pointerState} />
         </div>
       </div>
     </div>

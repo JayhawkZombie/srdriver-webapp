@@ -4,6 +4,9 @@ import { set as idbSet, get as idbGet } from 'idb-keyval';
 import type { ResponseRectPalette } from '../types/ResponseRectPalette';
 import { responseRectPalettes } from '../constants/responseRectPalettes';
 
+// --- Storybook detection ---
+const isStorybook = Boolean((window as any).__STORYBOOK_ADDONS_CHANNEL__);
+
 // --- Generic IndexedDB middleware ---
 export function persistWithIndexedDB<T extends object>(key: string, config: StateCreator<T>): StateCreator<T> {
   return (set, _get, api) => {
@@ -318,7 +321,233 @@ export const useAppStore = create<AppState & {
   removeTemplateType: (value: string) => void;
   updateTemplateType: (value: string, update: Partial<TemplateType>) => void;
 }>(
-  persistWithIndexedDB('app-state', (set, get) => ({
+  isStorybook
+    ? (set, get) => ({
+        audio: {
+          data: initialAudioData,
+          analysis: initialAudioAnalysis,
+        },
+        playback: initialPlayback,
+        ui: initialUI,
+        timeline: initialTimeline,
+        tracks: initialTracks,
+        devices: [],
+        deviceMetadata: initialDeviceMetadata,
+        deviceState: initialDeviceState,
+        deviceConnection: initialDeviceConnection,
+        deviceData: initialDeviceData,
+        deviceUserPrefs: initialDeviceUserPrefs,
+        hydrated: true,
+        palettes: { ...responseRectPalettes },
+        rectTemplates: {
+          'led-beat': {
+            id: 'led-beat',
+            name: 'LED Beat',
+            type: 'led',
+            defaultDuration: 1,
+            defaultData: { pattern: 'beat', color: '#00ff00' },
+            paletteName: 'lightPulse',
+          },
+          'led-wave': {
+            id: 'led-wave',
+            name: 'LED Wave',
+            type: 'led',
+            defaultDuration: 2,
+            defaultData: { pattern: 'wave', color: '#0000ff' },
+            paletteName: 'singleFirePattern',
+          },
+        },
+        templateTypes: [
+          { value: 'pulse', label: 'Pulse' },
+          { value: 'pattern', label: 'Pattern' },
+          { value: 'cue', label: 'Cue' },
+          { value: 'settings', label: 'Settings Change' },
+          { value: 'led', label: 'LED' },
+        ],
+        logs: [],
+        maxLogCount: 200,
+        setAudioData: ({ waveform, duration }) => set(state => ({
+          audio: {
+            ...state.audio,
+            analysis: {
+              ...state.audio.analysis,
+              waveform,
+              duration,
+            },
+          },
+          playback: {
+            ...state.playback,
+            totalDuration: duration,
+          },
+        })),
+        addTimelineResponse: (resp) => set(state => ({
+          timeline: {
+            ...state.timeline,
+            responses: [...state.timeline.responses, resp],
+          },
+        })),
+        updateTimelineResponse: (id, update) => set(state => ({
+          timeline: {
+            ...state.timeline,
+            responses: state.timeline.responses.map(r => r.id === id ? { ...r, ...update } : r),
+          },
+        })),
+        deleteTimelineResponse: (id) => set(state => ({
+          timeline: {
+            ...state.timeline,
+            responses: state.timeline.responses.filter(r => r.id !== id),
+          },
+        })),
+        setTimelineResponses: (responses) => set(state => ({
+          timeline: {
+            ...state.timeline,
+            responses,
+          },
+        })),
+        addDevice: (metadata) => set(state => {
+          const prev = state.deviceMetadata[metadata.browserId] || {};
+          return {
+            devices: state.devices.includes(metadata.browserId)
+              ? state.devices
+              : [...state.devices, metadata.browserId],
+            deviceMetadata: {
+              ...state.deviceMetadata,
+              [metadata.browserId]: {
+                ...prev,
+                ...metadata,
+                nickname: metadata.nickname || prev.nickname || '',
+                group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
+                tags: metadata.tags || prev.tags || [],
+                typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
+              },
+            },
+          };
+        }),
+        removeDevice: (id) => set(state => {
+          const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
+          const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
+          const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
+          const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
+          const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
+          return {
+            devices: state.devices.filter(did => did !== id),
+            deviceMetadata: restMeta,
+            deviceState: restState,
+            deviceConnection: restConn,
+            deviceData: restData,
+            deviceUserPrefs: restPrefs,
+          };
+        }),
+        setDeviceMetadata: (browserId, metadata) => set(state => ({
+          deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
+        })),
+        setDeviceNickname: (browserId, nickname) => set(state => ({
+          deviceMetadata: {
+            ...state.deviceMetadata,
+            [browserId]: {
+              ...state.deviceMetadata[browserId],
+              nickname,
+            },
+          },
+        })),
+        setDeviceState: (browserId, update) => set(state => ({
+          deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
+        })),
+        setDeviceConnection: (browserId, update) => set(state => ({
+          deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
+        })),
+        setDeviceData: (browserId, data) => set(state => ({
+          deviceData: { ...state.deviceData, [browserId]: data },
+        })),
+        updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
+          deviceMetadata: {
+            ...state.deviceMetadata,
+            [browserId]: {
+              ...state.deviceMetadata[browserId],
+              typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
+            },
+          },
+        })),
+        setDeviceGroup: (browserId, group) => set(state => ({
+          deviceMetadata: {
+            ...state.deviceMetadata,
+            [browserId]: {
+              ...state.deviceMetadata[browserId],
+              group,
+            },
+          },
+        })),
+        setDeviceUserPrefs: (browserId, prefs) => set(state => ({
+          deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
+        })),
+        setTrackTarget: (trackIndex, target) => set(state => ({
+          tracks: {
+            ...state.tracks,
+            mapping: { ...state.tracks.mapping, [trackIndex]: target },
+          },
+        })),
+        setPalette: (name, palette) => set(state => ({
+          palettes: { ...state.palettes, [name]: palette },
+        })),
+        removePalette: (name) => set(state => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [name]: __, ...rest } = state.palettes;
+          return { palettes: rest };
+        }),
+        getPalette: (name) => {
+          const palettes = get().palettes;
+          if (!name) return palettes['led'] || Object.values(palettes)[0];
+          return palettes[name] || palettes['led'] || Object.values(palettes)[0];
+        },
+        addLog: (level, category, message, data) => set(state => {
+          const max = state.maxLogCount || 200;
+          const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
+          const logs = [...state.logs, newLog];
+          // Cap logs at maxLogCount
+          const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
+          return { logs: cappedLogs };
+        }),
+        clearLogs: () => set({ logs: [] }),
+        getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
+        getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
+        addRectTemplate: (template) => set(state => ({
+          rectTemplates: {
+            ...state.rectTemplates,
+            [template.id]: {
+              ...template,
+              defaultData: migrateDefaultData(template.defaultData),
+            },
+          },
+        })),
+        updateRectTemplate: (id, update) => set(state => ({
+          rectTemplates: {
+            ...state.rectTemplates,
+            [id]: {
+              ...state.rectTemplates[id],
+              ...update,
+              defaultData: update.defaultData
+                ? migrateDefaultData(update.defaultData)
+                : state.rectTemplates[id].defaultData,
+            },
+          },
+        })),
+        deleteRectTemplate: (id) => set(state => {
+          const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
+          return { rectTemplates: rest };
+        }),
+        getRectTemplate: (id) => get().rectTemplates[id],
+        getRectTemplates: () => Object.values(get().rectTemplates),
+        addTemplateType: (type) => set(state => ({
+          templateTypes: [...state.templateTypes, type],
+        })),
+        removeTemplateType: (value) => set(state => ({
+          templateTypes: state.templateTypes.filter(t => t.value !== value),
+        })),
+        updateTemplateType: (value, update) => set(state => ({
+          templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+        })),
+      })
+    : persistWithIndexedDB('app-state', (set, get) => ({
     audio: {
       data: initialAudioData,
       analysis: initialAudioAnalysis,
@@ -326,7 +555,7 @@ export const useAppStore = create<AppState & {
     playback: initialPlayback,
     ui: initialUI,
     timeline: initialTimeline,
-    tracks: initialTracks,
+        tracks: initialTracks,
     devices: [],
     deviceMetadata: initialDeviceMetadata,
     deviceState: initialDeviceState,
@@ -334,40 +563,35 @@ export const useAppStore = create<AppState & {
     deviceData: initialDeviceData,
     deviceUserPrefs: initialDeviceUserPrefs,
     hydrated: false,
-    palettes: { ...responseRectPalettes },
-    rectTemplates: {
-      'led-beat': {
-        id: 'led-beat',
-        name: 'LED Beat',
-        type: 'led',
-        defaultDuration: 1,
-        defaultData: { pattern: 'beat', color: '#00ff00' },
-        paletteName: 'lightPulse',
-      },
-      'led-wave': {
-        id: 'led-wave',
-        name: 'LED Wave',
-        type: 'led',
-        defaultDuration: 2,
-        defaultData: { pattern: 'wave', color: '#0000ff' },
-        paletteName: 'singleFirePattern',
-      },
-    },
-    templateTypes: [
-      { value: 'pulse', label: 'Pulse' },
-      { value: 'pattern', label: 'Pattern' },
-      { value: 'cue', label: 'Cue' },
-      { value: 'settings', label: 'Settings Change' },
-      { value: 'led', label: 'LED' },
-    ],
-    logs: [
-      { id: '1', timestamp: Date.now(), level: 'info', category: 'timeline', message: 'Timeline loaded' },
-      { id: '2', timestamp: Date.now(), level: 'warn', category: 'leds', message: 'LEDs not responding' },
-      { id: '3', timestamp: Date.now(), level: 'error', category: 'audio', message: 'Audio device error', data: { code: 500 } },
-    ],
-    maxLogCount: 200,
-    setAudioData: ({ waveform, duration }) => {
-      set((state) => ({
+        palettes: { ...responseRectPalettes },
+        rectTemplates: {
+          'led-beat': {
+            id: 'led-beat',
+            name: 'LED Beat',
+            type: 'led',
+            defaultDuration: 1,
+            defaultData: { pattern: 'beat', color: '#00ff00' },
+            paletteName: 'lightPulse',
+          },
+          'led-wave': {
+            id: 'led-wave',
+            name: 'LED Wave',
+            type: 'led',
+            defaultDuration: 2,
+            defaultData: { pattern: 'wave', color: '#0000ff' },
+            paletteName: 'singleFirePattern',
+          },
+        },
+        templateTypes: [
+          { value: 'pulse', label: 'Pulse' },
+          { value: 'pattern', label: 'Pattern' },
+          { value: 'cue', label: 'Cue' },
+          { value: 'settings', label: 'Settings Change' },
+          { value: 'led', label: 'LED' },
+        ],
+        logs: [],
+        maxLogCount: 200,
+        setAudioData: ({ waveform, duration }) => set(state => ({
         audio: {
           ...state.audio,
           analysis: {
@@ -380,8 +604,7 @@ export const useAppStore = create<AppState & {
           ...state.playback,
           totalDuration: duration,
         },
-      }));
-    },
+        })),
     addTimelineResponse: (resp) => set(state => ({
       timeline: {
         ...state.timeline,
@@ -479,75 +702,75 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-    setDeviceUserPrefs: (browserId: string, prefs: Partial<DeviceUserPrefs[string]>) => set(state => ({
+    setDeviceUserPrefs: (browserId, prefs) => set(state => ({
       deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
     })),
-    setTrackTarget: (trackIndex, target) => set(state => ({
-      tracks: {
-        ...state.tracks,
-        mapping: { ...state.tracks.mapping, [trackIndex]: target },
-      },
-    })),
-    setPalette: (name, palette) => set(state => ({
-      palettes: { ...state.palettes, [name]: palette },
-    })),
-    removePalette: (name) => set(state => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { [name]: __, ...rest } = state.palettes;
-      return { palettes: rest };
-    }),
-    getPalette: (name) => {
-      const palettes = get().palettes;
-      if (!name) return palettes['led'] || Object.values(palettes)[0];
-      return palettes[name] || palettes['led'] || Object.values(palettes)[0];
-    },
-    addLog: (level, category, message, data) => set(state => {
-      const max = state.maxLogCount || 200;
-      const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
-      const logs = [...state.logs, newLog];
-      // Cap logs at maxLogCount
-      const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
-      return { logs: cappedLogs };
-    }),
-    clearLogs: () => set({ logs: [] }),
-    getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
-    getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
-    addRectTemplate: (template) => set(state => ({
-      rectTemplates: {
-        ...state.rectTemplates,
-        [template.id]: {
-          ...template,
-          defaultData: migrateDefaultData(template.defaultData),
+        setTrackTarget: (trackIndex, target) => set(state => ({
+          tracks: {
+            ...state.tracks,
+            mapping: { ...state.tracks.mapping, [trackIndex]: target },
+          },
+        })),
+        setPalette: (name, palette) => set(state => ({
+          palettes: { ...state.palettes, [name]: palette },
+        })),
+        removePalette: (name) => set(state => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [name]: __, ...rest } = state.palettes;
+          return { palettes: rest };
+        }),
+        getPalette: (name) => {
+          const palettes = get().palettes;
+          if (!name) return palettes['led'] || Object.values(palettes)[0];
+          return palettes[name] || palettes['led'] || Object.values(palettes)[0];
         },
-      },
-    })),
-    updateRectTemplate: (id, update) => set(state => ({
-      rectTemplates: {
-        ...state.rectTemplates,
-        [id]: {
-          ...state.rectTemplates[id],
-          ...update,
-          defaultData: update.defaultData
-            ? migrateDefaultData(update.defaultData)
-            : state.rectTemplates[id].defaultData,
-        },
-      },
-    })),
-    deleteRectTemplate: (id) => set(state => {
-      const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
-      return { rectTemplates: rest };
-    }),
-    getRectTemplate: (id) => get().rectTemplates[id],
-    getRectTemplates: () => Object.values(get().rectTemplates),
-    addTemplateType: (type) => set(state => ({
-      templateTypes: [...state.templateTypes, type],
-    })),
-    removeTemplateType: (value) => set(state => ({
-      templateTypes: state.templateTypes.filter(t => t.value !== value),
-    })),
-    updateTemplateType: (value, update) => set(state => ({
-      templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
-    })),
+        addLog: (level, category, message, data) => set(state => {
+          const max = state.maxLogCount || 200;
+          const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
+          const logs = [...state.logs, newLog];
+          // Cap logs at maxLogCount
+          const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
+          return { logs: cappedLogs };
+        }),
+        clearLogs: () => set({ logs: [] }),
+        getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
+        getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
+        addRectTemplate: (template) => set(state => ({
+          rectTemplates: {
+            ...state.rectTemplates,
+            [template.id]: {
+              ...template,
+              defaultData: migrateDefaultData(template.defaultData),
+            },
+          },
+        })),
+        updateRectTemplate: (id, update) => set(state => ({
+          rectTemplates: {
+            ...state.rectTemplates,
+            [id]: {
+              ...state.rectTemplates[id],
+              ...update,
+              defaultData: update.defaultData
+                ? migrateDefaultData(update.defaultData)
+                : state.rectTemplates[id].defaultData,
+            },
+          },
+        })),
+        deleteRectTemplate: (id) => set(state => {
+          const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
+          return { rectTemplates: rest };
+        }),
+        getRectTemplate: (id) => get().rectTemplates[id],
+        getRectTemplates: () => Object.values(get().rectTemplates),
+        addTemplateType: (type) => set(state => ({
+          templateTypes: [...state.templateTypes, type],
+        })),
+        removeTemplateType: (value) => set(state => ({
+          templateTypes: state.templateTypes.filter(t => t.value !== value),
+        })),
+        updateTemplateType: (value, update) => set(state => ({
+          templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+        })),
   }))
 ); 
 
@@ -594,7 +817,7 @@ export const useDeviceConnection = (browserId: string) =>
 export const useDeviceUserPrefs = (browserId: string) =>
   useAppStore(state => state.deviceUserPrefs[browserId]);
 
-export const useHydrated = () => useAppStore(state => state.hydrated);
+export const useHydrated = () => useAppStore(state => state.hydrated); 
 
 export const useAddTemplateType = () => useAppStore(state => state.addTemplateType);
 export const useRemoveTemplateType = () => useAppStore(state => state.removeTemplateType);
@@ -622,4 +845,7 @@ function migrateDefaultData(data: unknown): Record<string, unknown> {
     return data as Record<string, unknown>;
   }
   return {};
-} 
+}
+
+// Selector for all rect templates
+export const selectRectTemplates = (state: AppState) => Object.values(state.rectTemplates); 

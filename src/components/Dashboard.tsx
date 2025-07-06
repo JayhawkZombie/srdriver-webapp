@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Drawer,
+  Drawer as MuiDrawer,
 } from '@mui/material';
 import DashboardHeader from './DashboardHeader';
 import LightsConnectionCard from './controls/LightsConnectionCard';
@@ -9,9 +9,10 @@ import TestbedModal from './testbed/TestbedModal';
 import TestHarnessContent from './testbed/TestHarnessContent';
 import { AppStateLogDrawer } from './spectrogram-timeline/refactored-timeline/AppStateLogDrawer';
 import DevAppStateViewer from './dev/DevAppStateViewer';
-import { Card, Elevation } from '@blueprintjs/core';
+import { Card, Elevation, Drawer as BPDrawer, Position } from '@blueprintjs/core';
 import { ResponsePaletteEditor } from './spectrogram-timeline/refactored-timeline/ResponsePaletteEditor';
 import { ResponseRectTemplateEditor } from './spectrogram-timeline/refactored-timeline/ResponseRectTemplateEditor';
+import { ResponseRectToolbarGallery } from './spectrogram-timeline/refactored-timeline/ResponseRectToolbarGallery';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -41,23 +42,28 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
           onOpenDevAppStateDrawer={toggleDevAppStateDrawer}
         />
       </Box>
-      <Drawer
-        anchor="left"
-        open={leftDrawerOpen}
+      <BPDrawer
+        isOpen={leftDrawerOpen}
         onClose={() => setLeftDrawerOpen(false)}
-        PaperProps={{ sx: { width: 500, p: 2, bgcolor: 'background.default', boxShadow: 8, mt: '64px', height: 'calc(100% - 64px)', top: '64px' } }}
+        position={Position.LEFT}
+        size={500}
+        canOutsideClickClose
+        hasBackdrop={false}
+        style={{ marginTop: 64, height: 'calc(100% - 64px)', top: 64 }}
       >
+        <div style={{ padding: 16 }}>
           <ResponsePaletteEditor />
-          <ResponseRectTemplateEditor />
-      </Drawer>
-      <Drawer
+          <ResponseRectToolbarGallery />
+        </div>
+      </BPDrawer>
+      <MuiDrawer
         anchor="right"
         open={connectionDrawerOpen}
         onClose={() => setConnectionDrawerOpen(false)}
         PaperProps={{ sx: { width: 380, p: 2, bgcolor: 'background.default', boxShadow: 8, mt: '64px', height: 'calc(100% - 64px)', top: '64px' } }}
       >
         <LightsConnectionCard />
-      </Drawer>
+      </MuiDrawer>
       <TestbedModal
         open={testbedModalOpen}
         onClose={() => setTestbedModalOpen(false)}

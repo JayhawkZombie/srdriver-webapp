@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAppStore } from './appStore';
 import { getFakeAppState } from './mockAppState';
 
@@ -15,7 +15,12 @@ interface FakeAppStateStoryProviderProps {
  * - If both are provided, initialState takes precedence.
  */
 export const FakeAppStateStoryProvider: React.FC<FakeAppStateStoryProviderProps> = ({ children, initialState, mockType }) => {
+  const didInit = useRef(false);
+
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
+
     let stateToSet = initialState;
     if (!initialState && mockType) {
       stateToSet = getFakeAppState(mockType);
