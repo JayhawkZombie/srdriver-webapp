@@ -33,70 +33,6 @@ function safeMerge<T>(base: T, update: Partial<T>): T {
   return result as T;
 }
 
-// --- Utility: Ensure all top-level fields are present and correct type ---
-const initialTopLevel = {
-  timeline: { responses: [] },
-  logs: [],
-  palettes: {},
-  rectTemplates: {},
-  templateTypes: [],
-  tracks: { mapping: {} },
-  devices: [],
-  deviceMetadata: {},
-  deviceState: {},
-  deviceConnection: {},
-  deviceData: {},
-  deviceUserPrefs: {},
-  audio: { data: { metadata: null, analysis: null }, analysis: { summary: null } },
-  playback: { currentTime: 0, isPlaying: false, totalDuration: 0 },
-  ui: { windowSec: 4, showFirstDerivative: false, showSecondDerivative: false, showImpulses: true, showSustainedImpulses: false, onlySustained: false, showDetectionFunction: false },
-  hydrated: false,
-  waveformProgress: null,
-  fftProgress: null,
-  aubioProgress: null,
-  maxLogCount: 200,
-};
-
-function ensureTopLevelFields<T extends object>(state: T): T {
-  const merged = { ...initialTopLevel, ...state };
-  // Ensure timeline.responses is always an array
-  if (!merged.timeline || !Array.isArray(merged.timeline.responses)) {
-    merged.timeline = { responses: [] };
-  }
-  // Ensure logs is always an array
-  if (!Array.isArray(merged.logs)) {
-    merged.logs = [];
-  }
-  // Add more field checks as needed
-  return merged as T;
-}
-
-// --- General guard for large arrays in Zustand set ---
-function guardedSet<T extends object>(set: (fn: (state: T) => T | Partial<T>) => void) {
-  return (fn: (state: T) => T | Partial<T>) => {
-    const nextState = fn({} as T); // We don't have the actual state here, but this is sufficient for the check
-    function checkLargeArrays(obj: unknown, path: string[] = []): boolean {
-      if (Array.isArray(obj) && obj.length > 10000) {
-        const stack = new Error().stack?.split('\n').slice(2, 7).join('\n') ?? '';
-        return !window.confirm(
-          `You are about to store a very large array (${obj.length}) at ${path.join('.')} in the app store. This may freeze your browser.\n\nStack trace:\n${stack}`
-        );
-      }
-      if (obj && typeof obj === 'object') {
-        for (const key in obj as Record<string, unknown>) {
-          if (checkLargeArrays((obj as Record<string, unknown>)[key], [...path, key])) return true;
-        }
-      }
-      return false;
-    }
-    if (checkLargeArrays(nextState)) {
-      return;
-    }
-    // --- NEW: Ensure all top-level fields are present and correct type ---
-    set((prev: T) => ensureTopLevelFields(safeMerge(prev, nextState)));
-  };
-}
-
 // --- Generic IndexedDB middleware ---
 export function persistWithIndexedDB<T extends object>(key: string, config: StateCreator<T>): StateCreator<T> {
   return (set, _get, api) => {
@@ -456,8 +392,7 @@ export const useAppStore = create<AppState & {
 }>(
   isStorybook
     ? ((set, get) => {
-        const guarded = guardedSet(set);
-        // Use guarded instead of set for all state updates
+        // Use set(state => ...) pattern for all state updates
         return {
           audio: {
             data: initialAudioData,
@@ -503,7 +438,7 @@ export const useAppStore = create<AppState & {
           waveformProgress: null,
           logs: [],
           maxLogCount: 200,
-          setAudioData: ({ waveform, duration }) => guarded(state => ({
+          setAudioData: ({ waveform, duration }) => set(state => ({
             audio: safeMerge(state.audio ?? {}, {
               analysis: ensureAudioDataAnalysis({
                 ...state.audio?.analysis,
@@ -516,7 +451,7 @@ export const useAppStore = create<AppState & {
               totalDuration: duration,
             },
           })),
-          setWaveformProgress: (progress) => guarded(() => ({ waveformProgress: progress })),
+          setWaveformProgress: (progress) => set(() => ({ waveformProgress: progress })),
           addTimelineResponse: (resp) => set(state => ({
             ...state,
             timeline: {
@@ -545,7 +480,7 @@ export const useAppStore = create<AppState & {
               responses,
             },
           })),
-          addDevice: (metadata) => guarded(state => {
+          addDevice: (metadata) => set(state => {
             const prev = state.deviceMetadata[metadata.browserId] || {};
             return {
               devices: state.devices.includes(metadata.browserId)
@@ -564,7 +499,7 @@ export const useAppStore = create<AppState & {
               },
             };
           }),
-          removeDevice: (id) => guarded(state => {
+          removeDevice: (id) => set(state => {
             const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
             const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
             const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
@@ -579,10 +514,10 @@ export const useAppStore = create<AppState & {
               deviceUserPrefs: restPrefs,
             };
           }),
-          setDeviceMetadata: (browserId, metadata) => guarded(state => ({
+          setDeviceMetadata: (browserId, metadata) => set(state => ({
             deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
           })),
-          setDeviceNickname: (browserId, nickname) => guarded(state => ({
+          setDeviceNickname: (browserId, nickname) => set(state => ({
             deviceMetadata: {
               ...state.deviceMetadata,
               [browserId]: {
@@ -591,16 +526,16 @@ export const useAppStore = create<AppState & {
               },
             },
           })),
-          setDeviceState: (browserId, update) => guarded(state => ({
+          setDeviceState: (browserId, update) => set(state => ({
             deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
           })),
-          setDeviceConnection: (browserId, update) => guarded(state => ({
+          setDeviceConnection: (browserId, update) => set(state => ({
             deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
           })),
-          setDeviceData: (browserId, data) => guarded(state => ({
+          setDeviceData: (browserId, data) => set(state => ({
             deviceData: { ...state.deviceData, [browserId]: data },
           })),
-          updateDeviceTypeInfo: (browserId, typeInfo) => guarded(state => ({
+          updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
             deviceMetadata: {
               ...state.deviceMetadata,
               [browserId]: {
@@ -609,7 +544,7 @@ export const useAppStore = create<AppState & {
               },
             },
           })),
-          setDeviceGroup: (browserId, group) => guarded(state => ({
+          setDeviceGroup: (browserId, group) => set(state => ({
             deviceMetadata: {
               ...state.deviceMetadata,
               [browserId]: {
@@ -618,19 +553,19 @@ export const useAppStore = create<AppState & {
               },
             },
           })),
-          setDeviceUserPrefs: (browserId, prefs) => guarded(state => ({
+          setDeviceUserPrefs: (browserId, prefs) => set(state => ({
             deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
           })),
-          setTrackTarget: (trackIndex, target) => guarded(state => ({
+          setTrackTarget: (trackIndex, target) => set(state => ({
             tracks: {
               ...state.tracks,
               mapping: { ...state.tracks.mapping, [trackIndex]: target },
             },
           })),
-          setPalette: (name, palette) => guarded(state => ({
+          setPalette: (name, palette) => set(state => ({
             palettes: { ...state.palettes, [name]: palette },
           })),
-          removePalette: (name) => guarded(state => {
+          removePalette: (name) => set(state => {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { [name]: __, ...rest } = state.palettes;
             return { palettes: rest };
@@ -640,7 +575,7 @@ export const useAppStore = create<AppState & {
             if (!name) return palettes['led'] || Object.values(palettes)[0];
             return palettes[name] || palettes['led'] || Object.values(palettes)[0];
           },
-          addLog: (level, category, message, data) => guarded(state => {
+          addLog: (level, category, message, data) => set(state => {
             const max = state.maxLogCount || 200;
             const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
             const logs = [...state.logs, newLog];
@@ -648,10 +583,10 @@ export const useAppStore = create<AppState & {
             const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
             return { logs: cappedLogs };
           }),
-          clearLogs: () => guarded(() => ({ logs: [] })),
+          clearLogs: () => set(() => ({ logs: [] })),
           getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
           getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
-          addRectTemplate: (template) => guarded(state => ({
+          addRectTemplate: (template) => set(state => ({
             rectTemplates: {
               ...state.rectTemplates,
               [template.id]: {
@@ -660,7 +595,7 @@ export const useAppStore = create<AppState & {
               },
             },
           })),
-          updateRectTemplate: (id, update) => guarded(state => ({
+          updateRectTemplate: (id, update) => set(state => ({
             rectTemplates: {
               ...state.rectTemplates,
               [id]: {
@@ -672,28 +607,28 @@ export const useAppStore = create<AppState & {
               },
             },
           })),
-          deleteRectTemplate: (id) => guarded(state => {
+          deleteRectTemplate: (id) => set(state => {
             const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
             return { rectTemplates: rest };
           }),
           getRectTemplate: (id) => get().rectTemplates[id],
           getRectTemplates: () => Object.values(get().rectTemplates),
-          addTemplateType: (type) => guarded(state => ({
+          addTemplateType: (type) => set(state => ({
             templateTypes: [...state.templateTypes, type],
           })),
-          removeTemplateType: (value) => guarded(state => ({
+          removeTemplateType: (value) => set(state => ({
             templateTypes: state.templateTypes.filter(t => t.value !== value),
           })),
-          updateTemplateType: (value, update) => guarded(state => ({
+          updateTemplateType: (value, update) => set(state => ({
             templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
           })),
           fftProgress: null,
           aubioProgress: null,
-          setFftProgress: (progress) => guarded(() => ({ fftProgress: progress })),
-          setAubioProgress: (progress) => guarded(() => ({ aubioProgress: progress })),
+          setFftProgress: (progress) => set(() => ({ fftProgress: progress })),
+          setAubioProgress: (progress) => set(() => ({ aubioProgress: progress })),
           setFftResult: (result) => {
             // Only store downsampled/summary data in Zustand
-            guarded(state => ({
+            set(state => ({
               audio: safeMerge(state.audio ?? {}, {
                 analysis: ensureAudioDataAnalysis({
                   ...state.audio?.analysis,
@@ -703,7 +638,7 @@ export const useAppStore = create<AppState & {
               })
             }));
           },
-          setAubioResult: (result) => guarded(state => ({
+          setAubioResult: (result) => set(state => ({
             audio: safeMerge(state.audio ?? {}, {
               analysis: ensureAudioDataAnalysis({
                 ...state.audio?.analysis,
@@ -720,7 +655,7 @@ export const useAppStore = create<AppState & {
                 return;
               }
             }
-            guarded(state => ({
+            set(state => ({
               audio: safeMerge(state.audio ?? {}, {
                 analysis: ensureAudioDataAnalysis({
                   ...state.audio?.analysis,
@@ -732,8 +667,7 @@ export const useAppStore = create<AppState & {
         };
       })
     : persistWithIndexedDB('app-state', (set, get) => {
-        const guarded = guardedSet(set);
-        // Use guarded instead of set for all state updates
+        // Use set(state => ...) pattern for all state updates
         return {
     audio: {
       data: initialAudioData,
@@ -779,7 +713,7 @@ export const useAppStore = create<AppState & {
           waveformProgress: null,
           logs: [],
           maxLogCount: 200,
-          setAudioData: ({ waveform, duration }) => guarded(state => ({
+          setAudioData: ({ waveform, duration }) => set(state => ({
         audio: safeMerge(state.audio ?? {}, {
           analysis: ensureAudioDataAnalysis({
             ...state.audio?.analysis,
@@ -820,7 +754,7 @@ export const useAppStore = create<AppState & {
         responses,
       },
     })),
-          addDevice: (metadata) => guarded(state => {
+          addDevice: (metadata) => set(state => {
       const prev = state.deviceMetadata[metadata.browserId] || {};
       return {
         devices: state.devices.includes(metadata.browserId)
@@ -839,7 +773,7 @@ export const useAppStore = create<AppState & {
         },
       };
     }),
-          removeDevice: (id) => guarded(state => {
+          removeDevice: (id) => set(state => {
       const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
       const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
       const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
@@ -854,10 +788,10 @@ export const useAppStore = create<AppState & {
         deviceUserPrefs: restPrefs,
       };
     }),
-          setDeviceMetadata: (browserId, metadata) => guarded(state => ({
+          setDeviceMetadata: (browserId, metadata) => set(state => ({
       deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
     })),
-          setDeviceNickname: (browserId, nickname) => guarded(state => ({
+          setDeviceNickname: (browserId, nickname) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
         [browserId]: {
@@ -866,16 +800,16 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-          setDeviceState: (browserId, update) => guarded(state => ({
+          setDeviceState: (browserId, update) => set(state => ({
       deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
     })),
-          setDeviceConnection: (browserId, update) => guarded(state => ({
+          setDeviceConnection: (browserId, update) => set(state => ({
       deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
     })),
-          setDeviceData: (browserId, data) => guarded(state => ({
+          setDeviceData: (browserId, data) => set(state => ({
       deviceData: { ...state.deviceData, [browserId]: data },
     })),
-          updateDeviceTypeInfo: (browserId, typeInfo) => guarded(state => ({
+          updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
         [browserId]: {
@@ -884,7 +818,7 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-          setDeviceGroup: (browserId, group) => guarded(state => ({
+          setDeviceGroup: (browserId, group) => set(state => ({
       deviceMetadata: {
         ...state.deviceMetadata,
         [browserId]: {
@@ -893,19 +827,19 @@ export const useAppStore = create<AppState & {
         },
       },
     })),
-          setDeviceUserPrefs: (browserId, prefs) => guarded(state => ({
+          setDeviceUserPrefs: (browserId, prefs) => set(state => ({
       deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
     })),
-          setTrackTarget: (trackIndex, target) => guarded(state => ({
+          setTrackTarget: (trackIndex, target) => set(state => ({
             tracks: {
               ...state.tracks,
               mapping: { ...state.tracks.mapping, [trackIndex]: target },
             },
           })),
-          setPalette: (name, palette) => guarded(state => ({
+          setPalette: (name, palette) => set(state => ({
             palettes: { ...state.palettes, [name]: palette },
           })),
-          removePalette: (name) => guarded(state => {
+          removePalette: (name) => set(state => {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { [name]: __, ...rest } = state.palettes;
             return { palettes: rest };
@@ -915,7 +849,7 @@ export const useAppStore = create<AppState & {
             if (!name) return palettes['led'] || Object.values(palettes)[0];
             return palettes[name] || palettes['led'] || Object.values(palettes)[0];
           },
-          addLog: (level, category, message, data) => guarded(state => {
+          addLog: (level, category, message, data) => set(state => {
             const max = state.maxLogCount || 200;
             const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
             const logs = [...state.logs, newLog];
@@ -923,10 +857,10 @@ export const useAppStore = create<AppState & {
             const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
             return { logs: cappedLogs };
           }),
-          clearLogs: () => guarded(() => ({ logs: [] })),
+          clearLogs: () => set(() => ({ logs: [] })),
           getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
           getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
-          addRectTemplate: (template) => guarded(state => ({
+          addRectTemplate: (template) => set(state => ({
             rectTemplates: {
               ...state.rectTemplates,
               [template.id]: {
@@ -935,7 +869,7 @@ export const useAppStore = create<AppState & {
               },
             },
           })),
-          updateRectTemplate: (id, update) => guarded(state => ({
+          updateRectTemplate: (id, update) => set(state => ({
             rectTemplates: {
               ...state.rectTemplates,
               [id]: {
@@ -947,29 +881,29 @@ export const useAppStore = create<AppState & {
               },
             },
           })),
-          deleteRectTemplate: (id) => guarded(state => {
+          deleteRectTemplate: (id) => set(state => {
             const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
             return { rectTemplates: rest };
           }),
           getRectTemplate: (id) => get().rectTemplates[id],
           getRectTemplates: () => Object.values(get().rectTemplates),
-          addTemplateType: (type) => guarded(state => ({
+          addTemplateType: (type) => set(state => ({
             templateTypes: [...state.templateTypes, type],
           })),
-          removeTemplateType: (value) => guarded(state => ({
+          removeTemplateType: (value) => set(state => ({
             templateTypes: state.templateTypes.filter(t => t.value !== value),
           })),
-          updateTemplateType: (value, update) => guarded(state => ({
+          updateTemplateType: (value, update) => set(state => ({
             templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
           })),
-          setWaveformProgress: (progress) => guarded(() => ({ waveformProgress: progress })),
+          setWaveformProgress: (progress) => set(() => ({ waveformProgress: progress })),
           fftProgress: null,
           aubioProgress: null,
-          setFftProgress: (progress) => guarded(() => ({ fftProgress: progress })),
-          setAubioProgress: (progress) => guarded(() => ({ aubioProgress: progress })),
+          setFftProgress: (progress) => set(() => ({ fftProgress: progress })),
+          setAubioProgress: (progress) => set(() => ({ aubioProgress: progress })),
           setFftResult: (result) => {
             // Only store downsampled/summary data in Zustand
-            guarded(state => ({
+            set(state => ({
               audio: safeMerge(state.audio ?? {}, {
                 analysis: ensureAudioDataAnalysis({
                   ...state.audio?.analysis,
@@ -979,7 +913,7 @@ export const useAppStore = create<AppState & {
               })
             }));
           },
-          setAubioResult: (result) => guarded(state => {
+          setAubioResult: (result) => set(state => {
             console.log('setAubioResult', result);
             return {
             audio: safeMerge(state.audio ?? {}, {
@@ -998,7 +932,7 @@ export const useAppStore = create<AppState & {
                 return;
               }
             }
-            guarded(state => ({
+            set(state => ({
               audio: safeMerge(state.audio ?? {}, {
                 analysis: ensureAudioDataAnalysis({
                   ...state.audio?.analysis,
