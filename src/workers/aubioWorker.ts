@@ -1,6 +1,7 @@
 /* eslint-disable */
 // Pluggable audio worker for onset/impulse detection (Vite-compatible, ES module)
 import { detectionEngines } from './detectionEngines';
+import type { DetectionResult } from './detectionEngines';
 type DetectionEvent = { time: number; strength?: number };
 
 globalThis.onmessage = async (e: MessageEvent) => {
@@ -24,18 +25,18 @@ globalThis.onmessage = async (e: MessageEvent) => {
     // Multi-band detection
     if (Array.isArray(bands) && bands.length > 0) {
       // Main PCM detection (if pcmBuffer provided)
-      let mainResult = { events: [], detectionFunction: [], times: [] };
+      let mainResult: DetectionResult = { events: [], detectionFunction: [], times: [] };
       if (pcmBuffer && pcmLength) {
         const mainPcm = new Float32Array(pcmBuffer, 0, pcmLength);
         mainResult = await selectedEngine.detect(mainPcm, sampleRate, params, onProgress);
       }
       // Each band
-      const bandResults = await Promise.all(bands.map(async (band: any) => {
+      const bandResults: DetectionResult[] = await Promise.all(bands.map(async (band: any) => {
         if (band.pcmBuffer && band.pcmLength) {
           const bandPcm = new Float32Array(band.pcmBuffer, 0, band.pcmLength);
-          return await selectedEngine.detect(bandPcm, sampleRate, params, onProgress);
+          return await selectedEngine.detect(bandPcm, sampleRate, params, onProgress) as DetectionResult;
         } else {
-          return { events: [], detectionFunction: [], times: [] };
+          return { events: [], detectionFunction: [], times: [] } as DetectionResult;
         }
       }));
       globalThis.postMessage({ type: 'done', main: mainResult, bands: bandResults, jobId });
