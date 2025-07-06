@@ -7,13 +7,13 @@ import { UnifiedThemeProvider } from "../src/context/UnifiedThemeProvider";
 import "@blueprintjs/core/lib/css/blueprint.css";
 
 export const globalTypes = {
-    showLogDrawer: {
+  showLogDrawer: {
         name: "Log Drawer",
         description: "Show the application log drawer",
-        defaultValue: false,
-        toolbar: {
+    defaultValue: false,
+    toolbar: {
             icon: "sidebar",
-            items: [
+      items: [
                 { value: true, title: "Show Log Drawer" },
                 { value: false, title: "Hide Log Drawer" },
             ],
@@ -28,16 +28,16 @@ export const globalTypes = {
             items: [
                 { value: true, title: "Show App State Drawer" },
                 { value: false, title: "Hide App State Drawer" },
-            ],
-        },
+      ],
     },
+  },
 };
 
 export const decorators = [
-    (Story, context) => {
-        const showLogDrawer = context.globals.showLogDrawer;
+  (Story, context) => {
+    const showLogDrawer = context.globals.showLogDrawer;
         const showDevAppStateDrawer = context.globals.showDevAppStateDrawer;
-        return (
+    return (
             <UnifiedThemeProvider>
                 <FakeDeviceControllerProvider>
                     <FakeAppStateStoryProvider mockType="screenshotBar">
@@ -49,10 +49,10 @@ export const decorators = [
                             isOpen={!!showDevAppStateDrawer}
                             onClose={() => {}}
                         />
-                        <Story />
+        <Story />
                     </FakeAppStateStoryProvider>
                 </FakeDeviceControllerProvider>
             </UnifiedThemeProvider>
-        );
-    },
+    );
+  },
 ];

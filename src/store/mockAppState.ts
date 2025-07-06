@@ -1,52 +1,11 @@
 import type { AppState } from "./appStore";
-import {
-  makeSineWave,
-  makeNoise,
-  makeRandomBarData,
-  makeSineBarData,
-  makeBeatBarData,
-  makeScreenshotLikeBarData,
-} from "./mockAudioData";
 
-type WaveformType = 'sine' | 'noise';
-type FakeAppStateType = WaveformType | "randomBar" | "sineBar" | "beatBar" | "screenshotBar";
-
-export function getFakeAppState(type: FakeAppStateType = "sine"): AppState {
-  // Always populate all waveform types
-  const waveforms: Record<WaveformType, number[]> = {
-    sine: makeSineWave(256),
-    noise: makeNoise(256),
-    // Add more waveform types here as needed
-  };
-  // Set the default waveform to the requested type (for backward compatibility)
-  const waveform = waveforms[type as WaveformType] || waveforms.sine;
-
-  let barData;
-  switch (type) {
-    case "randomBar":
-      barData = makeRandomBarData(64);
-      break;
-    case "sineBar":
-      barData = makeSineBarData(64);
-      break;
-    case "beatBar":
-      barData = makeBeatBarData(64);
-      break;
-    case "screenshotBar":
-      barData = makeScreenshotLikeBarData(400);
-      break;
-    default:
-      // No special barData
-      break;
-  }
+export function getFakeAppState(): AppState {
   return {
     audio: {
       analysis: {
-        waveform, // default/legacy
-        waveforms, // all types
-        barData,
+        waveform: [],
         duration: 4,
-        fftSequence: [],
         summary: null,
       },
       data: { metadata: null, analysis: null },

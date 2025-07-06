@@ -13,20 +13,18 @@ interface AudioProcessRequest {
   windowSize: number;
   hopSize: number;
   jobId?: string;
+  maxFrames?: number; // Downsample to this many frames (default 200)
+  maxBins?: number;   // Downsample to this many bins (default 64)
 }
 
 interface AudioProcessResult {
-  summary: any; // TODO: Replace with proper type
-  fftSequence: Float32Array[];
-  normalizedFftSequence: Float32Array[];
+  summary: Record<string, unknown>; // More specific than any
+  fftSequence: number[][];
+  normalizedFftSequence: number[][];
   jobId?: string;
 }
 
-// If DedicatedWorkerGlobalScope is not defined, declare a minimal fallback type (for TypeScript in web workers)
-// @ts-ignore
-type _DedicatedWorkerGlobalScope = typeof globalThis & { onmessage: (e: MessageEvent) => void; postMessage: (msg: any) => void; };
-// @ts-ignore
-declare var self: _DedicatedWorkerGlobalScope;
+// (No longer needed: self/globalThis polyfill)
 
 // Chunk PCM data
 function* chunkPCMData(
@@ -62,16 +60,14 @@ globalThis.onmessage = async (e: MessageEvent) => {
   const data = e.data as AudioProcessRequest;
   const jobId = data.jobId;
   const pcmData = new Float32Array(data.pcmBuffer);
-  let numChunks = 0;
   let firstChunk: Float32Array | null = null;
-  let fftSequence: Float32Array[] = [];
+  const fftSequence: Float32Array[] = [];
   const chunks = Array.from(chunkPCMData(pcmData, data.windowSize, data.hopSize));
   const totalChunks = chunks.length;
   let lastReportedProcessed = 0;
   console.time('worker-processing');
   for (let idx = 0; idx < totalChunks; idx++) {
     const chunk = chunks[idx];
-    numChunks++;
     if (idx === 0) firstChunk = chunk;
     const magnitudes = computeFFTMagnitude(chunk);
     fftSequence.push(magnitudes);
@@ -119,7 +115,48 @@ globalThis.onmessage = async (e: MessageEvent) => {
     });
   });
 
-  globalThis.postMessage({ type: 'done', summary, fftSequence, normalizedFftSequence, jobId } as AudioProcessResult);
+  // Downsample 2D array to [maxFrames][maxBins] using averaging
+  function downsample2D(arr: number[][], targetFrames: number, targetBins: number): number[][] {
+    const srcFrames = arr.length;
+    const srcBins = arr[0]?.length || 0;
+    if (srcFrames <= targetFrames && srcBins <= targetBins) return arr;
+    // Downsample frames
+    const frameStep = srcFrames / targetFrames;
+    const binStep = srcBins / targetBins;
+    const out: number[][] = [];
+    for (let i = 0; i < targetFrames; i++) {
+      const frameStart = Math.floor(i * frameStep);
+      const frameEnd = Math.floor((i + 1) * frameStep);
+      // Average over frames
+      const frameAvg = Array(targetBins).fill(0);
+      let frameCount = 0;
+      for (let f = frameStart; f < frameEnd && f < srcFrames; f++) {
+        // Downsample bins for this frame
+        for (let j = 0; j < targetBins; j++) {
+          const binStart = Math.floor(j * binStep);
+          const binEnd = Math.floor((j + 1) * binStep);
+          let sum = 0, count = 0;
+          for (let b = binStart; b < binEnd && b < srcBins; b++) {
+            sum += arr[f][b];
+            count++;
+          }
+          frameAvg[j] += count ? sum / count : 0;
+        }
+        frameCount++;
+      }
+      // Average across frames
+      out.push(frameAvg.map(v => frameCount ? v / frameCount : 0));
+    }
+    return out;
+  }
+
+  // Convert Float32Array[] to number[][] for downsampling
+  const fftSeqNum = fftSequence.map(f => Array.from(f));
+  const normFftSeqNum = normalizedFftSequence.map(f => Array.from(f));
+  const dsFftSeq = downsample2D(fftSeqNum, data.maxFrames ?? 200, data.maxBins ?? 64);
+  const dsNormFftSeq = downsample2D(normFftSeqNum, data.maxFrames ?? 200, data.maxBins ?? 64);
+
+  globalThis.postMessage({ type: 'done', summary, fftSequence: dsFftSeq, normalizedFftSequence: dsNormFftSeq, jobId } as AudioProcessResult);
 };
 
 // No exports (web worker file) 

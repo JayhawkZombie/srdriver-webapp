@@ -103,7 +103,7 @@ export function getTimelinePointerInfo({
   const trackIndex = yToTrackIndex(y, geometry.trackHeight, geometry.trackGap, geometry.tracksTopOffset, geometry.numTracks);
   if (trackIndex < 0) return null;
   return { time, trackIndex };
-}
+} 
 
 /**
  * Snap a Y position to the nearest valid track index (0-based, clamped).

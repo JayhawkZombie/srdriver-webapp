@@ -1,29 +1,25 @@
 import React from "react";
 import { getPeakIndex, waveformToSvgPoints, getPeakCoordinate } from "./audioMath";
 import styles from "./Waveform.module.css";
-import { useAppStore } from "../../../store/appStore";
-import { selectWaveform, selectDuration } from "../../../store/selectors";
 import { usePlayback } from "./PlaybackContext";
 
 interface WaveformProps {
   width: number;
   height: number;
   showPeakTrace?: boolean;
-  waveformType?: string;
+  waveform: number[];
+  duration?: number;
 }
 
-const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, waveformType }) => {
-  // Use selectors for waveform data and duration
-  const waveformData = useAppStore((state) => selectWaveform(state, waveformType));
-  const duration = useAppStore(selectDuration);
+const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, waveform, duration }) => {
   // Playback state
   const { currentTime, seek } = usePlayback();
 
-  if (!waveformData || !duration || !Array.isArray(waveformData) || waveformData.length === 0) return null;
+  if (!waveform || !duration || !Array.isArray(waveform) || waveform.length === 0) return null;
 
-  const points = waveformToSvgPoints(waveformData, width, height);
-  const peakIdx = getPeakIndex(waveformData);
-  const [peakX, peakY] = getPeakCoordinate(waveformData, peakIdx, width, height);
+  const points = waveformToSvgPoints(waveform, width, height);
+  const peakIdx = getPeakIndex(waveform);
+  const [peakX, peakY] = getPeakCoordinate(waveform, peakIdx, width, height);
 
   // Playhead X
   const playheadX = (currentTime / duration) * width;

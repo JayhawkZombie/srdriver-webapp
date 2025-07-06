@@ -24,7 +24,7 @@ class WorkerHandle<Request, Result> {
   }
 
   enqueue(request: Request, onProgress?: (progress: { processed: number; total: number; jobId?: string }) => void): Promise<Result> {
-    console.log(`Enqueueing job ${typeof request} ${JSON.stringify(request)}`);
+    console.log(`Enqueueing job ${typeof request}`);
     return new Promise((resolve, reject) => {
       const job: WorkerJob<Request, Result> = {
         jobId: crypto.randomUUID(),
@@ -45,12 +45,13 @@ class WorkerHandle<Request, Result> {
     this.status = 'busy';
     this.worker.onmessage = this.handleMessage.bind(this);
     this.worker.onerror = this.handleError.bind(this);
-    console.log(`posting message to worker: ${JSON.stringify(this.activeJob.request)}`);
+    console.log(`posting message to worker: ${JSON.stringify(this.activeJob.jobId)}`);
     this.worker.postMessage({ ...this.activeJob.request, jobId: this.activeJob.jobId });
   }
 
   private handleMessage(e: MessageEvent) {
-    console.log(`handleMessage: ${JSON.stringify(e.data)}`);
+    // console.log(`handleMessage: ${JSON.stringify(e.data)}`);
+    console.log(`handleMessage: ${JSON.stringify(e.data.jobId)}`);
     if (!this.activeJob) return;
     if (e.data && e.data.type === 'progress' && this.activeJob.onProgress) {
       this.activeJob.onProgress(e.data);
@@ -63,7 +64,7 @@ class WorkerHandle<Request, Result> {
   }
 
   private handleError(e: ErrorEvent) {
-    console.log(`handleError: ${JSON.stringify(e)}`);
+    // console.log(`handleError: ${JSON.stringify(e)}`);
     if (this.activeJob) {
       this.activeJob.reject(e.error || e.message);
       this.activeJob = null;
@@ -90,7 +91,18 @@ class WorkerManager {
   };
 
   enqueueJob<T, U>(type: WorkerType, request: T, onProgress?: (progress: { processed: number; total: number; jobId?: string }) => void): Promise<U> {
-    console.log(`[MANAGER] enqueueJob ${type} ${JSON.stringify(request)}`);
+    function isAubioRequest(obj: unknown): obj is { audioBuffer: Float32Array | ArrayBuffer; sampleRate: number } {
+      return !!obj && typeof obj === 'object' && 'audioBuffer' in obj && 'sampleRate' in obj;
+    }
+    if (type === 'aubio' && isAubioRequest(request)) {
+      const buffer = request.audioBuffer;
+      const bufferLen = (buffer instanceof Float32Array || buffer instanceof ArrayBuffer)
+        ? (buffer instanceof Float32Array ? buffer.length : buffer.byteLength)
+        : 0;
+      console.log(`[MANAGER] enqueueJob aubio { sampleRate: ${request.sampleRate}, bufferLength: ${bufferLen} }`);
+    } else {
+      console.log(`[MANAGER] enqueueJob ${type}`);
+    }
     return this.handles[type].enqueue(request, onProgress);
   }
 
