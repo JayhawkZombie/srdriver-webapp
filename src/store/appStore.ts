@@ -517,25 +517,29 @@ export const useAppStore = create<AppState & {
             },
           })),
           setWaveformProgress: (progress) => guarded(() => ({ waveformProgress: progress })),
-          addTimelineResponse: (resp) => guarded(state => ({
+          addTimelineResponse: (resp) => set(state => ({
+            ...state,
             timeline: {
               ...state.timeline,
-              responses: [...state.timeline.responses, resp],
+              responses: [...(state.timeline?.responses ?? []), resp],
             },
           })),
-          updateTimelineResponse: (id, update) => guarded(state => ({
+          updateTimelineResponse: (id, update) => set(state => ({
+            ...state,
             timeline: {
               ...state.timeline,
-              responses: state.timeline.responses.map(r => r.id === id ? { ...r, ...update } : r),
+              responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
             },
           })),
-          deleteTimelineResponse: (id) => guarded(state => ({
+          deleteTimelineResponse: (id) => set(state => ({
+            ...state,
             timeline: {
               ...state.timeline,
-              responses: state.timeline.responses.filter(r => r.id !== id),
+              responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
             },
           })),
-          setTimelineResponses: (responses) => guarded(state => ({
+          setTimelineResponses: (responses) => set(state => ({
+            ...state,
             timeline: {
               ...state.timeline,
               responses,
@@ -788,25 +792,29 @@ export const useAppStore = create<AppState & {
           totalDuration: duration,
         },
           })),
-          addTimelineResponse: (resp) => guarded(state => ({
+    addTimelineResponse: (resp) => set(state => ({
+      ...state,
       timeline: {
         ...state.timeline,
-        responses: [...state.timeline.responses, resp],
+        responses: [...(state.timeline?.responses ?? []), resp],
       },
     })),
-          updateTimelineResponse: (id, update) => guarded(state => ({
+    updateTimelineResponse: (id, update) => set(state => ({
+      ...state,
       timeline: {
         ...state.timeline,
-        responses: state.timeline.responses.map(r => r.id === id ? { ...r, ...update } : r),
+        responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
       },
     })),
-          deleteTimelineResponse: (id) => guarded(state => ({
+    deleteTimelineResponse: (id) => set(state => ({
+      ...state,
       timeline: {
         ...state.timeline,
-        responses: state.timeline.responses.filter(r => r.id !== id),
+        responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
       },
     })),
-          setTimelineResponses: (responses) => guarded(state => ({
+    setTimelineResponses: (responses) => set(state => ({
+      ...state,
       timeline: {
         ...state.timeline,
         responses,
