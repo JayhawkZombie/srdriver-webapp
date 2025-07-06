@@ -4,33 +4,18 @@ import { PlaybackProvider, usePlayback } from "./PlaybackContext";
 import PlaybackControls from "./PlaybackControls";
 import TimelineHeader from "./TimelineHeader";
 import ResponseTimeline from "./ResponseTimeline";
-import Waveform from "./Waveform";
+import BarWaveform from "./BarWaveform";
 import { useAppStore } from "../../../store/appStore";
-import { selectWaveform } from "../../../store/selectors";
+import { selectWindowSec, selectDuration } from "../../../store/appStore";
 import {
     decodeAudioFile,
     getMonoPCMData,
 } from "../../../controllers/audioChunker";
+import { workerManager } from "../../../controllers/workerManager";
+import { useAsyncWorkerJob } from "../../dev/useAsyncWorkerJob";
+import { ProgressBar, Button } from "@blueprintjs/core";
 
-function downsamplePCM(pcm: Float32Array, numPoints: number): number[] {
-    const len = pcm.length;
-    const result = [];
-    for (let i = 0; i < numPoints; i++) {
-        const start = Math.floor((i / numPoints) * len);
-        const end = Math.floor(((i + 1) / numPoints) * len);
-        let min = 1,
-            max = -1;
-        for (let j = start; j < end; j++) {
-            const v = pcm[j] || 0;
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
-        result.push((min + max) / 2);
-    }
-    return result;
-}
-
-const AudioUpload: React.FC = () => {
+const AudioUpload: React.FC<{ onAudioBuffer: (audioBuffer: AudioBuffer) => void }> = ({ onAudioBuffer }) => {
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const setAudioData = useAppStore((s) => s.setAudioData);
     const { setAudioBuffer } = usePlayback();
@@ -41,9 +26,9 @@ const AudioUpload: React.FC = () => {
         if (file) {
             const audioBuffer = await decodeAudioFile(file);
             setAudioBuffer(audioBuffer);
+            onAudioBuffer(audioBuffer);
             const pcm = getMonoPCMData(audioBuffer);
-            const waveform = downsamplePCM(pcm, 1000);
-            setAudioData({ waveform, duration: audioBuffer.duration });
+            setAudioData({ waveform: [], duration: audioBuffer.duration }); // Clear waveform for now
         }
     };
 
@@ -59,17 +44,45 @@ const AudioUpload: React.FC = () => {
     );
 };
 
-const WaveformWithStore = (props: { width: number; height: number }) => {
-    const waveform = useAppStore(selectWaveform);
-    if (!Array.isArray(waveform) || waveform.length === 0) return null;
-    return (
-        <div className={styles.waveform}>
-            <Waveform width={props.width} height={props.height} />
-        </div>
-    );
+const WindowedWaveform: React.FC<{ waveform: number[]; width: number; height: number }> = ({ waveform, width, height }) => {
+    const windowSec = useAppStore(selectWindowSec);
+    const duration = useAppStore(selectDuration);
+    // Assume windowSec is the window size in seconds, and timeline shows [windowStart, windowStart+windowSec]
+    // For now, use windowStart = 0 (can be made reactive later)
+    const windowStart = 0;
+    const windowEnd = windowStart + windowSec;
+    if (!waveform || waveform.length === 0 || !duration) return null;
+    const startIdx = Math.floor((windowStart / duration) * waveform.length);
+    const endIdx = Math.ceil((windowEnd / duration) * waveform.length);
+    const windowedWaveform = waveform.slice(startIdx, endIdx);
+    return <div className={styles.waveform}><BarWaveform width={width} height={height} waveform={windowedWaveform} /></div>;
 };
 
 export const DashboardTimeline: React.FC = () => {
+    const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+    const [waveform, setWaveform] = useState<number[]>([]);
+    const { result, progress, loading, runJob } = useAsyncWorkerJob<{ waveform: number[] }, { processed: number; total: number }>();
+
+    const handleAnalyze = async () => {
+        if (!audioBuffer) return;
+        const pcm = getMonoPCMData(audioBuffer);
+        const req = {
+            type: 'waveform' as const,
+            pcmBuffer: pcm.buffer,
+            sampleRate: audioBuffer.sampleRate,
+            numPoints: 1000,
+        };
+        runJob((onProgress) =>
+            workerManager.enqueueJob<typeof req, { waveform: number[] }>('waveform', req, onProgress)
+        );
+    };
+
+    React.useEffect(() => {
+        if (result && result.waveform) {
+            setWaveform(result.waveform);
+        }
+    }, [result]);
+
     return (
         <PlaybackProvider>
             <div className={styles.root}>
@@ -88,8 +101,20 @@ export const DashboardTimeline: React.FC = () => {
                     </h2>
                 </div>
                 <div className={styles.content}>
-                    <AudioUpload />
-                    <WaveformWithStore width={800} height={80} />
+                    <AudioUpload onAudioBuffer={setAudioBuffer} />
+                    <Button intent="primary" onClick={handleAnalyze} disabled={!audioBuffer || loading} style={{ marginBottom: 12 }}>
+                        Analyze Audio
+                    </Button>
+                    <div className={styles.waveform} style={{ minHeight: 80 }}>
+                        {loading ? (
+                            <ProgressBar animate stripes value={progress && progress.total ? progress.processed / progress.total : 0} intent="primary" style={{ height: 12, borderRadius: 6 }} />
+                        ) : (
+                            <WindowedWaveform waveform={waveform} width={800} height={80} />
+                        )}
+                    </div>
+                    <div className={styles.controls}>
+                        <PlaybackControls />
+                    </div>
                     <div className={styles.timeline}>
                         <TimelineHeader />
                         <ResponseTimeline />
