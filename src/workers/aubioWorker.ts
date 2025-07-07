@@ -39,7 +39,17 @@ globalThis.onmessage = async (e: MessageEvent) => {
           return { events: [], detectionFunction: [], times: [] } as DetectionResult;
         }
       }));
-      globalThis.postMessage({ type: 'done', main: mainResult, bands: bandResults, jobId });
+      // Collect all buffers to transfer (ensure Float32Array)
+      function toBuffer(arr: number[] | Float32Array) {
+        return (arr instanceof Float32Array ? arr : new Float32Array(arr)).buffer;
+      }
+      const transferList: Transferable[] = [
+        ...(mainResult.detectionFunction ? [toBuffer(mainResult.detectionFunction)] : []),
+        ...(mainResult.times ? [toBuffer(mainResult.times)] : []),
+        ...bandResults.flatMap(b => [toBuffer(b.detectionFunction), toBuffer(b.times)])
+      ];
+      // Worker globalThis.postMessage: (message: any, transfer: Transferable[]) => void
+      (globalThis as any).postMessage({ type: 'done', main: mainResult, bands: bandResults, jobId }, transferList);
       return;
     }
     // Single PCM detection (legacy)

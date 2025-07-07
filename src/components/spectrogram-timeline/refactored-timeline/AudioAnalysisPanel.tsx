@@ -208,8 +208,6 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
         setBandResults,
         progress,
         setProgress,
-        bandProgress,
-        setBandProgress,
         setIsLoading,
         error,
         setError,
@@ -225,7 +223,6 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
         setResults(null);
         setBandResults([]);
         setProgress({ processed: 0, total: 1 });
-        setBandProgress(bands.map(() => ({ processed: 0, total: 1 })));
         // PCM detection (main, not per-band)
         workerManager.enqueueJob(
             'aubio',
@@ -279,25 +276,6 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
                     style={{ margin: "16px 0", height: 10, width: 400 }}
                     intent="primary"
                 />
-            )}
-            {/* Per-band detection progress bars */}
-            {bandProgress && bandProgress.length > 0 && (
-                <div style={{ margin: '8px 0 16px 0', width: 400 }}>
-                    {bandProgress.map((bp, i) =>
-                        bp && bp.total > 0 && bp.processed < bp.total ? (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                                <span style={{ width: 80, fontSize: 12, color: bands[i]?.color || '#888', marginRight: 8 }}>{bands[i]?.name || `Band ${i+1}`}</span>
-                                <ProgressBar
-                                    animate
-                                    stripes
-                                    value={bp.processed / bp.total}
-                                    style={{ height: 8, flex: 1 }}
-                                    intent="primary"
-                                />
-                            </div>
-                        ) : null
-                    )}
-                </div>
             )}
             {/* PCM detection plot (always blue) */}
             {results &&
