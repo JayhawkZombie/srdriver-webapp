@@ -1,22 +1,23 @@
-import { LedEngine } from './LedEngine';
-
 export interface MixerResponseInfo {
-  type: 'led';
+  type: string;
   patternId: number;
   [key: string]: any;
 }
 
 export class Mixer {
-  private ledEngine: LedEngine;
+  // private ledEngine: LedEngine;
 
-  constructor(ledEngine: LedEngine) {
-    this.ledEngine = ledEngine;
+  constructor() {
+    
   }
+  // constructor(ledEngine: LedEngine) {
+  //   this.ledEngine = ledEngine;
+  // }
 
   triggerResponse(info: MixerResponseInfo) {
     if (info.type === 'led') {
       // You can expand this logic for more complex pattern args
-      this.ledEngine.firePattern(info.patternId, info.args || {});
+      // this.ledEngine.firePattern(info.patternId, info.args || {});
     }
     // Add more types (audio, etc.) as needed
   }

@@ -8,6 +8,7 @@ import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { useAppStore } from "../../store/appStore";
 import { useTimelineSelectionState } from "./useTimelineSelectionState";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
+import { Mixer } from '../../controllers/Mixer';
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -28,9 +29,14 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     // Use palettes from the app store
     const palettes = useAppStore(state => state.palettes);
 
+    // Instantiate mixer (replace null with your actual engine if needed)
+    const mixer = React.useMemo(() => new Mixer({ firePattern: () => {} }), []);
+
     // Responsive container size
     const [containerRef, { width: measuredWidth }] = useMeasuredContainerSize({ minWidth: 400, maxWidth: 1800 });
-    const tracksWidth = Math.max(400, measuredWidth - labelWidth - 40); // 40 for padding/margins
+    const parentPadding = 24; // matches the parent container's padding
+    const timelinePadding = 24; // padding inside the timeline area
+    const contentWidth = Math.max(400, measuredWidth - labelWidth - 2 * parentPadding - 2 * timelinePadding);
 
     // Timeline state (local for now)
     const [responses, setResponses] = useState<TimelineResponse[]>([
@@ -58,7 +64,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     const geometry = {
         windowStart,
         windowDuration,
-        tracksWidth,
+        tracksWidth: contentWidth,
         tracksTopOffset,
         trackHeight,
         trackGap,
@@ -70,7 +76,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     const pointerHandler = useTimelinePointerHandler({
         windowStart,
         windowDuration,
-        tracksWidth,
+        tracksWidth: contentWidth,
         tracksTopOffset,
         trackHeight,
         trackGap,
@@ -114,8 +120,20 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 
     // Active rects for highlighting
     const activeRectIds = responses
-        .filter(r => currentTime >= r.timestamp && currentTime < r.timestamp + r.duration && !!trackTargets[r.trackIndex])
+        .filter(r => r.triggered)
         .map(r => r.id);
+
+    // Update triggered state and fire mixer on playhead overlap
+    React.useEffect(() => {
+        setResponses(prevResponses => prevResponses.map(rect => {
+            const isActive = currentTime >= rect.timestamp && currentTime < rect.timestamp + rect.duration;
+            // If just became active, trigger the mixer with all rect.data (including type)
+            if (isActive && !rect.triggered && rect.data && rect.data.type) {
+                mixer.triggerResponse({ ...rect.data });
+            }
+            return { ...rect, triggered: isActive };
+        }));
+    }, [currentTime, mixer]);
 
     // Layout: controls + waveform header, timeline below
     return (
@@ -128,7 +146,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 margin: "40px auto",
                 background: "#23272f",
                 borderRadius: 12,
-                padding: 24,
+                padding: parentPadding,
                 boxSizing: "border-box",
             }}
         >
@@ -146,33 +164,83 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 setWindowDuration={setWindowDuration}
             >
                 {waveform ? (
-                    <div style={{ width: "100%", margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={handleWaveformClick}>
-                        <BarWaveform data={waveform} width={tracksWidth} height={80} color="#4fc3f7" barWidth={1} />
+                    <div style={{
+                        width: "100%",
+                        margin: '0 auto',
+                        height: 80,
+                        background: '#181c22',
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                    }} onClick={handleWaveformClick}>
+                        <BarWaveform data={waveform} width={contentWidth} height={80} color="#4fc3f7" barWidth={1} />
                     </div>
                 ) : (
-                    <div style={{ width: "100%", margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                    <div style={{
+                        width: "100%",
+                        margin: '0 auto',
+                        height: 80,
+                        background: '#181c22',
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#888'
+                    }}>
                         Waveform (upload audio)
                     </div>
                 )}
             </TimelineControls>
             {/* Timeline below */}
-            <KonvaResponseTimeline
-                responses={responses}
-                hoveredId={hoveredId}
-                selectedId={selectedId}
-                setHoveredId={setHoveredId}
-                setSelectedId={setSelectedId}
-                pointerHandler={pointerHandler}
-                palettes={palettes}
-                trackTargets={trackTargets}
-                activeRectIds={activeRectIds}
-                geometry={geometry}
-                draggingId={pointerHandler.pointerState.draggingId}
-                draggingRectPos={pointerHandler.draggingRectPos}
-                currentTime={currentTime}
-                windowStart={windowStart}
-                windowDuration={windowDuration}
-            />
+            <div
+                style={{
+                    background: "#23272f",
+                    borderRadius: 16,
+                    marginTop: 24,
+                    padding: timelinePadding,
+                    boxSizing: "border-box",
+                    width: "100%",
+                    overflow: "hidden",
+                }}
+            >
+                <KonvaResponseTimeline
+                    responses={responses}
+                    hoveredId={hoveredId}
+                    selectedId={selectedId}
+                    setHoveredId={setHoveredId}
+                    setSelectedId={setSelectedId}
+                    pointerHandler={pointerHandler}
+                    palettes={palettes}
+                    trackTargets={trackTargets}
+                    activeRectIds={activeRectIds}
+                    geometry={{
+                        ...geometry,
+                        tracksWidth: contentWidth,
+                    }}
+                    draggingId={pointerHandler.pointerState.draggingId}
+                    draggingRectPos={pointerHandler.draggingRectPos}
+                    currentTime={currentTime}
+                    windowStart={windowStart}
+                    windowDuration={windowDuration}
+                />
+            </div>
+            {/* Debug info below timeline */}
+            <div style={{
+                marginTop: 16,
+                color: '#fff',
+                fontFamily: 'monospace',
+                fontSize: 15,
+                background: '#23272f',
+                borderRadius: 8,
+                padding: '12px 20px',
+                width: '100%',
+                boxSizing: 'border-box',
+            }}>
+                <div>Active rect IDs: [{activeRectIds.join(', ')}]</div>
+                <div>Hovered rect ID: {hoveredId ? hoveredId : 'none'}</div>
+            </div>
         </div>
     );
 

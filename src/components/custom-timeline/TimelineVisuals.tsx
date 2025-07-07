@@ -78,7 +78,6 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
 
   // Helper to get a fallback palette
   function getPaletteSafe(name: string): Palette {
-    console.log("getPaletteSafe", name, palettes);
     if (palettes[name]) return palettes[name];
     if (palettes['demo']) return palettes['demo'];
     const first = Object.values(palettes)[0];
@@ -163,7 +162,6 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
         />
         {/* Response rects */}
         {responses.map(rect => {
-          console.log("rect", rect);
           const isTrackAssigned = !!trackTargets[rect.trackIndex];
           const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
           const paletteName = String(rect.data?.paletteName || 'demo');

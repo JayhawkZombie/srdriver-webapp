@@ -93,3 +93,26 @@ A compact, powerful tool for designing LED show cues and templates, optimized fo
 ---
 
 **Keep iterating, keep asking questions, and keep designing for delight!**
+
+
+Add a triggered property to each rect in your local state.
+On each animation frame or in a useEffect on currentTime:
+For each rect, check if currentTime is within [rect.timestamp, rect.timestamp + rect.duration).
+If so, and it wasn’t previously triggered, set triggered: true and call Mixer.triggerResponse.
+If not, set triggered: false.
+Highlight active rects in your visuals (e.g., different color/border).
+B. Context Menus
+Add onContextMenu handlers to rects and the timeline background.
+Show a context menu component at the mouse position, passing info about the clicked item.
+Implement actions (edit, delete, etc.) as needed.
+C. Track Assignment
+Add dropdowns for each track to assign a device/target.
+Store assignments in local state or context.
+D. Drag & Drop / Editing
+Ensure pointer/drag/resize logic is wired up (sounds like it already is).
+Add drag-over/drop handlers for palette items.
+E. Visual Feedback
+Highlight active, selected, and hovered rects.
+Show “Unassigned” overlays for tracks with no target.
+F. Debug Info (Optional)
+Add a debug info panel below the timeline for development.
