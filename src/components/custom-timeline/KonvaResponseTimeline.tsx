@@ -1,5 +1,6 @@
 import React from "react";
-import { TimelineVisuals, TimelineResponse, Palettes, TrackTarget, Geometry } from "./TimelineVisuals";
+import { TimelineVisuals } from "./TimelineVisuals";
+import type { TimelineResponse, Palettes, TrackTarget, Geometry } from "./TimelineVisuals";
 
 interface KonvaResponseTimelineProps {
   responses: TimelineResponse[];
@@ -108,7 +109,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
           setSelectedId={setSelectedId}
           pointerHandler={pointerHandler}
           palettes={palettes}
-          trackTargets={trackTargets}
+          trackTargets={Array.isArray(trackTargets) ? trackTargets : Object.values(trackTargets)}
           activeRectIds={activeRectIds}
           geometry={geometry}
           draggingId={draggingId}

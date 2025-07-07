@@ -78,6 +78,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
 
   // Helper to get a fallback palette
   function getPaletteSafe(name: string): Palette {
+    console.log("getPaletteSafe", name, palettes);
     if (palettes[name]) return palettes[name];
     if (palettes['demo']) return palettes['demo'];
     const first = Object.values(palettes)[0];
@@ -162,16 +163,17 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
         />
         {/* Response rects */}
         {responses.map(rect => {
+          console.log("rect", rect);
           const isTrackAssigned = !!trackTargets[rect.trackIndex];
           const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
           const paletteName = String(rect.data?.paletteName || 'demo');
           const palette = getPaletteSafe(paletteName);
           let paletteState;
-          if (!isTrackAssigned) paletteState = palette.states.unassigned;
-          else if (selectedId === rect.id) paletteState = palette.states.selected;
-          else if (hoveredId === rect.id) paletteState = palette.states.hovered;
-          else if (isActive) paletteState = palette.states.active;
-          else paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
+          if (!isTrackAssigned) paletteState = palette.states?.unassigned;
+          else if (selectedId === rect.id) paletteState = palette.states?.selected;
+          else if (hoveredId === rect.id) paletteState = palette.states?.hovered;
+          else if (isActive) paletteState = palette.states?.active;
+          if (!paletteState) paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
           const { color, opacity } = getPaletteColor({
             baseColor: palette.baseColor,
             borderColor: palette.borderColor,
@@ -211,7 +213,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
           const snappedY = trackIndexToCenterY(snappedTrackIndex, geometry) - 16;
           const paletteName = String(draggingRect.data?.paletteName || 'demo');
           const palette = getPaletteSafe(paletteName);
-          const paletteState = palette.states.selected || { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
+          const paletteState = palette.states?.selected || { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
           const { color, opacity } = getPaletteColor({
             baseColor: palette.baseColor,
             borderColor: palette.borderColor,

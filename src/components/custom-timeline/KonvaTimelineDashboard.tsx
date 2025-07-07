@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import KonvaResponseTimeline from "./KonvaResponseTimeline";
-import AudioUpload from "./AudioUpload";
+import TimelineControls from "./TimelineControls";
 import BarWaveform from "./BarWaveform";
-import PlaybackControls from "./PlaybackControls";
-import PlaybackProvider, { usePlaybackState, usePlaybackController } from "./PlaybackContext";
+import { usePlaybackState, usePlaybackController } from "./PlaybackContext";
 import type { TimelineResponse } from "./TimelineVisuals";
+import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
+import { useAppStore } from "../../store/appStore";
+import { useTimelineSelectionState } from "./useTimelineSelectionState";
 
 const numTracks = 3;
 const tracksWidth = 900;
@@ -14,6 +16,8 @@ const trackGap = 8;
 const tracksTopOffset = 32;
 const labelWidth = 110;
 
+type RectMoveArgs = { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean };
+
 const KonvaTimelineDashboardInner: React.FC = () => {
     // Audio state
     const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
@@ -21,13 +25,31 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     const { currentTime, isPlaying, duration } = usePlaybackState();
     const { play, pause, seek, setBuffer } = usePlaybackController();
 
-    // Timeline state (mock for now)
-    const [responses] = useState<TimelineResponse[]>([]);
-    const [hoveredId, setHoveredId] = useState<string | null>(null);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [windowDuration] = useState(5);
-    const [windowStart] = useState(0);
-    const palettes = { demo: { baseColor: "#2196f3", borderColor: "#fff", states: {} } };
+    // Use palettes from the app store
+    const palettes = useAppStore(state => state.palettes);
+
+    // Timeline state (local for now)
+    const [responses, setResponses] = useState<TimelineResponse[]>([
+        {
+            id: crypto.randomUUID(),
+            timestamp: 1,
+            duration: 1.5,
+            trackIndex: 0,
+            data: { paletteName: "lightPulse" },
+            triggered: false,
+        },
+        {
+            id: crypto.randomUUID(),
+            timestamp: 3,
+            duration: 0.8,
+            trackIndex: 2,
+            data: { paletteName: "singleFirePattern" },
+            triggered: false,
+        },
+    ]);
+    const [windowDuration, setWindowDuration] = useState(5);
+    const windowStart = Math.max(0, Math.min(currentTime - windowDuration / 2, duration - windowDuration));
+    const { hoveredId, setHoveredId, selectedId, setSelectedId } = useTimelineSelectionState();
     const trackTargets = [undefined, undefined, undefined];
     const geometry = {
         windowStart,
@@ -40,8 +62,106 @@ const KonvaTimelineDashboardInner: React.FC = () => {
         totalDuration: duration,
     };
 
+    // Pointer/drag/resize logic
+    const pointerHandler = useTimelinePointerHandler({
+        windowStart,
+        windowDuration,
+        tracksWidth,
+        tracksTopOffset,
+        trackHeight,
+        trackGap,
+        numTracks,
+        totalDuration: duration,
+        responses,
+        onRectMove: (id: string, args: RectMoveArgs) => {
+            const { timestamp, trackIndex, destroyAndRespawn } = args;
+            if (destroyAndRespawn) {
+                const oldRect = responses.find(r => r.id === id);
+                if (!oldRect) return;
+                const newResponses = responses.filter(r => r.id !== id);
+                const newRect = { ...oldRect, id: crypto.randomUUID(), timestamp, trackIndex };
+                setResponses([...newResponses, newRect]);
+            } else {
+                setResponses(responses => responses.map(r => r.id === id ? { ...r, timestamp, trackIndex } : r));
+            }
+        },
+        onRectResize: (id, edge, newTimestamp, newDuration) => {
+            setResponses(responses => responses.map(r => {
+                if (r.id !== id) return r;
+                if (edge === 'start') return { ...r, timestamp: newTimestamp, duration: newDuration };
+                return { ...r, duration: newDuration };
+            }));
+        },
+        onBackgroundClick: ({ time, trackIndex }) => {
+            const duration = 1;
+            setResponses(responses => [
+                ...responses,
+                {
+                    id: crypto.randomUUID(),
+                    timestamp: time,
+                    duration,
+                    trackIndex,
+                    data: { paletteName: "lightPulse" },
+                    triggered: false,
+                },
+            ]);
+        },
+    });
+
+    // Active rects for highlighting
+    const activeRectIds = responses
+        .filter(r => currentTime >= r.timestamp && currentTime < r.timestamp + r.duration && !!trackTargets[r.trackIndex])
+        .map(r => r.id);
+
+    // Layout: controls + waveform header, timeline below
+    return (
+        <div style={{ width: tracksWidth + labelWidth + 40, margin: "40px auto", background: "#23272f", borderRadius: 12, padding: 24 }}>
+            {/* Controls + waveform header */}
+            <TimelineControls
+                isPlaying={isPlaying}
+                currentTime={currentTime}
+                duration={duration}
+                onPlay={play}
+                onPause={pause}
+                onSeek={seek}
+                onRestart={() => seek(0)}
+                onAudioBuffer={handleAudioBuffer}
+                windowDuration={windowDuration}
+                setWindowDuration={setWindowDuration}
+            >
+                {waveform ? (
+                    <div style={{ width: 600, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={handleWaveformClick}>
+                        <BarWaveform data={waveform} width={600} height={80} color="#4fc3f7" barWidth={1} />
+                    </div>
+                ) : (
+                    <div style={{ width: 600, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                        Waveform (upload audio)
+                    </div>
+                )}
+            </TimelineControls>
+            {/* Timeline below */}
+            <KonvaResponseTimeline
+                responses={responses}
+                hoveredId={hoveredId}
+                selectedId={selectedId}
+                setHoveredId={setHoveredId}
+                setSelectedId={setSelectedId}
+                pointerHandler={pointerHandler}
+                palettes={palettes}
+                trackTargets={trackTargets}
+                activeRectIds={activeRectIds}
+                geometry={geometry}
+                draggingId={pointerHandler.pointerState.draggingId}
+                draggingRectPos={pointerHandler.draggingRectPos}
+                currentTime={currentTime}
+                windowStart={windowStart}
+                windowDuration={windowDuration}
+            />
+        </div>
+    );
+
     // Audio upload handler
-    const handleAudioBuffer = (buffer: AudioBuffer) => {
+    function handleAudioBuffer(buffer: AudioBuffer) {
         setAudioBuffer(buffer);
         setBuffer(buffer);
         // Downsample waveform for demo
@@ -59,83 +179,16 @@ const KonvaTimelineDashboardInner: React.FC = () => {
             return (max - min) / 2 + min;
         });
         setWaveform(wf);
-    };
+    }
 
     // Seek by clicking waveform
-    const handleWaveformClick = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    function handleWaveformClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
         if (!waveform || !audioBuffer) return;
         const rect = (e.target as HTMLDivElement).getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percent = x / rect.width;
         seek(percent * duration);
-    };
-
-    // Controls UI
-    const Controls = (
-        <div style={{ width: 220, marginRight: 32 }}>
-            <div style={{ marginBottom: 16, color: '#b8d4ff', fontWeight: 700 }}>Controls</div>
-            <PlaybackControls
-                isPlaying={isPlaying}
-                currentTime={currentTime}
-                duration={duration}
-                onPlay={play}
-                onPause={pause}
-                onSeek={seek}
-                onRestart={() => seek(0)}
-            />
-            <AudioUpload onAudioBuffer={handleAudioBuffer} />
-            {audioBuffer && (
-                <div style={{ color: "#b8d4ff", fontSize: 13, marginTop: 8 }}>
-                    Selected file: <strong>{audioBuffer.duration.toFixed(2)}s</strong>
-                </div>
-            )}
-        </div>
-    );
-
-    // Layout: controls left, waveform right/center, timeline below
-    return (
-        <div style={{ width: tracksWidth + labelWidth + 40, margin: "40px auto", background: "#23272f", borderRadius: 12, padding: 24 }}>
-            <div style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", width: "100%", marginBottom: 24 }}>
-                {Controls}
-                {/* Waveform (right/center) */}
-                <div style={{ flex: 1 }}>
-                    {waveform ? (
-                        <div style={{ width: 600, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={handleWaveformClick}>
-                            <BarWaveform data={waveform} width={600} height={80} color="#4fc3f7" barWidth={1} />
-                        </div>
-                    ) : (
-                        <div style={{ width: 600, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-                            Waveform (upload audio)
-                        </div>
-                    )}
-                </div>
-            </div>
-            {/* Timeline below */}
-            <KonvaResponseTimeline
-                responses={responses}
-                hoveredId={hoveredId}
-                selectedId={selectedId}
-                setHoveredId={setHoveredId}
-                setSelectedId={setSelectedId}
-                pointerHandler={{ getRectProps: () => ({}) }}
-                palettes={palettes}
-                trackTargets={trackTargets}
-                activeRectIds={[]}
-                geometry={geometry}
-                draggingId={null}
-                draggingRectPos={null}
-                currentTime={currentTime}
-                windowStart={windowStart}
-                windowDuration={windowDuration}
-            />
-        </div>
-    );
+    }
 };
 
-const KonvaTimelineDashboard: React.FC = () => (
-    // <PlaybackProvider>
-        <KonvaTimelineDashboardInner />
-    // </PlaybackProvider>
-);
-
-export default KonvaTimelineDashboard; 
+export default KonvaTimelineDashboardInner; 

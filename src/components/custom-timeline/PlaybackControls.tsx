@@ -31,19 +31,19 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <Icon icon={isPlaying ? "pause" : "play"} />
       </button>
       <button onClick={onRestart || (() => onSeek(0))} title="Restart">
-        <Icon icon="refresh" />
+                  <Icon icon="refresh" />
       </button>
       <input
         type="range"
-        min={0}
+                  min={0}
         max={duration}
         step={0.01}
-        value={currentTime}
+                  value={currentTime}
         onChange={e => onSeek(Number(e.target.value))}
         style={{ width: 120 }}
-      />
+              />
       <span style={{ fontFamily: 'monospace', color: '#fff' }}>{currentTime.toFixed(2)}s</span>
-    </div>
+      </div>
   );
 };
 

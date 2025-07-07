@@ -50,7 +50,7 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
       sourceRef.current = null;
     }
     if (timerRef.current) {
-      cancelAnimationFrame(timerRef.current);
+        cancelAnimationFrame(timerRef.current);
       timerRef.current = null;
     }
     setTimeout(() => { isSeekingRef.current = false; }, 0);
@@ -130,6 +130,6 @@ export function usePlaybackController() {
   if (!ctx) throw new Error("usePlaybackController must be used within a PlaybackProvider");
   const { play, pause, seek, setBuffer } = ctx;
   return { play, pause, seek, setBuffer };
-}
+} 
 
 export default PlaybackProvider; 

@@ -24,7 +24,7 @@ export const Basic = () => {
         if (t >= duration) {
           setIsPlaying(false);
           return duration;
-        }
+            }
         return t + 0.016;
       });
       raf = requestAnimationFrame(step);
@@ -33,7 +33,7 @@ export const Basic = () => {
     return () => cancelAnimationFrame(raf);
   }, [isPlaying, duration]);
 
-  return (
+    return (
     <div style={{ padding: 32, background: '#23272f' }}>
       <PlaybackControls
         isPlaying={isPlaying}
