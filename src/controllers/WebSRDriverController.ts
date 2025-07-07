@@ -11,6 +11,7 @@ import {
   COMMAND_CHARACTERISTIC_UUID
 } from '../types/srdriver';
 import { useAppStore } from '../store/appStore';
+import { useBenchmarkStore } from '../store/benchmarkStore';
 
 export class WebSRDriverController implements ISRDriverController {
   private device: BluetoothDevice | null = null;

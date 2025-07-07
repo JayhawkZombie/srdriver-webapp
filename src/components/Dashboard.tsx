@@ -9,24 +9,28 @@ import TestbedModal from './testbed/TestbedModal';
 import TestHarnessContent from './testbed/TestHarnessContent';
 import { AppStateLogDrawer } from './spectrogram-timeline/refactored-timeline/AppStateLogDrawer';
 import DevAppStateViewer from './dev/DevAppStateViewer';
-import { Card, Elevation, Drawer as BPDrawer, Position } from '@blueprintjs/core';
+import { Drawer as BPDrawer, Position, Card } from '@blueprintjs/core';
 import { ResponsePaletteEditor } from './spectrogram-timeline/refactored-timeline/ResponsePaletteEditor';
 import { ResponseRectToolbarGallery } from './spectrogram-timeline/refactored-timeline/ResponseRectToolbarGallery';
 import { UnifiedThemeContext } from '../context/UnifiedThemeContext';
 import DashboardTimeline from './spectrogram-timeline/refactored-timeline/DashboardTimeline';
+import { Profiling } from './utility/Profiling';
+import { useDevToolsEnabled } from '../store/appStore';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
   onToggleMode: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ mode: _mode, onToggleMode }) => {
-  const { mode } = useContext(UnifiedThemeContext) ?? { mode: 'light' };
+const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
+  useContext(UnifiedThemeContext); // Only for side effects if needed
   const [connectionDrawerOpen, setConnectionDrawerOpen] = useState(false);
   const [testbedModalOpen, setTestbedModalOpen] = useState(false);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [devAppStateDrawerOpen, setDevAppStateDrawerOpen] = useState(false);
+  const [profilingCompact, setProfilingCompact] = useState(true);
+  const devToolsEnabled = useDevToolsEnabled();
   const toggleDevAppStateDrawer = () => setDevAppStateDrawerOpen(open => !open);
 
   return (
@@ -66,6 +70,24 @@ const Dashboard: React.FC<DashboardProps> = ({ mode: _mode, onToggleMode }) => {
                   onOpenDevAppStateDrawer={toggleDevAppStateDrawer}
               />
               <DashboardTimeline />
+              {devToolsEnabled && (
+                <Card elevation={4} className={mode === 'dark' ? 'bp5-dark' : ''} style={{
+                  position: 'fixed',
+                  top: 32,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 20000,
+                  minWidth: 320,
+                  maxWidth: 480,
+                  padding: 0,
+                }}>
+                  <Profiling
+                    onClose={() => {}}
+                    compact={profilingCompact}
+                    onToggleCompact={() => setProfilingCompact(c => !c)}
+                  />
+                </Card>
+              )}
           </Box>
           <BPDrawer
               isOpen={leftDrawerOpen}

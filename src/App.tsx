@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useContext } from "react";
 import Dashboard from "./components/Dashboard";
 import { DeviceControllerProvider } from "./controllers/DeviceControllerContext";
 import { ToastProvider } from "./controllers/ToastContext";
@@ -9,6 +9,14 @@ import { UnifiedThemeContext } from "./context/UnifiedThemeContext";
 import "@blueprintjs/core/lib/css/blueprint.css";
 
 const App = () => {
+    const theme = useContext(UnifiedThemeContext);
+    useEffect(() => {
+        if (theme?.mode === 'dark') {
+            document.body.classList.add('bp5-dark');
+        } else {
+            document.body.classList.remove('bp5-dark');
+        }
+    }, [theme?.mode]);
     return (
         <UnifiedThemeProvider>
                     <DeviceControllerProvider>

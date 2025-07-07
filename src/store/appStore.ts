@@ -141,6 +141,7 @@ export interface UIState {
   showSustainedImpulses: boolean;
   onlySustained: boolean;
   showDetectionFunction: boolean;
+  devToolsEnabled: boolean;
   // Add more UI controls as needed
 }
 
@@ -287,6 +288,7 @@ export interface AppState {
   setFftResult: (result: { normalizedFftSequence?: number[][]; summary?: Record<string, unknown> }) => void;
   setAubioResult: (result: { detectionFunction: number[]; times: number[]; events: DetectionEvent[]; error?: string }) => void;
   setBandDataArr: (bandDataArr: BandData[]) => void;
+  setDevToolsEnabled: (enabled: boolean) => void;
 }
 
 // --- Initial state ---
@@ -310,6 +312,7 @@ const initialUI: UIState = {
   showSustainedImpulses: false,
   onlySustained: false,
   showDetectionFunction: false,
+  devToolsEnabled: false,
 };
 const initialTimeline = {
   responses: [],
@@ -389,6 +392,7 @@ export const useAppStore = create<AppState & {
   addTemplateType: (type: TemplateType) => void;
   removeTemplateType: (value: string) => void;
   updateTemplateType: (value: string, update: Partial<TemplateType>) => void;
+  setDevToolsEnabled: (enabled: boolean) => void;
 }>(
   isStorybook
     ? ((set, get) => {
@@ -664,6 +668,9 @@ export const useAppStore = create<AppState & {
               })
             }));
           },
+          setDevToolsEnabled: (enabled) => set(state => ({
+            ui: { ...state.ui, devToolsEnabled: enabled },
+          })),
         };
       })
     : persistWithIndexedDB('app-state', (set, get) => {
@@ -941,6 +948,9 @@ export const useAppStore = create<AppState & {
               })
             }));
           },
+          setDevToolsEnabled: (enabled) => set(state => ({
+            ui: { ...state.ui, devToolsEnabled: enabled },
+          })),
         };
       })
 ); // --- Timeline selectors/hooks ---
@@ -1025,5 +1035,8 @@ function ensureAudioDataAnalysis(partial: Partial<AudioDataAnalysis>): AudioData
     ...initialAudioAnalysis,
     ...partial,
   };
-} 
+}
+
+export const useDevToolsEnabled = () => useAppStore(state => state.ui.devToolsEnabled);
+export const useSetDevToolsEnabled = () => useAppStore(state => state.setDevToolsEnabled); 
 
