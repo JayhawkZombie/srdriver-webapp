@@ -28,6 +28,12 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 
     // Use palettes from the app store
     const palettes = useAppStore(state => state.palettes);
+    const devices = useAppStore(state => state.devices);
+    const deviceMetadata = useAppStore(state => state.deviceMetadata);
+    const setTrackTarget = useAppStore(state => state.setTrackTarget);
+    // Track targets from app store (array)
+    const trackMapping = useAppStore(state => state.tracks.mapping);
+    const trackTargets = [0, 1, 2].map(i => trackMapping[i]);
 
     // Instantiate mixer (replace null with your actual engine if needed)
     const mixer = React.useMemo(() => new Mixer({ firePattern: () => {} }), []);
@@ -60,7 +66,6 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     const [windowDuration, setWindowDuration] = useState(5);
     const windowStart = Math.max(0, Math.min(currentTime - windowDuration / 2, duration - windowDuration));
     const { hoveredId, setHoveredId, selectedId, setSelectedId } = useTimelineSelectionState();
-    const trackTargets = [undefined, undefined, undefined];
     const geometry = {
         windowStart,
         windowDuration,
@@ -167,7 +172,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     <div style={{
                         width: "100%",
                         margin: '0 auto',
-                        height: 80,
+                        height: 100,
                         background: '#181c22',
                         borderRadius: 8,
                         display: 'flex',
@@ -175,7 +180,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         justifyContent: 'center',
                         cursor: 'pointer',
                     }} onClick={handleWaveformClick}>
-                        <BarWaveform data={waveform} width={contentWidth} height={80} color="#4fc3f7" barWidth={1} />
+                        <BarWaveform data={waveform} width={contentWidth} height={200} color="#4fc3f7" barWidth={1} />
                     </div>
                 ) : (
                     <div style={{
@@ -214,6 +219,9 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     pointerHandler={pointerHandler}
                     palettes={palettes}
                     trackTargets={trackTargets}
+                    devices={devices}
+                    deviceMetadata={deviceMetadata}
+                    setTrackTarget={setTrackTarget}
                     activeRectIds={activeRectIds}
                     geometry={{
                         ...geometry,

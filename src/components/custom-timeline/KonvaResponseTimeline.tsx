@@ -1,6 +1,8 @@
 import React from "react";
 import { TimelineVisuals } from "./TimelineVisuals";
 import type { TimelineResponse, Palettes, TrackTarget, Geometry } from "./TimelineVisuals";
+import { Select } from '@blueprintjs/select';
+import { MenuItem } from '@blueprintjs/core';
 
 interface KonvaResponseTimelineProps {
   responses: TimelineResponse[];
@@ -8,9 +10,12 @@ interface KonvaResponseTimelineProps {
   selectedId: string | null;
   setHoveredId: (id: string | null) => void;
   setSelectedId: (id: string | null) => void;
-  pointerHandler: any;
+  pointerHandler: Record<string, unknown>;
   palettes: Palettes;
   trackTargets: TrackTarget[];
+  devices: string[];
+  deviceMetadata: Record<string, { nickname?: string; name?: string }>;
+  setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => void;
   activeRectIds: string[];
   geometry: Geometry;
   draggingId: string | null;
@@ -37,6 +42,9 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
   pointerHandler,
   palettes,
   trackTargets,
+  devices,
+  deviceMetadata,
+  setTrackTarget,
   activeRectIds,
   geometry,
   draggingId,
@@ -45,6 +53,9 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
   windowStart,
   windowDuration,
 }) => {
+  // Helper to get device label
+  const getDeviceLabel = (id: string) => deviceMetadata[id]?.nickname || deviceMetadata[id]?.name || id;
+
   return (
     <div
       style={{
@@ -57,7 +68,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
         padding: 24,
       }}
     >
-      {/* Track labels column */}
+      {/* Track labels column with dropdowns */}
       <div
         style={{
           width: labelWidth,
@@ -67,6 +78,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
       >
         {[...Array(numTracks)].map((_, i) => {
           const y = tracksTopOffset + i * (trackHeight + trackGap) + trackHeight / 2;
+          const currentTarget = trackTargets[i];
           return (
             <div
               key={i}
@@ -82,11 +94,39 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
                 color: "#fff",
                 fontWeight: 500,
                 fontFamily: "monospace",
-                fontSize: 16,
-                pointerEvents: "none",
+                fontSize: 14,
+                pointerEvents: "auto",
+                zIndex: 2,
               }}
             >
-              Track {i + 1}
+              <Select<string>
+                items={devices}
+                itemRenderer={(id: string, { handleClick, modifiers }: { handleClick: React.MouseEventHandler<HTMLElement>; modifiers: { active: boolean } }) => (
+                  <MenuItem
+                    key={id}
+                    text={getDeviceLabel(id)}
+                    onClick={handleClick}
+                    active={modifiers.active}
+                    label={id}
+                    style={{ fontSize: 13, minWidth: 120 }}
+                  />
+                )}
+                filterable={false}
+                onItemSelect={(id: string) => setTrackTarget(i, id ? { type: 'device', id } : undefined)}
+                popoverProps={{ minimal: true, position: 'bottom', usePortal: false }}
+                noResults={<MenuItem disabled text="No devices" />}
+                disabled={devices.length === 0}
+                activeItem={currentTarget?.id || null}
+                fill
+              >
+                <button
+                  type="button"
+                  className="bp5-button bp5-minimal"
+                  style={{ width: '100%', textAlign: 'right', fontSize: 13, padding: '2px 8px', background: 'none', color: '#fff', border: 'none' }}
+                >
+                  {currentTarget?.id ? getDeviceLabel(currentTarget.id) : 'Unassigned'}
+                </button>
+              </Select>
             </div>
           );
         })}
