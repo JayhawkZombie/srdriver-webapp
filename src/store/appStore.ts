@@ -1038,5 +1038,9 @@ function ensureAudioDataAnalysis(partial: Partial<AudioDataAnalysis>): AudioData
 }
 
 export const useDevToolsEnabled = () => useAppStore(state => state.ui.devToolsEnabled);
-export const useSetDevToolsEnabled = () => useAppStore(state => state.setDevToolsEnabled); 
+export const useSetDevToolsEnabled = () => useAppStore(state => state.setDevToolsEnabled);
+
+// --- Audio selectors ---
+export const selectWaveform = (state: AppState) => state.audio.analysis.waveform || [];
+export const useWaveform = () => useAppStore(selectWaveform);
 

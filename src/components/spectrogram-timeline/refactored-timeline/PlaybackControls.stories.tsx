@@ -3,7 +3,7 @@ import PlaybackControls from "./PlaybackControls";
 import { PlaybackProvider, usePlayback } from "./PlaybackContext";
 import Waveform from "./Waveform";
 import { useAppStore } from "../../../store/appStore";
-import { selectWaveform } from "../../../store/selectors";
+// import { selectAudioData } from "../../../store/selectors";
 import { decodeAudioFile, getMonoPCMData } from '../../../controllers/audioChunker';
 
 export default {
@@ -11,7 +11,7 @@ export default {
 };
 
 export const Basic = () => (
-    <PlaybackProvider>
+    <PlaybackProvider totalDuration={15}>
         <PlaybackControls>
             <div style={{ color: "#fff", fontSize: 13, marginTop: 4 }}>
                 Child content (e.g., spectrogram)
@@ -92,7 +92,7 @@ export const WithAudioUpload = () => {
     };
 
     return (
-            <PlaybackProvider>
+            <PlaybackProvider totalDuration={15}>
                 <Inner />
             </PlaybackProvider>
     );
@@ -100,7 +100,7 @@ export const WithAudioUpload = () => {
 
 // Helper to consume waveform data from Zustand
 const WaveformWithStore = (props: { width: number; height: number }) => {
-    const waveform = useAppStore(selectWaveform);
+    const waveform = useAppStore(state => state.audio.analysis.waveform);
     if (!Array.isArray(waveform) || waveform.length === 0) return null;
-    return <Waveform width={props.width} height={props.height} />;
+    return <Waveform waveform={waveform} width={props.width} height={props.height} />;
 };

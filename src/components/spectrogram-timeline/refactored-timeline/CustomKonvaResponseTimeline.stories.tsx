@@ -7,7 +7,7 @@ import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { ResponseRect } from "./ResponseRect";
 import { getPaletteColor } from "./colorUtils";
 import { trackIndexToCenterY, snapYToTrackIndex } from "./timelineMath";
-import { TimelineVisuals, TimelineResponse, Palettes, TrackTarget, Geometry } from './TimelineVisuals';
+import { TimelineVisuals, TimelineResponse, Palettes, TrackTarget, Geometry } from './custom-timeline/TimelineVisuals';
 
 export default {
   title: "RefactoredTimeline/CustomKonvaResponseTimeline",
