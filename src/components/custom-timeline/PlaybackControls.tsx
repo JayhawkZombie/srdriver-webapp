@@ -1,54 +1,49 @@
 import React from "react";
-import { usePlayback } from "./PlaybackContext";
-import IconControl from "../controls/IconControl";
-import SliderControl from "../controls/SliderControl";
 import { Icon } from "@blueprintjs/core";
-import styles from "./PlaybackControls.module.css";
-import { usePlaybackAutoAdvance } from "../../hooks/usePlaybackAutoAdvance";
 
 interface PlaybackControlsProps {
-  children?: React.ReactNode;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  onPlay: () => void;
+  onPause: () => void;
+  onSeek: (time: number) => void;
+  onRestart?: () => void;
 }
 
-const PlaybackControls: React.FC<PlaybackControlsProps> = ({ children }) => {
-  const { currentTime, isPlaying, play, pause, seek, totalDuration } = usePlayback();
-  const { enabled: autoplayEnabled, toggleAutoplay } = usePlaybackAutoAdvance();
-
+const PlaybackControls: React.FC<PlaybackControlsProps> = ({
+  isPlaying,
+  currentTime,
+  duration,
+  onPlay,
+  onPause,
+  onSeek,
+  onRestart,
+}) => {
   const handlePlayPause = () => {
-    if (isPlaying) pause();
-    else play();
+    if (isPlaying) onPause();
+    else onPlay();
   };
 
   return (
-      <div className={styles.playbackControls}>
-          <div className={styles.controlsRow}>
-              <IconControl onClick={handlePlayPause} title={isPlaying ? "Pause" : "Play"}>
-                  <Icon
-                    icon={isPlaying ? "pause" : "play"}
-                  />
-              </IconControl>
-              <IconControl onClick={() => seek(0)} title="Restart">
-                  <Icon icon="refresh" />
-              </IconControl>
-              <IconControl
-                  onClick={toggleAutoplay}
-                  title={
-                      autoplayEnabled ? "Disable Autoplay" : "Enable Autoplay"
-                  }
-              >
-                  <Icon icon={"run-history"} style={{ color: autoplayEnabled ? "green" : "red" }} />
-              </IconControl>
-              <SliderControl
-                  min={0}
-                  max={totalDuration}
-                  value={currentTime}
-                  onChange={seek}
-                  label={undefined}
-              />
-              <span className={styles.time}>{currentTime.toFixed(2)}s</span>
-          </div>
-          {children && <div className={styles.children}>{children}</div>}
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button onClick={handlePlayPause} title={isPlaying ? "Pause" : "Play"}>
+        <Icon icon={isPlaying ? "pause" : "play"} />
+      </button>
+      <button onClick={onRestart || (() => onSeek(0))} title="Restart">
+        <Icon icon="refresh" />
+      </button>
+      <input
+        type="range"
+        min={0}
+        max={duration}
+        step={0.01}
+        value={currentTime}
+        onChange={e => onSeek(Number(e.target.value))}
+        style={{ width: 120 }}
+      />
+      <span style={{ fontFamily: 'monospace', color: '#fff' }}>{currentTime.toFixed(2)}s</span>
+    </div>
   );
 };
 

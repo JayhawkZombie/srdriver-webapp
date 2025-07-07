@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAppStore } from "../../store/appStore";
-import { usePlayback } from "./PlaybackContext";
+import { usePlaybackController } from "./PlaybackContext";
 import { decodeAudioFile, getMonoPCMData } from "../../controllers/audioChunker";
 import { workerManager } from "../../controllers/workerManager";
 import styles from "./TimelineHeader.module.css";
@@ -8,14 +8,14 @@ import styles from "./TimelineHeader.module.css";
 const AudioUpload: React.FC<{ onAudioBuffer: (audioBuffer: AudioBuffer) => void }> = ({ onAudioBuffer }) => {
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const setAudioData = useAppStore((s) => s.setAudioData);
-    const { setAudioBuffer } = usePlayback();
+    const { setBuffer } = usePlaybackController();
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
         setAudioFile(file);
         if (file) {
             const audioBuffer = await decodeAudioFile(file);
-            setAudioBuffer(audioBuffer);
+            setBuffer(audioBuffer);
             onAudioBuffer(audioBuffer);
             const pcm = getMonoPCMData(audioBuffer);
             const req = {

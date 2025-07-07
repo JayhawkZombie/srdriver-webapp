@@ -1,33 +1,30 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
 
-/**
- * Playback state and actions for global timeline/spectrogram coordination.
- */
 export interface PlaybackState {
   currentTime: number;
   isPlaying: boolean;
-  totalDuration: number;
+  duration: number;
+  mediaType: "audio" | "video" | "unknown";
 }
 
-export interface PlaybackContextValue extends PlaybackState {
-  setCurrentTime: (t: number) => void;
+export interface PlaybackController {
   play: () => void;
   pause: () => void;
   seek: (t: number) => void;
-  setAudioBuffer: (buffer: AudioBuffer | null) => void;
-  // Add more actions as needed
+  setBuffer: (buffer: AudioBuffer | null) => void;
 }
+
+interface PlaybackContextValue extends PlaybackState, PlaybackController {}
 
 const DEFAULT_TOTAL_DURATION = 15;
 
 const PlaybackContext = createContext<PlaybackContextValue | undefined>(undefined);
 
-/**
- * Provider for global playback state. Wrap your app or timeline/spectrogram root with this.
- */
 export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDuration?: number }> = ({ children, totalDuration = DEFAULT_TOTAL_DURATION }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(totalDuration);
+  const [mediaType] = useState<"audio" | "video" | "unknown">("audio");
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -40,9 +37,10 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
 
-  const setAudioBuffer = useCallback((buffer: AudioBuffer | null) => {
+  const setBuffer = useCallback((buffer: AudioBuffer | null) => {
     audioBufferRef.current = buffer;
-  }, []);
+    setDuration(buffer?.duration || totalDuration);
+  }, [totalDuration]);
 
   const stopSource = () => {
     isSeekingRef.current = true;
@@ -52,14 +50,10 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
       sourceRef.current = null;
     }
     if (timerRef.current) {
-      if (audioBufferRef.current) {
-        window.clearInterval(timerRef.current);
-      } else {
-        cancelAnimationFrame(timerRef.current);
-      }
+      cancelAnimationFrame(timerRef.current);
       timerRef.current = null;
     }
-    setTimeout(() => { isSeekingRef.current = false; }, 0); // Reset after microtask
+    setTimeout(() => { isSeekingRef.current = false; }, 0);
   };
 
   const play = useCallback(() => {
@@ -85,31 +79,8 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
         timerRef.current = requestAnimationFrame(update);
       };
       timerRef.current = requestAnimationFrame(update);
-    } else {
-      // DEMO MODE: advance playhead with requestAnimationFrame for smoothness
-      stopSource();
-      setIsPlaying(true);
-      let lastTime = performance.now();
-      const step = (now: number) => {
-        if (!isPlayingRef.current) return;
-        const dt = (now - lastTime) / 1000;
-        lastTime = now;
-        setCurrentTime((t) => {
-          const next = t + dt;
-          if (next >= totalDuration) {
-            setIsPlaying(false);
-            stopSource();
-            return totalDuration;
-          }
-          return next;
-        });
-        if (isPlayingRef.current) {
-          timerRef.current = requestAnimationFrame(step);
-        }
-      };
-      timerRef.current = requestAnimationFrame(step);
     }
-  }, [totalDuration]);
+  }, []);
 
   const pause = useCallback(() => {
     stopSource();
@@ -133,22 +104,32 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
   const value: PlaybackContextValue = {
     currentTime,
     isPlaying,
-    totalDuration: audioBufferRef.current?.duration || totalDuration,
-    setCurrentTime,
+    duration,
+    mediaType,
     play,
     pause,
     seek,
-    setAudioBuffer,
+    setBuffer,
   };
 
   return <PlaybackContext.Provider value={value}>{children}</PlaybackContext.Provider>;
 };
 
-/**
- * Hook to access global playback state and actions.
- */
-export function usePlayback() {
+// Read-only state for all consumers
+export function usePlaybackState() {
   const ctx = useContext(PlaybackContext);
-  if (!ctx) throw new Error("usePlayback must be used within a PlaybackProvider");
-  return ctx;
-} 
+  if (!ctx) throw new Error("usePlaybackState must be used within a PlaybackProvider");
+  // Only return state, not mutators
+  const { currentTime, isPlaying, duration, mediaType } = ctx;
+  return { currentTime, isPlaying, duration, mediaType };
+}
+
+// Mutators for controls only
+export function usePlaybackController() {
+  const ctx = useContext(PlaybackContext);
+  if (!ctx) throw new Error("usePlaybackController must be used within a PlaybackProvider");
+  const { play, pause, seek, setBuffer } = ctx;
+  return { play, pause, seek, setBuffer };
+}
+
+export default PlaybackProvider; 
