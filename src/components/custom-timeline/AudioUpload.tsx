@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { useAppStore } from "../../../../store/appStore";
-import { usePlayback } from "../PlaybackContext";
-import { decodeAudioFile, getMonoPCMData } from "../../../../controllers/audioChunker";
-import { workerManager } from "../../../../controllers/workerManager";
+import { useAppStore } from "../../store/appStore";
+import { usePlayback } from "./PlaybackContext";
+import { decodeAudioFile, getMonoPCMData } from "../../controllers/audioChunker";
+import { workerManager } from "../../controllers/workerManager";
 import styles from "./TimelineHeader.module.css";
 
 const AudioUpload: React.FC<{ onAudioBuffer: (audioBuffer: AudioBuffer) => void }> = ({ onAudioBuffer }) => {

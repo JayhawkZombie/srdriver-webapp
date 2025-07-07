@@ -1,6 +1,6 @@
 import React from "react";
 import BarWaveform from "./BarWaveform";
-import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
+import { FakeAppStateStoryProvider } from "../../store/FakeAppStateStoryProvider";
 
 export default {
   title: "RefactoredTimeline/BarWaveform",

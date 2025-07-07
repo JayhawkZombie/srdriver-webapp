@@ -1,7 +1,7 @@
 import React from "react";
 
-import { useAppStore } from "../../../store/appStore";
-import { workerManager } from "../../../controllers/workerManager";
+import { useAppStore } from "../../store/appStore";
+import { workerManager } from "../../controllers/workerManager";
 import Waveform from "./Waveform";
 import { ProgressBar } from "@blueprintjs/core";
 import { usePlayback } from "./PlaybackContext";

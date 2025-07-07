@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Drawer, Button, Tag, HTMLSelect } from '@blueprintjs/core';
-import { useAppStore } from '../../../store/appStore';
+import { useAppStore } from '../../store/appStore';
 
 export interface AppStateLogDrawerProps {
   isOpen: boolean;

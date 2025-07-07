@@ -1,6 +1,6 @@
 import React from "react";
 import { PlaybackProvider, usePlayback } from "./PlaybackContext";
-import IconControl from "./IconControl";
+import IconControl from "../controls/IconControl";
 import { Icon } from "@blueprintjs/core";
 import Slider from "@mui/material/Slider";
 import Box from "@mui/material/Box";

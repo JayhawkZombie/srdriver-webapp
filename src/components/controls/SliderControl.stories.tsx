@@ -3,7 +3,7 @@ import SliderControl from "./SliderControl";
 import Box from "@mui/material/Box";
 
 export default {
-  title: "RefactoredTimeline/SliderControl",
+  title: "Controls/SliderControl",
 };
 
 export const Basic = () => {

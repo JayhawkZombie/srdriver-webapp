@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
-import { logWorkerMessage } from '../../../store/appLogger';
+import { logWorkerMessage } from '../../store/appLogger';
 import type { DetectionDataContextValue, BandConfig, DetectionResult } from './DetectionDataTypes';
 
 // Types moved to DetectionDataTypes.ts for Fast Refresh compliance

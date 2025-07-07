@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { useAppStore } from "../../../store/appStore";
-import { workerManager } from "../../../controllers/workerManager";
-import { decodeAudioFile, getMonoPCMData } from "../../../controllers/audioChunker";
-import { detectionEngines } from "../../../workers/detectionEngines";
+import { useAppStore } from "../../store/appStore";
+import { workerManager } from "../../controllers/workerManager";
+import { decodeAudioFile, getMonoPCMData } from "../../controllers/audioChunker";
+import { detectionEngines } from "../../workers/detectionEngines";
 import type { BandConfig } from "./DetectionDataContext";
 import {
     AudioAnalysisContext,

@@ -1,8 +1,8 @@
 import React, { useMemo } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText, Group } from "react-konva";
-import { ResponseRect } from "../ResponseRect";
-import { getPaletteColor } from "../colorUtils";
-import { trackIndexToCenterY, snapYToTrackIndex } from "../timelineMath";
+import { ResponseRect } from "./ResponseRect";
+import { getPaletteColor } from "./colorUtils";
+import { trackIndexToCenterY, snapYToTrackIndex } from "./timelineMath";
 
 // --- Types ---
 export type TimelineResponse = {

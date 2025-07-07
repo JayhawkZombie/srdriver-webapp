@@ -1,7 +1,7 @@
 import React, { useState, useContext } from "react";
 import { Button, Icon, H6 } from '@blueprintjs/core';
 import { useBenchmarkStore } from '../../store/benchmarkStore';
-import { WindowedTimeSeriesPlot } from '../spectrogram-timeline/refactored-timeline/WindowedTimeSeriesPlot';
+import { WindowedTimeSeriesPlot } from '../custom-timeline/WindowedTimeSeriesPlot';
 import { UnifiedThemeContext } from '../../context/UnifiedThemeContext';
 
 export const Profiling: React.FC<{ onClose: () => void; compact?: boolean; onToggleCompact?: () => void; }> = ({ onClose, onToggleCompact }) => {

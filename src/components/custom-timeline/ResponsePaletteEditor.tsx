@@ -1,13 +1,13 @@
 import React, { useState, useContext } from "react";
-import { useAppStore } from "../../../store/appStore";
+import { useAppStore } from "../../store/appStore";
 import { Card, Button, Popover, Position, Menu, MenuItem, Icon, Tooltip } from "@blueprintjs/core";
 import { Stage, Layer } from "react-konva";
 import { ResponseRect } from "./ResponseRect";
-import type { ResponseRectPalette } from '../../../types/ResponseRectPalette';
+import type { ResponseRectPalette } from '../../types/ResponseRectPalette';
 import { shiftHue, shiftBrightness } from './colorUtils';
 import Slider from '@mui/material/Slider';
 import TextField from '@mui/material/TextField';
-import { UnifiedThemeContext } from '../../../context/UnifiedThemeContext';
+import { UnifiedThemeContext } from '../../context/UnifiedThemeContext';
 import Typography from '@mui/material/Typography';
 
 const rectWidth = 64;

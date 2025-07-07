@@ -6,7 +6,7 @@ import Box from "@mui/material/Box";
 import styles from "./IconControl.module.css";
 
 export default {
-  title: "RefactoredTimeline/IconControl",
+  title: "Controls/IconControl",
 };
 
 export const Basic = () => (

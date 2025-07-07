@@ -9,10 +9,10 @@ import Tooltip from '@mui/material/Tooltip';
 import { Stage, Layer } from 'react-konva';
 import { ResponseRect } from './ResponseRect';
 import { ResponsePaletteEditor } from './ResponsePaletteEditor';
-import type { RectTemplate } from '../../../store/appStore';
-import { useAppStore, selectTemplateTypes, useAddTemplateType, useUpdateTemplateType, useRemoveTemplateType } from '../../../store/appStore';
-import EditableKeyValueTree from '../../utility/EditableKeyValueTree';
-import { UnifiedThemeContext } from '../../../context/UnifiedThemeContext';
+import type { RectTemplate } from '../../store/appStore';
+import { useAppStore, selectTemplateTypes, useAddTemplateType, useUpdateTemplateType, useRemoveTemplateType } from '../../store/appStore';
+import EditableKeyValueTree from '../utility/EditableKeyValueTree';
+import { UnifiedThemeContext } from '../../context/UnifiedThemeContext';
 
 // Extend RectTemplate locally to allow tags and notes
 type RectTemplateWithMeta = RectTemplate & { tags?: string[]; notes?: string };

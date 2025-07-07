@@ -2,7 +2,7 @@ import React from "react";
 import TimelineHeader from "./TimelineHeader";
 import { PlaybackProvider } from "./PlaybackContext";
 import { Box } from "@mui/material";
-import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
+import { FakeAppStateStoryProvider } from "../../store/FakeAppStateStoryProvider";
 
 export default {
     title: "RefactoredTimeline/TimelineHeader",

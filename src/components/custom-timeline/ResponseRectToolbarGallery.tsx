@@ -1,11 +1,11 @@
 import React, { useState, useRef, useContext } from 'react';
-import { useAppStore } from '../../../store/appStore';
+import { useAppStore } from '../../store/appStore';
 import { Stage, Layer } from 'react-konva';
 import { ResponseRect } from './ResponseRect';
 import Typography from '@mui/material/Typography';
 import { Button, InputGroup, Popover, Position } from '@blueprintjs/core';
 import { ResponseRectTemplateEditor } from './ResponseRectTemplateEditor';
-import { UnifiedThemeContext } from '../../../context/UnifiedThemeContext';
+import { UnifiedThemeContext } from '../../context/UnifiedThemeContext';
 
 const rectWidth = 40;
 const rectHeight = 14;

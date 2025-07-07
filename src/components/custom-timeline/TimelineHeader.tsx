@@ -1,11 +1,11 @@
 import React from "react";
 import { Slider, Icon } from "@blueprintjs/core";
-import PlaybackControls from "../PlaybackControls";
-import BarWaveform from "../BarWaveform";
-import { selectWaveform, useAppStore } from "../../../../store/appStore";
-import { decodeAudioFile, getMonoPCMData } from "../../../../controllers/audioChunker";
-import { workerManager } from "../../../../controllers/workerManager";
-import { usePlayback } from "../PlaybackContext";
+import PlaybackControls from "./PlaybackControls";
+import BarWaveform from "./BarWaveform";
+import { selectWaveform, useAppStore } from "../../store/appStore";
+import { decodeAudioFile, getMonoPCMData } from "../../controllers/audioChunker";
+import { workerManager } from "../../controllers/workerManager";
+import { usePlayback } from "./PlaybackContext";
 import { useState } from "react";
 import styles from "./TimelineHeader.module.css";
 

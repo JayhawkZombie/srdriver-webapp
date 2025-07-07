@@ -1,11 +1,11 @@
 import React from "react";
-import { AppStateLogDrawer } from "../src/components/spectrogram-timeline/refactored-timeline/AppStateLogDrawer";
+import { AppStateLogDrawer } from "../src/components/dev/AppStateLogDrawer";
 import DevAppStateViewer from "../src/components/dev/DevAppStateViewer";
 import { FakeAppStateStoryProvider } from "../src/store/FakeAppStateStoryProvider";
 import { FakeDeviceControllerProvider } from "../src/stories/FakeDeviceControllerProvider";
 import { UnifiedThemeProvider } from "../src/context/UnifiedThemeProvider";
 import "@blueprintjs/core/lib/css/blueprint.css";
-import { PlaybackProvider } from "../src/components/spectrogram-timeline/refactored-timeline/PlaybackContext";
+import { PlaybackProvider } from "../src/components/custom-timeline/PlaybackContext";
 
 export const globalTypes = {
   showLogDrawer: {

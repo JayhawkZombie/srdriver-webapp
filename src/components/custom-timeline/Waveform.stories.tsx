@@ -1,8 +1,8 @@
 import React from "react";
 import Waveform from "./Waveform";
-import { FakeAppStateStoryProvider } from "../../../store/FakeAppStateStoryProvider";
+import { FakeAppStateStoryProvider } from "../../store/FakeAppStateStoryProvider";
 import { PlaybackProvider } from "./PlaybackContext";
-import { useAppStore } from "../../../store/appStore";
+import { useAppStore } from "../../store/appStore";
 
 export default {
   title: "RefactoredTimeline/Waveform",

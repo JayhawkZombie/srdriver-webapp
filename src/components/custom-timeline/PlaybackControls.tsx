@@ -1,10 +1,10 @@
 import React from "react";
 import { usePlayback } from "./PlaybackContext";
-import IconControl from "./IconControl";
-import SliderControl from "./SliderControl";
+import IconControl from "../controls/IconControl";
+import SliderControl from "../controls/SliderControl";
 import { Icon } from "@blueprintjs/core";
 import styles from "./PlaybackControls.module.css";
-import { usePlaybackAutoAdvance } from "../../../hooks/usePlaybackAutoAdvance";
+import { usePlaybackAutoAdvance } from "../../hooks/usePlaybackAutoAdvance";
 
 interface PlaybackControlsProps {
   children?: React.ReactNode;

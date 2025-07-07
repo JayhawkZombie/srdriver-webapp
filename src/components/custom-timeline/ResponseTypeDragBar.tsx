@@ -1,5 +1,5 @@
 import React from "react";
-import { useAppStore } from "../../../store/appStore";
+import { useAppStore } from "../../store/appStore";
 import { Stage, Layer } from "react-konva";
 import { ResponseRect } from "./ResponseRect";
 

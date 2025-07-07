@@ -2,9 +2,9 @@ import React from "react";
 import PlaybackControls from "./PlaybackControls";
 import { PlaybackProvider, usePlayback } from "./PlaybackContext";
 import Waveform from "./Waveform";
-import { useAppStore } from "../../../store/appStore";
+import { useAppStore } from "../../store/appStore";
 // import { selectAudioData } from "../../../store/selectors";
-import { decodeAudioFile, getMonoPCMData } from '../../../controllers/audioChunker';
+import { decodeAudioFile, getMonoPCMData } from '../../controllers/audioChunker';
 
 export default {
     title: "RefactoredTimeline/PlaybackControls",

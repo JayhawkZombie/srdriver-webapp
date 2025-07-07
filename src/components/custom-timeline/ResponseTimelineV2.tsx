@@ -26,12 +26,12 @@
 // [ ] Integrate a JS profiling/plotting library
 
 import React, { useState } from "react";
-import { useTimelineResponses, useAddTimelineResponse, useUpdateTimelineResponse, useSetTimelineResponses, useTrackTargets, useSetTrackTarget } from '../../../store/appStore';
+import { useTimelineResponses, useAddTimelineResponse, useUpdateTimelineResponse, useSetTimelineResponses, useTrackTargets, useSetTrackTarget } from '../../store/appStore';
 import { usePlayback } from "./PlaybackContext";
-import { useAppStore } from '../../../store/appStore';
+import { useAppStore } from '../../store/appStore';
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { CustomKonvaTimelineStage } from "./CustomKonvaResponseTimeline.stories";
-import { Profiling } from '../../utility/Profiling';
+import { Profiling } from '../utility/Profiling';
 
 const labelWidth = 110;
 const labelHeight = 32;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ResponseRectTemplateEditor } from './ResponseRectTemplateEditor';
-import { useAppStore } from '../../../store/appStore';
+import { useAppStore } from '../../store/appStore';
 import { Card } from '@blueprintjs/core';
 
 export default {

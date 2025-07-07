@@ -2,7 +2,7 @@ import React from "react";
 import { Stage, Layer } from "react-konva";
 import { Card } from "@blueprintjs/core";
 import { ResponseRect } from "./ResponseRect";
-import { useAppStore } from "../../../store/appStore";
+import { useAppStore } from "../../store/appStore";
 
 export default {
   title: "Timeline/ResponseRectTypes",
