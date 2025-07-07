@@ -99,6 +99,26 @@ class WorkerManager {
     bandFilter: new WorkerHandle('../workers/bandFilterWorker.ts'),
   };
 
+  getInfo() {
+
+    // Accumulate info from all handles
+    const info = {
+      totalQueued: 0,
+      totalActive: 0,
+      jobs: [] as { type: WorkerType; status: 'idle' | 'busy'; queueSize: number }[],
+    };
+    for (const [type, handle] of Object.entries(this.handles)) {
+      info.totalQueued += handle.getQueueSize();
+      info.totalActive += handle.getStatus() === 'busy' ? 1 : 0;
+      info.jobs.push({
+        type: type as WorkerType,
+        status: handle.getStatus(),
+        queueSize: handle.getQueueSize(),
+      });
+    }
+    return info;
+  }
+
   enqueueJob<T, U>(type: WorkerType, request: T, onProgress?: (progress: { processed: number; total: number; jobId?: string }) => void): Promise<U> {
     function isAubioRequest(obj: unknown): obj is { audioBuffer: Float32Array | ArrayBuffer; sampleRate: number } {
       return !!obj && typeof obj === 'object' && 'audioBuffer' in obj && 'sampleRate' in obj;

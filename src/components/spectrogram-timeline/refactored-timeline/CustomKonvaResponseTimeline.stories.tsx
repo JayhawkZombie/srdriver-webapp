@@ -53,7 +53,11 @@ export const CustomKonvaResponseTimeline = () => {
     setWindowStart(newWindowStart);
   }, [currentTime, windowDuration, totalDuration]);
 
-  // Pointer handler
+  // Robust local state for hover/selection
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Pointer handler for drag/resize/context menu
   const pointerHandler = useTimelinePointerHandler({
     windowStart,
     windowDuration,
@@ -93,6 +97,7 @@ export const CustomKonvaResponseTimeline = () => {
         triggered: false,
       });
     },
+    // You can still use onContextMenu, etc.
   });
 
   // Playhead X
@@ -155,10 +160,10 @@ export const CustomKonvaResponseTimeline = () => {
               <label>Track {i + 1}: </label>
               <select
                 value={value}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                  const val = e.target.value;
+                onChange={(e) => {
+                  const val = (e.target as HTMLSelectElement).value;
                   if (val) setTrackTarget(i, { type: 'device', id: val });
-                  else setTrackTarget(i, undefined as any);
+                  else setTrackTarget(i, undefined as undefined);
                 }}
                 style={{ minWidth: 120, padding: 4, borderRadius: 4 }}
               >
@@ -174,7 +179,15 @@ export const CustomKonvaResponseTimeline = () => {
         })}
       </div>
       {/* Timeline Konva Stage */}
-      <Stage width={tracksWidth} height={tracksHeight} style={{ background: '#181c22', borderRadius: 8 }}>
+      <Stage
+        width={tracksWidth}
+        height={tracksHeight}
+        style={{ background: '#181c22', borderRadius: 8 }}
+        onMouseLeave={() => {
+          setHoveredId(null);
+          // Optionally: setSelectedId(null);
+        }}
+      >
         <Layer>
           {/* Track backgrounds with midlines and subtle borders */}
           {[...Array(numTracks)].map((_, i) => {
@@ -244,12 +257,12 @@ export const CustomKonvaResponseTimeline = () => {
           {responses.map(rect => {
             const isTrackAssigned = !!trackTargets[rect.trackIndex];
             const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
-            const paletteName = rect.data?.paletteName || 'demo';
+            const paletteName = String(rect.data?.paletteName || 'demo');
             const palette = getPaletteSafe(paletteName);
             let paletteState;
             if (!isTrackAssigned) paletteState = palette.states.unassigned;
-            else if (pointerHandler.getRectProps(rect.id).selected) paletteState = palette.states.selected;
-            else if (pointerHandler.getRectProps(rect.id).hovered) paletteState = palette.states.hovered;
+            else if (selectedId === rect.id) paletteState = palette.states.selected;
+            else if (hoveredId === rect.id) paletteState = palette.states.hovered;
             else if (isActive) paletteState = palette.states.active;
             else paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
             const { color, opacity } = getPaletteColor({
@@ -261,6 +274,10 @@ export const CustomKonvaResponseTimeline = () => {
             const y = tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16;
             const width = (rect.duration / windowDuration) * tracksWidth;
             const height = 32;
+            // Only use local state for hovered/selected, do not spread from pointerHandler
+            const pointerHandlerRectProps = pointerHandler.getRectProps(rect.id) as Record<string, unknown>;
+            delete pointerHandlerRectProps.hovered;
+            delete pointerHandlerRectProps.selected;
             return (
               <ResponseRect
                 key={rect.id}
@@ -270,7 +287,18 @@ export const CustomKonvaResponseTimeline = () => {
                 height={height}
                 color={color}
                 opacity={opacity}
-                {...pointerHandler.getRectProps(rect.id)}
+                hovered={hoveredId === rect.id}
+                selected={selectedId === rect.id}
+                onGroupMouseEnter={() => {
+                  console.log('onGroupMouseEnter', rect.id);
+                  setHoveredId(rect.id);
+                }}
+                onGroupMouseLeave={() => {
+                  console.log('onGroupMouseLeave', rect.id);
+                  setHoveredId(null);
+                }}
+                onPointerDown={() => setSelectedId(rect.id)}
+                {...pointerHandlerRectProps}
               />
             );
           })}
@@ -281,7 +309,7 @@ export const CustomKonvaResponseTimeline = () => {
             const { x, y } = draggingRectPos;
             const snappedTrackIndex = snapYToTrackIndex(y, geometry);
             const snappedY = trackIndexToCenterY(snappedTrackIndex, geometry) - 16;
-            const paletteName = draggingRect.data?.paletteName || 'demo';
+            const paletteName = String(draggingRect.data?.paletteName || 'demo');
             const palette = getPaletteSafe(paletteName);
             const paletteState = palette.states.selected || { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
             const { color, opacity } = getPaletteColor({

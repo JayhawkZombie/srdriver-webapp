@@ -7,18 +7,21 @@ export const WorkerManagerDevPanel: React.FC = () => {
   const [stats, setStats] = React.useState<any>({
     queued: 0,
     running: 0,
-    completed: 0,
-    recent: [] as any[],
+    jobs: [],
+    // completed: 0,
+    // recent: [] as any[],
   });
 
   React.useEffect(() => {
     // TODO: Replace with real event subscription when available
     const update = () => {
+      const info = workerManager.getInfo();
       setStats({
-        queued: workerManager.getQueueLength?.() ?? 0, // TODO: Implement in workerManager
-        running: workerManager.getActiveJobCount?.() ?? 0, // TODO: Implement in workerManager
-        completed: workerManager.getCompletedJobCount?.() ?? 0, // TODO: Implement in workerManager
-        recent: workerManager.getRecentEvents?.() ?? [], // TODO: Implement in workerManager
+        queued: info.totalQueued,
+        running: info.totalActive,
+        jobs: info.jobs,
+        // completed: info.totalCompleted,
+        // recent: info.recent,
       });
     };
     // TODO: Implement event emitter in workerManager
