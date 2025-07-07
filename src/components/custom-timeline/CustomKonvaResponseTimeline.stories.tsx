@@ -1,12 +1,4 @@
-import React, { useMemo, useState } from "react";
-import {
-    Stage,
-    Layer,
-    Line,
-    Rect,
-    Text as KonvaText,
-    Group,
-} from "react-konva";
+import React, { useState, useEffect } from "react";
 import {
     useTimelineResponses,
     useAddTimelineResponse,
@@ -18,36 +10,11 @@ import {
 import { usePlayback } from "./PlaybackContext";
 import { useAppStore } from "../../store/appStore";
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
-import { ResponseRect } from "./ResponseRect";
-import { getPaletteColor } from "./colorUtils";
-import { trackIndexToCenterY, snapYToTrackIndex } from "./timelineMath";
-import {
-    TimelineVisuals,
-    TimelineResponse,
-    Palettes,
-    TrackTarget,
-    Geometry,
-} from "./TimelineVisuals";
+import KonvaResponseTimeline from "./KonvaResponseTimeline";
 
 export default {
     title: "RefactoredTimeline/CustomKonvaResponseTimeline",
 };
-
-type Palette = {
-    baseColor: string;
-    borderColor: string;
-    states: Record<
-        string,
-        { color: string; borderColor: string; opacity: number }
-    >;
-};
-
-type Palettes = Record<string, Palette>;
-
-type DeviceMetadata = Record<string, { browserId: string; name?: string }>;
-
-const labelWidth = 110;
-const labelHeight = 32;
 
 export const CustomKonvaResponseTimeline = () => {
     // State and store hooks
@@ -57,11 +24,7 @@ export const CustomKonvaResponseTimeline = () => {
     const setTimelineResponses = useSetTimelineResponses();
     const { totalDuration, currentTime } = usePlayback();
     const trackTargets = useTrackTargets();
-    const setTrackTarget = useSetTrackTarget();
-    const palettes: Palettes = useAppStore((state) => state.palettes);
-    const deviceMetadata: DeviceMetadata = useAppStore(
-        (state) => state.deviceMetadata
-    );
+    const palettes = useAppStore((state) => state.palettes);
 
     // Timeline geometry
     const numTracks = 3;
@@ -70,13 +33,11 @@ export const CustomKonvaResponseTimeline = () => {
     const trackHeight = (tracksHeight - 32 - 2 * 8) / numTracks - 8;
     const trackGap = 8;
     const tracksTopOffset = 32;
-    const tracksTotalHeight =
-        numTracks * trackHeight + (numTracks - 1) * trackGap;
 
     // Window logic
     const [windowDuration, setWindowDuration] = useState(5);
     const [windowStart, setWindowStart] = useState(0);
-    React.useEffect(() => {
+    useEffect(() => {
         let newWindowStart = currentTime - windowDuration / 2;
         if (newWindowStart < 0) newWindowStart = 0;
         if (newWindowStart > totalDuration - windowDuration)
@@ -158,7 +119,6 @@ export const CustomKonvaResponseTimeline = () => {
                 triggered: false,
             });
         },
-        // You can still use onContextMenu, etc.
     });
 
     // Active rects
@@ -187,82 +147,23 @@ export const CustomKonvaResponseTimeline = () => {
         totalDuration,
     };
 
-    // --- Layout: flex row, left for labels, right for timeline ---
     return (
-        <div
-            style={{
-                display: "flex",
-                flexDirection: "row",
-                width: tracksWidth + labelWidth + 40,
-                margin: "40px auto",
-                background: "#23272f",
-                borderRadius: 12,
-                padding: 24,
-            }}
-        >
-            {/* Track labels column */}
-            <div
-                style={{
-                    width: labelWidth,
-                    position: "relative",
-                    height: tracksHeight,
-                }}
-            >
-                {[...Array(numTracks)].map((_, i) => {
-                    const y =
-                        tracksTopOffset +
-                        i * (trackHeight + trackGap) +
-                        trackHeight / 2;
-                    return (
-                        <div
-                            key={i}
-                            style={{
-                                position: "absolute",
-                                top: y - labelHeight / 2,
-                                left: 0,
-                                width: "100%",
-                                height: labelHeight,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "flex-end",
-                                color: "#fff",
-                                fontWeight: 500,
-                                fontFamily: "monospace",
-                                fontSize: 16,
-                                pointerEvents: "none",
-                            }}
-                        >
-                            Track {i + 1}
-                        </div>
-                    );
-                })}
-            </div>
-            {/* Timeline Konva Stage column */}
-            <div style={{ flex: 1 }}>
-                <TimelineVisuals
-                    numTracks={numTracks}
-                    tracksWidth={tracksWidth}
-                    tracksHeight={tracksHeight}
-                    trackHeight={trackHeight}
-                    trackGap={trackGap}
-                    tracksTopOffset={tracksTopOffset}
-                    windowStart={windowStart}
-                    windowDuration={windowDuration}
-                    responses={responses}
-                    hoveredId={hoveredId}
-                    selectedId={selectedId}
-                    setHoveredId={setHoveredId}
-                    setSelectedId={setSelectedId}
-                    pointerHandler={pointerHandler}
-                    palettes={palettes}
-                    trackTargets={trackTargets as TrackTarget[]}
-                    activeRectIds={activeRectIds}
-                    geometry={geometry as Geometry}
-                    draggingId={draggingId}
-                    draggingRectPos={draggingRectPos}
-                    currentTime={currentTime}
-                />
-            </div>
-        </div>
+        <KonvaResponseTimeline
+            responses={responses}
+            hoveredId={hoveredId}
+            selectedId={selectedId}
+            setHoveredId={setHoveredId}
+            setSelectedId={setSelectedId}
+            pointerHandler={pointerHandler}
+            palettes={palettes}
+            trackTargets={trackTargets}
+            activeRectIds={activeRectIds}
+            geometry={geometry}
+            draggingId={draggingId}
+            draggingRectPos={draggingRectPos}
+            currentTime={currentTime}
+            windowStart={windowStart}
+            windowDuration={windowDuration}
+        />
     );
 };

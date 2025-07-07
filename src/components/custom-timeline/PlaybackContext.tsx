@@ -35,6 +35,8 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
   const isPlayingRef = useRef(isPlaying);
   const currentTimeRef = useRef(currentTime);
   const isSeekingRef = useRef(false);
+  const playbackStartTimeRef = useRef<number | null>(null);
+  const startOffsetRef = useRef<number>(0);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
 
@@ -73,18 +75,16 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
       };
       sourceRef.current = source;
       setIsPlaying(true);
-      // Timer to update currentTime
-      timerRef.current = window.setInterval(() => {
-        setCurrentTime((t) => {
-          const next = t + 0.05;
-          if (audioBufferRef.current && next >= audioBufferRef.current.duration) {
-            setIsPlaying(false);
-            stopSource();
-            return audioBufferRef.current.duration;
-          }
-          return next;
-        });
-      }, 50);
+      playbackStartTimeRef.current = audioCtxRef.current.currentTime;
+      startOffsetRef.current = currentTimeRef.current;
+      // Timer to update currentTime using requestAnimationFrame
+      const update = () => {
+        if (!isPlayingRef.current) return;
+        const now = audioCtxRef.current!.currentTime;
+        setCurrentTime(startOffsetRef.current + (now - playbackStartTimeRef.current!));
+        timerRef.current = requestAnimationFrame(update);
+      };
+      timerRef.current = requestAnimationFrame(update);
     } else {
       // DEMO MODE: advance playhead with requestAnimationFrame for smoothness
       stopSource();
@@ -114,11 +114,15 @@ export const PlaybackProvider: React.FC<{ children: React.ReactNode, totalDurati
   const pause = useCallback(() => {
     stopSource();
     setIsPlaying(false);
+    if (audioCtxRef.current && playbackStartTimeRef.current !== null) {
+      setCurrentTime(startOffsetRef.current + (audioCtxRef.current.currentTime - playbackStartTimeRef.current));
+    }
   }, []);
 
   const seek = useCallback((t: number) => {
     stopSource();
     setCurrentTime(t);
+    startOffsetRef.current = t;
     if (isPlayingRef.current) {
       setTimeout(() => play(), 0);
     }
