@@ -146,11 +146,11 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 setWindowDuration={setWindowDuration}
             >
                 {waveform ? (
-                    <div style={{ width: tracksWidth, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={handleWaveformClick}>
+                    <div style={{ width: "100%", margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={handleWaveformClick}>
                         <BarWaveform data={waveform} width={tracksWidth} height={80} color="#4fc3f7" barWidth={1} />
                     </div>
                 ) : (
-                    <div style={{ width: tracksWidth, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                    <div style={{ width: "100%", margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
                         Waveform (upload audio)
                     </div>
                 )}
