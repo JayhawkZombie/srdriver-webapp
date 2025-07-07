@@ -13,7 +13,6 @@ import { Drawer as BPDrawer, Position, Card } from '@blueprintjs/core';
 import { ResponsePaletteEditor } from './spectrogram-timeline/refactored-timeline/ResponsePaletteEditor';
 import { ResponseRectToolbarGallery } from './spectrogram-timeline/refactored-timeline/ResponseRectToolbarGallery';
 import { UnifiedThemeContext } from '../context/UnifiedThemeContext';
-import DashboardTimeline from './spectrogram-timeline/refactored-timeline/DashboardTimeline';
 import { Profiling } from './utility/Profiling';
 import { useDevToolsEnabled } from '../store/appStore';
 
@@ -69,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
                   onOpenLogDrawer={() => setLogDrawerOpen(true)}
                   onOpenDevAppStateDrawer={toggleDevAppStateDrawer}
               />
-              <DashboardTimeline />
+              {"WIP"}
               {devToolsEnabled && (
                 <Card elevation={4} className={mode === 'dark' ? 'bp5-dark' : ''} style={{
                   position: 'fixed',
