@@ -332,6 +332,7 @@ export default function ResponseTimeline({ actions }: { actions?: TimelineMenuAc
   };
 
   const handleDragLeave = () => setDragShadow(null);
+  console.log("ResponseTimeline: rendering");
 
   return (
     <div style={{ width: '100%' }}>

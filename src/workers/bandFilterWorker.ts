@@ -16,7 +16,7 @@ interface BandFilterRequest {
 
 interface BandFilterResult {
   type: 'done';
-  bands: { name: string; color: string; pcm: number[] }[];
+  bands: { name: string; color: string; pcm: Float32Array }[];
   jobId?: string;
 }
 
@@ -61,16 +61,18 @@ self.onmessage = async (e: MessageEvent) => {
   const pcm = new Float32Array(data.pcmBuffer);
   const bands = data.bands;
   const total = bands.length;
-  const resultBands: { name: string; color: string; pcm: number[] }[] = [];
+  const resultBands: { name: string; color: string; pcm: Float32Array }[] = [];
   for (let i = 0; i < bands.length; i++) {
     const band = bands[i];
     self.postMessage({ type: 'log', message: `[bandFilterWorker] filtering band ${band.name}`, band });
     const filtered = biquadBandpass(pcm, data.sampleRate, band.freq, band.q);
     self.postMessage({ type: 'log', message: `[bandFilterWorker] finished band ${band.name}`, band, filteredPreview: Array.from(filtered.slice(0, 8)) });
-    resultBands.push({ name: band.name, color: band.color, pcm: Array.from(filtered) });
+    resultBands.push({ name: band.name, color: band.color, pcm: filtered });
     self.postMessage({ type: 'progress', processed: i + 1, total, jobId: data.jobId });
   }
   const result: BandFilterResult = { type: 'done', bands: resultBands, jobId: data.jobId };
   self.postMessage({ type: 'log', message: '[bandFilterWorker] posting final result', resultPreview: { bands: resultBands.map(b => ({ name: b.name, color: b.color, pcmLen: b.pcm.length })) } });
-  self.postMessage(result);
+  // Transfer all band PCM buffers
+  const transferList: Transferable[] = resultBands.map(b => b.pcm.buffer);
+  (self as any).postMessage(result, transferList);
 }; 

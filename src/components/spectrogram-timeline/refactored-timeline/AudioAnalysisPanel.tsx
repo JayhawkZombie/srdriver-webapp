@@ -96,14 +96,15 @@ const FFTSection = ({
             )
             .then((result: unknown) => {
                 const fftResult = result as {
-                    fftSequence: number[][];
-                    normalizedFftSequence: number[][];
+                    fftSequence: Float32Array[];
+                    normalizedFftSequence: Float32Array[];
                     summary: Record<string, unknown>;
                 };
-                // Downsample for Zustand overlays (UI only)
-                // const dsFft = downsample2D(fftResult.fftSequence, 200, 64);
+                // Convert Float32Array[] to number[][] for downstream consumers
+                const fftSequenceNum = fftResult.fftSequence.map(arr => Array.from(arr));
+                const normFftSequenceNum = fftResult.normalizedFftSequence.map(arr => Array.from(arr));
                 setFftResult({
-                    normalizedFftSequence: fftResult.normalizedFftSequence,
+                    normalizedFftSequence: normFftSequenceNum,
                     summary: fftResult.summary,
                 });
                 const worker = new Worker(
@@ -114,7 +115,7 @@ const FFTSection = ({
                     { type: "module" }
                 );
                 worker.postMessage({
-                    fftSequence: fftResult.fftSequence,
+                    fftSequence: fftSequenceNum,
                     bands: BAND_DEFS,
                     sampleRate,
                     hopSize: 512,
@@ -216,8 +217,10 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
     const { currentTime } = usePlayback();
     const windowDuration = 15;
     const windowStart = Math.max(0, currentTime - windowDuration / 2);
+    const [uiReady, setUiReady] = React.useState(false);
     // Detection logic
     const handleRunDetection = () => {
+        setUiReady(false);
         setIsLoading(true);
         setError(undefined);
         setResults(null);
@@ -244,6 +247,7 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
             }
         ).then((result) => {
             console.log('DetectionEngineSection: result', result);
+            // Expect result to be { main: DetectionResult, bands: DetectionResult[] }
             type MultiBandDetectionResult = { main: DetectionResult; bands: DetectionResult[] };
             if (result && typeof result === 'object' && Array.isArray((result as MultiBandDetectionResult).bands)) {
                 setResults((result as MultiBandDetectionResult).main);
@@ -251,6 +255,8 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
             } else {
                 setResults(result as DetectionResult);
             }
+            // Defer setting uiReady to next tick to ensure state is processed
+            setTimeout(() => setUiReady(true), 0);
             setIsLoading(false);
         }).catch((err) => {
             console.log('DetectionEngineSection: error', err);
@@ -404,6 +410,16 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
                             )}
                     </div>
                 </div>
+            )}
+            {/* Indeterminate progress bar if not UI ready */}
+            {!uiReady && (
+                <ProgressBar
+                    animate
+                    stripes
+                    intent="primary"
+                    value={undefined}
+                    style={{ margin: "16px 0", height: 10, width: 400 }}
+                />
             )}
             {error && <div style={{ color: "red" }}>{error}</div>}
         </div>

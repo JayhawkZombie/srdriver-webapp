@@ -75,7 +75,7 @@ const WindowedWaveform: React.FC<{ waveform: number[]; width: number; height: nu
 const WaveformWithStore = (props: { width: number; height: number }) => {
     const waveform = useAppStore((state) => state.audio.analysis?.waveform);
     if (!Array.isArray(waveform) || waveform.length === 0) return null;
-    return <Waveform width={props.width} height={props.height} />;
+    return <Waveform waveform={waveform} width={props.width} height={props.height} />;
 };
 
 export const DashboardTimeline: React.FC = () => {
@@ -127,7 +127,7 @@ export const DashboardTimeline: React.FC = () => {
                         {loading ? (
                             <ProgressBar animate stripes value={progress && progress.total ? progress.processed / progress.total : 0} intent="primary" style={{ height: 12, borderRadius: 6 }} />
                         ) : (
-                            <Waveform width={800} height={80} />
+                            <Waveform waveform={waveform} width={800} height={80} />
                         )}
                     </div>
                     <Button intent="primary" onClick={handleAnalyze} disabled={!audioBuffer || loading} style={{ marginBottom: 12 }}>

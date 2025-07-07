@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useAppStore } from "../../../store/appStore";
 import { workerManager } from "../../../controllers/workerManager";
 import { decodeAudioFile, getMonoPCMData } from "../../../controllers/audioChunker";
@@ -73,7 +73,7 @@ function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
             });
     }, [setAudioData, setWaveformProgress]);
 
-    const value: AudioAnalysisContextType = {
+    const value: AudioAnalysisContextType = useMemo(() => ({
         pcm,
         sampleRate,
         localWaveform,
@@ -88,7 +88,8 @@ function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
         handleFileChange,
         progress,
         bandDataArr,
-    };
+    }), [pcm, sampleRate, localWaveform, localDuration, bandConfigs, filtering, selectedEngine, engineOptions, handleFileChange, progress, bandDataArr]);
+
     return (
         <AudioAnalysisContext.Provider value={value}>
             {children}

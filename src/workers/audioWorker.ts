@@ -156,7 +156,19 @@ globalThis.onmessage = async (e: MessageEvent) => {
   const dsFftSeq = downsample2D(fftSeqNum, data.maxFrames ?? 200, data.maxBins ?? 64);
   const dsNormFftSeq = downsample2D(normFftSeqNum, data.maxFrames ?? 200, data.maxBins ?? 64);
 
-  globalThis.postMessage({ type: 'done', summary, fftSequence: dsFftSeq, normalizedFftSequence: dsNormFftSeq, jobId } as AudioProcessResult);
+  // Transfer all row buffers as Float32Array
+  const fftBuffers: Transferable[] = [];
+  const fftSequenceFloat = dsFftSeq.map(row => {
+    const arr = new Float32Array(row);
+    fftBuffers.push(arr.buffer);
+    return arr;
+  });
+  const normFftSequenceFloat = dsNormFftSeq.map(row => {
+    const arr = new Float32Array(row);
+    fftBuffers.push(arr.buffer);
+    return arr;
+  });
+  (globalThis as any).postMessage({ type: 'done', summary, fftSequence: fftSequenceFloat, normalizedFftSequence: normFftSequenceFloat, jobId } as AudioProcessResult, fftBuffers);
 };
 
 // No exports (web worker file) 

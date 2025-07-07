@@ -5,6 +5,7 @@ import { FakeAppStateStoryProvider } from "../src/store/FakeAppStateStoryProvide
 import { FakeDeviceControllerProvider } from "../src/stories/FakeDeviceControllerProvider";
 import { UnifiedThemeProvider } from "../src/context/UnifiedThemeProvider";
 import "@blueprintjs/core/lib/css/blueprint.css";
+import { PlaybackProvider } from "../src/components/spectrogram-timeline/refactored-timeline/PlaybackContext";
 
 export const globalTypes = {
   showLogDrawer: {
@@ -38,9 +39,10 @@ export const decorators = [
     const showLogDrawer = context.globals.showLogDrawer;
         const showDevAppStateDrawer = context.globals.showDevAppStateDrawer;
     return (
-            <UnifiedThemeProvider>
-                <FakeDeviceControllerProvider>
-                    <FakeAppStateStoryProvider mockType="screenshotBar">
+        <UnifiedThemeProvider>
+            <FakeDeviceControllerProvider>
+                <FakeAppStateStoryProvider mockType="screenshotBar">
+                    <PlaybackProvider>
                         <AppStateLogDrawer
                             isOpen={!!showLogDrawer}
                             onClose={() => {}}
@@ -49,10 +51,11 @@ export const decorators = [
                             isOpen={!!showDevAppStateDrawer}
                             onClose={() => {}}
                         />
-        <Story />
-                    </FakeAppStateStoryProvider>
-                </FakeDeviceControllerProvider>
-            </UnifiedThemeProvider>
+                        <Story />
+                    </PlaybackProvider>
+                </FakeAppStateStoryProvider>
+            </FakeDeviceControllerProvider>
+        </UnifiedThemeProvider>
     );
   },
 ];

@@ -50,6 +50,16 @@ globalThis.onmessage = (e: MessageEvent) => {
       sampleRate: data.sampleRate,
       jobId: data.jobId,
     };
-    globalThis.postMessage(result);
+    // Transfer waveform buffer if possible
+    let transferList: Transferable[] = [];
+    if (waveform instanceof Float32Array) {
+      transferList = [waveform.buffer];
+    } else if (Array.isArray(waveform) && waveform.length > 0 && typeof waveform[0] === 'number') {
+      // Convert to Float32Array for transfer
+      const arr = new Float32Array(waveform);
+      result.waveform = Array.from(arr); // keep as number[] for compatibility
+      transferList = [arr.buffer];
+    }
+    (globalThis as any).postMessage(result, transferList);
   }
 }; 
