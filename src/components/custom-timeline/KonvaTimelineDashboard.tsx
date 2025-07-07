@@ -7,9 +7,9 @@ import type { TimelineResponse } from "./TimelineVisuals";
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { useAppStore } from "../../store/appStore";
 import { useTimelineSelectionState } from "./useTimelineSelectionState";
+import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 
 const numTracks = 3;
-const tracksWidth = 900;
 const tracksHeight = 300;
 const trackHeight = (tracksHeight - 32 - 2 * 8) / numTracks - 8;
 const trackGap = 8;
@@ -27,6 +27,10 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 
     // Use palettes from the app store
     const palettes = useAppStore(state => state.palettes);
+
+    // Responsive container size
+    const [containerRef, { width: measuredWidth }] = useMeasuredContainerSize({ minWidth: 400, maxWidth: 1800 });
+    const tracksWidth = Math.max(400, measuredWidth - labelWidth - 40); // 40 for padding/margins
 
     // Timeline state (local for now)
     const [responses, setResponses] = useState<TimelineResponse[]>([
@@ -115,7 +119,19 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 
     // Layout: controls + waveform header, timeline below
     return (
-        <div style={{ width: tracksWidth + labelWidth + 40, margin: "40px auto", background: "#23272f", borderRadius: 12, padding: 24 }}>
+        <div
+            ref={containerRef}
+            style={{
+                width: "90vw",
+                maxWidth: 1800,
+                minWidth: 400,
+                margin: "40px auto",
+                background: "#23272f",
+                borderRadius: 12,
+                padding: 24,
+                boxSizing: "border-box",
+            }}
+        >
             {/* Controls + waveform header */}
             <TimelineControls
                 isPlaying={isPlaying}
@@ -130,11 +146,11 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 setWindowDuration={setWindowDuration}
             >
                 {waveform ? (
-                    <div style={{ width: 600, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={handleWaveformClick}>
-                        <BarWaveform data={waveform} width={600} height={80} color="#4fc3f7" barWidth={1} />
+                    <div style={{ width: tracksWidth, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} onClick={handleWaveformClick}>
+                        <BarWaveform data={waveform} width={tracksWidth} height={80} color="#4fc3f7" barWidth={1} />
                     </div>
                 ) : (
-                    <div style={{ width: 600, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                    <div style={{ width: tracksWidth, margin: '0 auto', height: 80, background: '#181c22', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
                         Waveform (upload audio)
                     </div>
                 )}
