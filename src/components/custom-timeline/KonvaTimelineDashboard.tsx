@@ -197,24 +197,25 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     React.useEffect(() => {
         setResponses((prevResponses) =>
             prevResponses.map((rect) => {
+                const assignedTarget = trackTargets[rect.trackIndex];
                 const isActive =
+                    !!assignedTarget &&
                     currentTime >= rect.timestamp &&
                     currentTime < rect.timestamp + rect.duration;
-                // If just became active, trigger the mixer with all rect.data (including type)
                 if (
+                    assignedTarget &&
                     isActive &&
                     !rect.triggered &&
                     rect.data &&
                     rect.data.type &&
                     rect.data.pattern
                 ) {
-                    // Mixer expects MixerResponseInfo, which requires type and patternId (or pattern). We check above.
                     mixer.triggerResponse(rect.data as unknown as import('../../controllers/Mixer').MixerResponseInfo);
                 }
                 return { ...rect, triggered: isActive };
             })
         );
-    }, [currentTime, mixer]);
+    }, [currentTime, mixer, trackTargets]);
 
     // Layout: controls + waveform header, timeline below
     return (
