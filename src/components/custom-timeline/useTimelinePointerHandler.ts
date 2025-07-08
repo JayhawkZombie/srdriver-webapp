@@ -170,7 +170,7 @@ export function useTimelinePointerHandler({
         (e as any).cancelBubble = true;
       },
       onPointerMove: (e: unknown) => {
-        console.log('[Rect] onPointerMove', id, e);
+        // console.log('[Rect] onPointerMove', id, e);
         setHoveredId(id);
         (e as any).cancelBubble = true;
       },
@@ -190,6 +190,7 @@ export function useTimelinePointerHandler({
         (e as any).cancelBubble = true;
       },
       onDragMove: (e: unknown) => {
+        console.log('[Rect] onDragMove', id, e);
         if (!dragStartRef.current) return;
         const x = (e as any).target.x();
         const y = (e as any).target.y();
@@ -238,6 +239,7 @@ export function useTimelinePointerHandler({
         setHoveredId(null);
       },
       onResizeStart: (e: unknown, edge: 'start' | 'end') => {
+        console.log('[Rect] RESIZE START', id, edge);
         if (!edge) return; // Defensive: only call with valid edge
         setResizing({ id, edge });
         resizeStartRef.current = { x: (e as any).evt ? (e as any).evt.clientX : (e as any).target.getStage().getPointerPosition().x, timestamp: rect.timestamp, duration: rect.duration };
@@ -247,6 +249,7 @@ export function useTimelinePointerHandler({
           const pointerX = ev.clientX;
           const dx = pointerX - (resizeStartRef.current ? resizeStartRef.current.x : 0);
           const timeDelta = (dx / tracksWidth) * windowDuration;
+          console.log("TIME DELTA", timeDelta);
           let newTimestamp = resizeStartRef.current ? resizeStartRef.current.timestamp : 0;
           let newDuration = resizeStartRef.current ? resizeStartRef.current.duration : 0.1;
           if (edge === 'start') {
@@ -255,8 +258,11 @@ export function useTimelinePointerHandler({
           } else if (edge === 'end') {
             newDuration = Math.max(0.1, (resizeStartRef.current ? resizeStartRef.current.duration : 0.1) + timeDelta);
           }
-          console.log('[Rect] handleMouseMove (resize)', { id, edge, newTimestamp, newDuration });
-          if (onRectResize && id && edge) onRectResize(id, edge, newTimestamp, newDuration);
+          // console.log('[Rect] handleMouseMove (resize)', { id, edge, newTimestamp, newDuration });
+          if (onRectResize && id && edge) {
+            console.error("CALLING ON RECT RESIZE", id, edge, newTimestamp, newDuration);
+            onRectResize(id, edge, newTimestamp, newDuration)
+          }
         }
         function handleMouseUp(ev: MouseEvent) {
           setResizing({ id: null, edge: null });
