@@ -97,7 +97,7 @@ class WorkerManager {
     fft: new WorkerHandle('../workers/audioWorker.ts'),
     aubio: new WorkerHandle('../workers/aubioWorker.ts'),
     bandFilter: new WorkerHandle('../workers/bandFilterWorker.ts'),
-    visualization: new WorkerHandle('../workers/visualizationWorker.ts'),
+    visualization: new WorkerHandle('./visualizationWorker.ts'),
   };
 
   getInfo() {

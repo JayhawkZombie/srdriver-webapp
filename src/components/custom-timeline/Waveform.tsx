@@ -32,6 +32,8 @@ const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, wavef
     onSeek(time);
   };
 
+  console.log('[Waveform] Rendering with waveform:', waveform, 'duration:', duration, 'width:', width, 'height:', height);
+
   return (
     <div className={styles.waveformRoot} style={{ width, height }}>
       <svg

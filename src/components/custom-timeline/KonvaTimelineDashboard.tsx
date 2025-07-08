@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import KonvaResponseTimeline from "./KonvaResponseTimeline";
 import TimelineControls from "./TimelineControls";
-import BarWaveform from "./BarWaveform";
 import { usePlaybackState, usePlaybackController } from "./PlaybackContext";
 import type { TimelineResponse } from "./TimelineVisuals";
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { useAppStore } from "../../store/appStore";
 import { useTimelineSelectionState } from "./useTimelineSelectionState";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
-import { Mixer } from '../../controllers/Mixer';
+import { Mixer } from "../../controllers/Mixer";
+import Waveform from "./Waveform";
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -17,32 +17,55 @@ const trackGap = 8;
 const tracksTopOffset = 32;
 const labelWidth = 110;
 
-type RectMoveArgs = { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean };
+type RectMoveArgs = {
+    timestamp: number;
+    trackIndex: number;
+    destroyAndRespawn?: boolean;
+};
 
 const KonvaTimelineDashboardInner: React.FC = () => {
     // Audio state
     const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
-    const [waveform, setWaveform] = useState<number[] | null>(null);
-    const { currentTime, isPlaying, duration } = usePlaybackState();
-    const { play, pause, seek, setBuffer } = usePlaybackController();
+    // REMOVE: const [waveform, setWaveform] = useState<number[] | null>(null);
+    // Defensive: ensure waveform is always an array
+    const rawWaveform = useAppStore((s) => s.audio.analysis?.waveform);
+    const waveform = Array.isArray(rawWaveform)
+        ? rawWaveform
+        : rawWaveform && typeof rawWaveform === 'object'
+        ? Object.values(rawWaveform) as number[]
+        : [];
+    const duration = useAppStore((s) => s.audio.analysis?.duration) || 0;
+    const { currentTime, isPlaying } = usePlaybackState();
+    const { play, pause, seek } = usePlaybackController();
 
     // Use palettes from the app store
-    const palettes = useAppStore(state => state.palettes);
-    const devices = useAppStore(state => state.devices);
-    const deviceMetadata = useAppStore(state => state.deviceMetadata);
-    const setTrackTarget = useAppStore(state => state.setTrackTarget);
+    const palettes = useAppStore((state) => state.palettes);
+    const devices = useAppStore((state) => state.devices);
+    const deviceMetadata = useAppStore((state) => state.deviceMetadata);
+    // Removed unused setTrackTarget assignment
     // Track targets from app store (array)
-    const trackMapping = useAppStore(state => state.tracks.mapping);
-    const trackTargets = [0, 1, 2].map(i => trackMapping[i]);
+    const trackMapping = useAppStore((state) => state.tracks.mapping);
+    const trackTargets = [0, 1, 2].map((i) => trackMapping[i]);
 
     // Instantiate mixer (replace null with your actual engine if needed)
-    const mixer = React.useMemo(() => new Mixer({ firePattern: () => {} }), []);
+    const mixer = React.useMemo(() => new Mixer(), []);
 
     // Responsive container size
-    const [containerRef, { width: measuredWidth }] = useMeasuredContainerSize({ minWidth: 400, maxWidth: 1800 });
+    const [containerRef, { width: measuredWidth }] = useMeasuredContainerSize({
+        minWidth: 400,
+        maxWidth: 1800,
+    });
     const parentPadding = 24; // matches the parent container's padding
     const timelinePadding = 24; // padding inside the timeline area
-    const contentWidth = Math.max(400, measuredWidth - labelWidth - 2 * parentPadding - 2 * timelinePadding);
+    const contentWidth = Math.max(
+        400,
+        measuredWidth - labelWidth - 2 * parentPadding - 2 * timelinePadding
+    );
+    // LOGS for debugging
+    console.log('[KonvaTimelineDashboard] waveform:', waveform);
+    console.log('[KonvaTimelineDashboard] duration:', duration);
+    console.log('[KonvaTimelineDashboard] currentTime:', currentTime);
+    console.log('[KonvaTimelineDashboard] measuredWidth:', measuredWidth, 'contentWidth:', contentWidth);
 
     // Timeline state (local for now)
     const [responses, setResponses] = useState<TimelineResponse[]>([
@@ -64,8 +87,12 @@ const KonvaTimelineDashboardInner: React.FC = () => {
         },
     ]);
     const [windowDuration, setWindowDuration] = useState(5);
-    const windowStart = Math.max(0, Math.min(currentTime - windowDuration / 2, duration - windowDuration));
-    const { hoveredId, setHoveredId, selectedId, setSelectedId } = useTimelineSelectionState();
+    const windowStart = Math.max(
+        0,
+        Math.min(currentTime - windowDuration / 2, duration - windowDuration)
+    );
+    const { hoveredId, setHoveredId, selectedId, setSelectedId } =
+        useTimelineSelectionState();
     const geometry = {
         windowStart,
         windowDuration,
@@ -91,25 +118,41 @@ const KonvaTimelineDashboardInner: React.FC = () => {
         onRectMove: (id: string, args: RectMoveArgs) => {
             const { timestamp, trackIndex, destroyAndRespawn } = args;
             if (destroyAndRespawn) {
-                const oldRect = responses.find(r => r.id === id);
+                const oldRect = responses.find((r) => r.id === id);
                 if (!oldRect) return;
-                const newResponses = responses.filter(r => r.id !== id);
-                const newRect = { ...oldRect, id: crypto.randomUUID(), timestamp, trackIndex };
+                const newResponses = responses.filter((r) => r.id !== id);
+                const newRect = {
+                    ...oldRect,
+                    id: crypto.randomUUID(),
+                    timestamp,
+                    trackIndex,
+                };
                 setResponses([...newResponses, newRect]);
             } else {
-                setResponses(responses => responses.map(r => r.id === id ? { ...r, timestamp, trackIndex } : r));
+                setResponses((responses) =>
+                    responses.map((r) =>
+                        r.id === id ? { ...r, timestamp, trackIndex } : r
+                    )
+                );
             }
         },
         onRectResize: (id, edge, newTimestamp, newDuration) => {
-            setResponses(responses => responses.map(r => {
-                if (r.id !== id) return r;
-                if (edge === 'start') return { ...r, timestamp: newTimestamp, duration: newDuration };
-                return { ...r, duration: newDuration };
-            }));
+            setResponses((responses) =>
+                responses.map((r) => {
+                    if (r.id !== id) return r;
+                    if (edge === "start")
+                        return {
+                            ...r,
+                            timestamp: newTimestamp,
+                            duration: newDuration,
+                        };
+                    return { ...r, duration: newDuration };
+                })
+            );
         },
         onBackgroundClick: ({ time, trackIndex }) => {
             const duration = 1;
-            setResponses(responses => [
+            setResponses((responses) => [
                 ...responses,
                 {
                     id: crypto.randomUUID(),
@@ -124,21 +167,29 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     });
 
     // Active rects for highlighting
-    const activeRectIds = responses
-        .filter(r => r.triggered)
-        .map(r => r.id);
+    const activeRectIds = responses.filter((r) => r.triggered).map((r) => r.id);
 
     // Update triggered state and fire mixer on playhead overlap
     React.useEffect(() => {
-        setResponses(prevResponses => prevResponses.map(rect => {
-            const isActive = currentTime >= rect.timestamp && currentTime < rect.timestamp + rect.duration;
-            // If just became active, trigger the mixer with all rect.data (including type)
-            if (isActive && !rect.triggered && rect.data && rect.data.type) {
-                mixer.triggerResponse({ ...rect.data });
-            }
-            return { ...rect, triggered: isActive };
-        }));
+        setResponses((prevResponses) =>
+            prevResponses.map((rect) => {
+                const isActive =
+                    currentTime >= rect.timestamp &&
+                    currentTime < rect.timestamp + rect.duration;
+                // If just became active, trigger the mixer with all rect.data (including type)
+                if (
+                    isActive &&
+                    !rect.triggered &&
+                    rect.data &&
+                    rect.data.type
+                ) {
+                    mixer.triggerResponse({ ...rect.data });
+                }
+                return { ...rect, triggered: isActive };
+            })
+        );
     }, [currentTime, mixer]);
+    console.log("Waveform", waveform);
 
     // Layout: controls + waveform header, timeline below
     return (
@@ -168,32 +219,44 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 windowDuration={windowDuration}
                 setWindowDuration={setWindowDuration}
             >
-                {waveform ? (
-                    <div style={{
-                        width: "100%",
-                        margin: '0 auto',
-                        height: 100,
-                        background: '#181c22',
-                        borderRadius: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                    }} onClick={handleWaveformClick}>
-                        <BarWaveform data={waveform} width={contentWidth} height={200} color="#4fc3f7" barWidth={1} />
+                {waveform && waveform.length > 0 ? (
+                    <div
+                        style={{
+                            width: `${contentWidth}px`,
+                            margin: "0 auto",
+                            height: 100,
+                            background: "#181c22",
+                            borderRadius: 8,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            overflow: "hidden", // Prevents SVG overflow
+                        }}
+                        onClick={handleWaveformClick}
+                    >
+                        <Waveform
+                            waveform={waveform}
+                            width={contentWidth}
+                            height={100}
+                            duration={duration}
+                            currentTime={currentTime}
+                        />
                     </div>
                 ) : (
-                    <div style={{
-                        width: "100%",
-                        margin: '0 auto',
-                        height: 80,
-                        background: '#181c22',
-                        borderRadius: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#888'
-                    }}>
+                    <div
+                        style={{
+                            width: "100%",
+                            margin: "0 auto",
+                            height: 80,
+                            background: "#181c22",
+                            borderRadius: 8,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#888",
+                        }}
+                    >
                         Waveform (upload audio)
                     </div>
                 )}
@@ -221,7 +284,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     trackTargets={trackTargets}
                     devices={devices}
                     deviceMetadata={deviceMetadata}
-                    setTrackTarget={setTrackTarget}
+                    setTrackTarget={() => {}} // no-op to satisfy prop type
                     activeRectIds={activeRectIds}
                     geometry={{
                         ...geometry,
@@ -235,19 +298,21 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 />
             </div>
             {/* Debug info below timeline */}
-            <div style={{
-                marginTop: 16,
-                color: '#fff',
-                fontFamily: 'monospace',
-                fontSize: 15,
-                background: '#23272f',
-                borderRadius: 8,
-                padding: '12px 20px',
-                width: '100%',
-                boxSizing: 'border-box',
-            }}>
-                <div>Active rect IDs: [{activeRectIds.join(', ')}]</div>
-                <div>Hovered rect ID: {hoveredId ? hoveredId : 'none'}</div>
+            <div
+                style={{
+                    marginTop: 16,
+                    color: "#fff",
+                    fontFamily: "monospace",
+                    fontSize: 15,
+                    background: "#23272f",
+                    borderRadius: 8,
+                    padding: "12px 20px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                }}
+            >
+                <div>Active rect IDs: [{activeRectIds.join(", ")}]</div>
+                <div>Hovered rect ID: {hoveredId ? hoveredId : "none"}</div>
             </div>
         </div>
     );
@@ -255,26 +320,15 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     // Audio upload handler
     function handleAudioBuffer(buffer: AudioBuffer) {
         setAudioBuffer(buffer);
-        setBuffer(buffer);
-        // Downsample waveform for demo
-        const pcm = buffer.getChannelData(0);
-        const numPoints = 1000;
-        const step = Math.floor(pcm.length / numPoints);
-        const wf = Array.from({ length: numPoints }, (_, i) => {
-            const start = i * step;
-            const end = Math.min(start + step, pcm.length);
-            let min = 1, max = -1;
-            for (let j = start; j < end; j++) {
-                if (pcm[j] < min) min = pcm[j];
-                if (pcm[j] > max) max = pcm[j];
-            }
-            return (max - min) / 2 + min;
-        });
-        setWaveform(wf);
+        console.log('[KonvaTimelineDashboard] handleAudioBuffer called with buffer:', buffer);
+        // REMOVE: local downsampling and setWaveform
+        // The waveform will be generated by the worker and stored in Zustand
     }
 
     // Seek by clicking waveform
-    function handleWaveformClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+    function handleWaveformClick(
+        e: React.MouseEvent<HTMLDivElement, MouseEvent>
+    ) {
         if (!waveform || !audioBuffer) return;
         const rect = (e.target as HTMLDivElement).getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -283,4 +337,4 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     }
 };
 
-export default KonvaTimelineDashboardInner; 
+export default KonvaTimelineDashboardInner;

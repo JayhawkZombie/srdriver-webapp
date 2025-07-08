@@ -220,7 +220,7 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
         setError,
     } = useDetectionData();
     const [selectedBand, setSelectedBand] = React.useState(0);
-    const { currentTime } = usePlayback();
+    const { currentTime } = usePlaybackState();
     const windowDuration = 15;
     const windowStart = Math.max(0, currentTime - windowDuration / 2);
     const [uiReady, setUiReady] = React.useState(false);
