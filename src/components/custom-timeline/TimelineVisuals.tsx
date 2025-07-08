@@ -55,12 +55,13 @@ interface TimelineVisualsProps {
   draggingRectPos: { x: number; y: number } | null;
   currentTime: number;
   onBackgroundClick?: (args: TimelinePointerInfo) => void;
+  onContextMenu?: (info: any, event: MouseEvent) => void;
 }
 
 export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
   numTracks, tracksWidth, tracksHeight, trackHeight, trackGap, tracksTopOffset,
   windowStart, windowDuration, responses, hoveredId, selectedId, setHoveredId, setSelectedId,
-  pointerHandler, palettes, trackTargets, activeRectIds, geometry, draggingId, draggingRectPos, currentTime, onBackgroundClick
+  pointerHandler, palettes, trackTargets, activeRectIds, geometry, draggingId, draggingRectPos, currentTime, onBackgroundClick, onContextMenu
 }) => {
   // Playhead X
   const playheadX = ((currentTime - windowStart) / windowDuration) * tracksWidth;
@@ -110,6 +111,20 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
         if (trackIndex < 0) trackIndex = 0;
         if (trackIndex >= numTracks) trackIndex = numTracks - 1;
         onBackgroundClick({ time, trackIndex });
+      } : undefined}
+      onContextMenu={onContextMenu ? (evt) => {
+        evt.evt.preventDefault();
+        const stage = evt.target.getStage();
+        if (!stage) return;
+        const pointerPos = stage.getPointerPosition();
+        if (!pointerPos) return;
+        const x = pointerPos.x;
+        const y = pointerPos.y;
+        const time = windowStart + (x / tracksWidth) * windowDuration;
+        let trackIndex = Math.floor((y - tracksTopOffset) / (trackHeight + trackGap));
+        if (trackIndex < 0) trackIndex = 0;
+        if (trackIndex >= numTracks) trackIndex = numTracks - 1;
+        onContextMenu({ type: 'background', time, trackIndex }, evt.evt);
       } : undefined}
     >
       <Layer>
@@ -201,6 +216,21 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
           const pointerHandlerRectProps = pointerHandler.getRectProps(rect.id) as Record<string, unknown>;
           delete pointerHandlerRectProps.hovered;
           delete pointerHandlerRectProps.selected;
+          // Add onContextMenu handler to prevent browser menu and trigger pointerHandler logic
+          const onContextMenu = (evt: any) => {
+            if (evt && evt.evt) {
+              evt.evt.preventDefault();
+            }
+            if (onContextMenu) {
+              onContextMenu({
+                type: 'rect',
+                responseId: rect.id,
+                time: rect.timestamp,
+                trackIndex: rect.trackIndex,
+                duration: rect.duration,
+              }, evt.evt);
+            }
+          };
           return (
             <ResponseRect
               key={rect.id}
@@ -215,6 +245,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
               onGroupMouseEnter={() => setHoveredId(rect.id)}
               onGroupMouseLeave={() => setHoveredId(null)}
               onPointerDown={() => setSelectedId(rect.id)}
+              onContextMenu={onContextMenu}
               {...pointerHandlerRectProps}
             />
           );

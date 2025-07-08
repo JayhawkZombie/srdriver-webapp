@@ -65,6 +65,7 @@ export function useTimelinePointerHandler({
   const lastSnappedShadowRef = useRef<{ timestamp: number; trackIndex: number } | null>(null);
 
   const openContextMenu = (position: { x: number; y: number }, info: any) => {
+    console.log('[TimelinePointerHandler] open ContextMenu', position, info);
     setContextMenuPosition(position);
     setContextMenuInfo(info);
     setIsContextMenuOpen(true);
@@ -107,9 +108,7 @@ export function useTimelinePointerHandler({
       if (onBackgroundClick) onBackgroundClick(info, e);
     },
     onContextMenu: (e: any) => {
-      if ((e as any).evt && typeof (e as any).evt.preventDefault === 'function') {
-        (e as any).evt.preventDefault();
-      }
+      console.log('[TimelinePointerHandler] onContextMenu', e);
       // Only open if not clicking on a rect
       if (selectedId || hoveredId) return;
       const boundingRect = e.target.getStage ? e.target.getStage().container().getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
@@ -217,6 +216,7 @@ export function useTimelinePointerHandler({
         e.cancelBubble = true;
       },
       onContextMenu: (e: any) => {
+        console.log('[TimelinePointerHandler] onContextMenu', e);
         if (onContextMenu) onContextMenu(id, e);
         e.cancelBubble = true;
         if ((e as any).evt && typeof (e as any).evt.preventDefault === 'function') {

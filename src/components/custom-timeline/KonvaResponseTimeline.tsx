@@ -1,6 +1,7 @@
 import React from "react";
 import { TimelineVisuals } from "./TimelineVisuals";
 import type { TimelineResponse, Palettes, TrackTarget, Geometry } from "./TimelineVisuals";
+import type { TimelinePointerInfo } from './useTimelinePointerHandler';
 import { Select } from '@blueprintjs/select';
 import { MenuItem } from '@blueprintjs/core';
 
@@ -23,7 +24,8 @@ interface KonvaResponseTimelineProps {
   currentTime: number;
   windowStart: number;
   windowDuration: number;
-  onBackgroundClick?: (args: { time: number; trackIndex: number }) => void;
+  onBackgroundClick?: (args: TimelinePointerInfo) => void;
+  onContextMenu?: (info: any, event: MouseEvent) => void;
 }
 
 const labelWidth = 110;
@@ -54,6 +56,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
   windowStart,
   windowDuration,
   onBackgroundClick,
+  onContextMenu,
 }) => {
   // Helper to get device label
   const getDeviceLabel = (id: string) => deviceMetadata[id]?.nickname || deviceMetadata[id]?.name || id;
@@ -157,7 +160,8 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
           draggingId={draggingId}
           draggingRectPos={draggingRectPos}
           currentTime={currentTime}
-          {...(onBackgroundClick ? { onBackgroundClick } : {})}
+          onBackgroundClick={onBackgroundClick}
+          onContextMenu={onContextMenu}
         />
       </div>
     </div>
