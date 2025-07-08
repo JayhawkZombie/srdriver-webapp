@@ -101,6 +101,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
             text: 'Add Random Response',
             icon: 'add',
             onClick: () => {
+                console.log("DASHBOARD add random response");
                 const timestamp = Math.random() * 10;
                 const duration = 0.5 + Math.random() * 2;
                 const trackIndex = Math.floor(Math.random() * 3);
@@ -124,6 +125,18 @@ const KonvaTimelineDashboardInner: React.FC = () => {
             onClick: () => {},
         },
     ];
+
+    // Add this handler to update rects on drag/drop
+    const handleRectMove = (id: string, { timestamp, trackIndex, destroyAndRespawn }: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => {
+        setResponses(responses => responses.map(r => {
+            if (r.id === id) {
+                const updated = { ...r, timestamp, trackIndex };
+                console.log('[DASHBOARD] Rect moved:', updated, { destroyAndRespawn });
+                return updated;
+            }
+            return r;
+        }));
+    };
 
     // Pointer/drag/resize logic
 
@@ -261,6 +274,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         windowStart={windowStart}
                         windowDuration={windowDuration}
                         actions={actions}
+                        onRectMove={handleRectMove}
                     />
                 </div>
                 {/* Debug info below timeline */}
@@ -277,19 +291,29 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         boxSizing: "border-box",
                     }}
                 >
+                    <div>
+                        <h4>All Rects:</h4>
+                        <ul>
+                            {responses.map(r => (
+                                <li key={r.id}>
+                                    ID: {r.id}, Track: {r.trackIndex}, Time: {r.timestamp.toFixed(2)}, Duration: {r.duration.toFixed(2)}, Triggered: {String(r.triggered)}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                     <div>Active rect IDs: [{activeRectIds.join(", ")}]</div>
                     <div>Hovered rect ID: {hoveredId ? hoveredId : "none"}</div>
                 </div>
             </div>
             {/* Context menu overlay */}
-            <TimelineContextMenu
+            {/* <TimelineContextMenu
                 isOpen={false} // This state is now managed by KonvaResponseTimeline
                 position={null} // This state is now managed by KonvaResponseTimeline
                 info={null} // This state is now managed by KonvaResponseTimeline
                 onClose={() => {}} // This state is now managed by KonvaResponseTimeline
                 menuRef={undefined} // This state is now managed by KonvaResponseTimeline
                 actions={actions}
-            />
+            /> */}
         </>
     );
 
@@ -314,3 +338,4 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 };
 
 export default KonvaTimelineDashboardInner;
+ 

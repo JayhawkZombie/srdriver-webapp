@@ -39,6 +39,7 @@ function renderMenuActions(actions: TimelineMenuAction[] = [], info: any) {
 
 const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, position, info, onClose, menuRef, actions }) => {
   if (!isOpen || !position) return null;
+  console.log("TimelineContextMenu", info);
   return createPortal(
     <>
       <div style={{position:'fixed',top:0,left:0,zIndex:10000,background:'#f00',color:'#fff',padding:4,fontSize:12}}>MENU OPEN (debug)</div>
@@ -55,18 +56,22 @@ const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, posit
           background: "#23272f",
           borderRadius: 6,
           padding: 0,
+          color: '#fff',
         }}
       >
         <Menu>
-          <MenuItem text={`Timestamp: ${info?.timestamp !== undefined ? info.timestamp.toFixed(2) : ''}`} disabled />
-          <MenuItem text={`Track: ${info?.trackIndex}`} disabled />
-          {info?.responseId && <MenuItem text={`Response ID: ${info.responseId}`} disabled />}
-          {info?.timestamp !== undefined && (
-            <MenuItem text={`Start: ${info.timestamp.toFixed(2)}`} disabled />
-          )}
-          {info?.duration !== undefined && info?.timestamp !== undefined && (
-            <MenuItem text={`End: ${(info.timestamp + info.duration).toFixed(2)}`} disabled />
-          )}
+          {info?.type === 'rect' ? (
+            <>
+              <MenuItem text={`Timestamp: ${info.rect.timestamp !== undefined ? info.rect.timestamp.toFixed(2) : ''}`} disabled />
+              <MenuItem text={`Duration: ${info.rect.duration !== undefined ? info.rect.duration.toFixed(2) : ''}`} disabled />
+              <MenuItem text={`Track: ${info.rect.trackIndex}`} disabled />
+            </>
+          ) : info?.type === 'background' ? (
+            <>
+              <MenuItem text={`Timestamp: ${info.timestamp !== undefined ? info.timestamp.toFixed(2) : ''}`} disabled />
+              <MenuItem text={`Track: ${info.trackIndex}`} disabled />
+            </>
+          ) : null}
           {actions && renderMenuActions(actions, info)}
           <MenuItem text="Close" icon="cross" onClick={onClose} />
         </Menu>

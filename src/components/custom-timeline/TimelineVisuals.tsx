@@ -35,7 +35,7 @@ export type Geometry = {
 
 // Add types for context info and actions
 export type TimelineContextInfo =
-  | { type: 'background'; time: number; trackIndex: number }
+  | { type: 'background'; timestamp: number; trackIndex: number }
   | { type: 'rect'; rect: TimelineResponse };
 
 export type TimelineMenuAction = {
@@ -105,16 +105,14 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         const fullRect = rest.responses.find(r => r.id === info.rect.id);
         if (fullRect) {
           setMenuInfo({ type: 'rect', rect: fullRect });
-        } else {
-          setMenuInfo(info); // fallback
         }
-        if (event && typeof event === 'object' && 'evt' in event) {
-          setMenuPosition({ x: (event as any).evt.clientX, y: (event as any).evt.clientY });
+        if (event && typeof event === 'object' && 'clientX' in event && 'clientY' in event) {
+          setMenuPosition({ x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY });
         }
       } else if (info.type === 'background') {
-        setMenuInfo(info);
-        if (event && typeof event === 'object' && 'evt' in event) {
-          setMenuPosition({ x: (event as any).evt.clientX, y: (event as any).evt.clientY });
+        setMenuInfo({ type: 'background', timestamp: info.timestamp, trackIndex: info.trackIndex });
+        if (event && typeof event === 'object' && 'clientX' in event && 'clientY' in event) {
+          setMenuPosition({ x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY });
         }
       }
     },
@@ -125,61 +123,6 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
   const handleMenuClose = () => {
     pointerHandler.resetPointerState();
     setMenuOpen(false);
-  };
-
-  // Context menu handler for background
-  const handleBackgroundContextMenu = (evt: unknown) => {
-    if (
-      typeof evt === "object" &&
-      evt !== null &&
-      "evt" in evt &&
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      typeof (evt as any).evt.preventDefault === "function"
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (evt as any).evt.preventDefault();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const target = (evt as any).target;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stage = target && typeof target.getStage === "function" ? target.getStage() : null;
-      if (!stage) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pointerPos = stage.getPointerPosition ? stage.getPointerPosition() : null;
-      if (!pointerPos) return;
-      const x = pointerPos.x;
-      const y = pointerPos.y;
-      const { windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks } = rest;
-      const time = windowStart + (x / tracksWidth) * windowDuration;
-      let trackIndex = Math.floor((y - tracksTopOffset) / (trackHeight + trackGap));
-      if (trackIndex < 0) trackIndex = 0;
-      if (trackIndex >= numTracks) trackIndex = numTracks - 1;
-      const info: TimelineContextInfo = { type: 'background', time, trackIndex };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setMenuOpen(true);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setMenuPosition({ x: (evt as any).evt.clientX, y: (evt as any).evt.clientY });
-      setMenuInfo(info);
-    }
-  };
-
-  // Context menu handler for rects
-  const handleRectContextMenu = (rect: TimelineResponse, evt: unknown) => {
-    console.log("Handling rect context menu", rect, evt);
-    if (
-      typeof evt === "object" &&
-      evt !== null &&
-      "evt" in evt &&
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      typeof (evt as any).evt.preventDefault === "function"
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (evt as any).evt.preventDefault();
-      const info: TimelineContextInfo = { type: 'rect', rect };
-      setMenuOpen(true);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setMenuPosition({ x: (evt as any).evt.clientX, y: (evt as any).evt.clientY });
-      setMenuInfo(info);
-    }
   };
 
   // Single entry point for actions
@@ -193,7 +136,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
           onClick: () => {
             if (rest.onBackgroundClick) {
               console.log("BACKGROUND MENU ACTION", info);
-              rest.onBackgroundClick({ time: info.time, trackIndex: info.trackIndex });
+              rest.onBackgroundClick({ time: info.timestamp, trackIndex: info.trackIndex });
             }
             setMenuOpen(false);
           },
@@ -350,7 +293,16 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                 hovered={rest.hoveredId === rect.id}
                 selected={rest.selectedId === rect.id}
                 {...pointerHandler.getRectProps(rect.id)}
-                onContextMenu={(evt: unknown) => handleRectContextMenu(rect, evt)}
+                onContextMenu={(evt: any) => {
+                  if (evt.evt && typeof evt.evt.preventDefault === 'function') evt.evt.preventDefault();
+                  if (evt.evt) evt.cancelBubble = true;
+                  setMenuOpen(true);
+                  if (evt.evt && 'clientX' in evt.evt && 'clientY' in evt.evt) {
+                    setMenuPosition({ x: evt.evt.clientX, y: evt.evt.clientY });
+                  }
+                  setMenuInfo({ type: 'rect', rect });
+                  console.log('Rendering context menu with info:', { type: 'rect', rect });
+                }}
               />
             );
           })}

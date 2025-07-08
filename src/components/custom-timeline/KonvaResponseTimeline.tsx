@@ -25,6 +25,7 @@ interface KonvaResponseTimelineProps {
   onBackgroundClick?: (args: TimelinePointerInfo) => void;
   onContextMenu?: (info: any, event: MouseEvent) => void;
   actions: TimelineMenuAction[] | ((info: TimelineContextInfo) => TimelineMenuAction[]);
+  onRectMove?: (id: string, args: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => void;
 }
 
 const labelWidth = 110;
@@ -54,6 +55,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
   onBackgroundClick,
   onContextMenu,
   actions,
+  onRectMove,
 }) => {
   // Helper to get device label
   const getDeviceLabel = (id: string) => deviceMetadata[id]?.nickname || deviceMetadata[id]?.name || id;
@@ -157,6 +159,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
           onBackgroundClick={onBackgroundClick}
           onContextMenu={onContextMenu}
           actions={actions}
+          onRectMove={onRectMove}
         />
       </div>
     </div>

@@ -147,8 +147,8 @@ export function useTimelinePointerHandler({
       console.log('[TrackArea] onContextMenu info', info);
       if (!info) return;
       if (onContextMenu) {
-        console.log('[TrackArea] calling onContextMenu with', { type: 'background', time: info.time, trackIndex: info.trackIndex });
-        onContextMenu({ type: 'background', time: info.time, trackIndex: info.trackIndex }, e);
+        console.log('[TrackArea] calling onContextMenu with', { type: 'background', timestamp: info.time, trackIndex: info.trackIndex });
+        onContextMenu({ type: 'background', timestamp: info.time, trackIndex: info.trackIndex }, e);
       }
     },
   }), [selectedId, hoveredId, onBackgroundClick, onContextMenu, windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks, totalDuration]);
@@ -242,6 +242,30 @@ export function useTimelinePointerHandler({
         setResizing({ id, edge });
         resizeStartRef.current = { x: (e as any).evt ? (e as any).evt.clientX : (e as any).target.getStage().getPointerPosition().x, timestamp: rect.timestamp, duration: rect.duration };
         (e as any).cancelBubble = true;
+        // Add global listeners
+        function handleMouseMove(ev: MouseEvent) {
+          const pointerX = ev.clientX;
+          const dx = pointerX - (resizeStartRef.current ? resizeStartRef.current.x : 0);
+          const timeDelta = (dx / tracksWidth) * windowDuration;
+          let newTimestamp = resizeStartRef.current ? resizeStartRef.current.timestamp : 0;
+          let newDuration = resizeStartRef.current ? resizeStartRef.current.duration : 0.1;
+          if (edge === 'start') {
+            newTimestamp = Math.max(0, Math.min(newTimestamp + timeDelta, newTimestamp + newDuration - 0.1));
+            newDuration = Math.max(0.1, (resizeStartRef.current ? resizeStartRef.current.duration : 0.1) - timeDelta);
+          } else if (edge === 'end') {
+            newDuration = Math.max(0.1, (resizeStartRef.current ? resizeStartRef.current.duration : 0.1) + timeDelta);
+          }
+          console.log('[Rect] handleMouseMove (resize)', { id, edge, newTimestamp, newDuration });
+          if (onRectResize && id && edge) onRectResize(id, edge, newTimestamp, newDuration);
+        }
+        function handleMouseUp(ev: MouseEvent) {
+          setResizing({ id: null, edge: null });
+          resizeStartRef.current = null;
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', handleMouseUp);
+        }
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
       },
       onResizeEnd: (e: unknown) => {
         setResizing({ id: null, edge: null });
@@ -309,6 +333,6 @@ export function useTimelinePointerHandler({
     contextMenuRef,
     resetPointerState,
   };
-}
+} 
 
 export type TimelinePointerHandler = ReturnType<typeof useTimelinePointerHandler>; 
