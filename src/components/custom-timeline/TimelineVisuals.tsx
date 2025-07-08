@@ -110,7 +110,8 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
           setMenuPosition({ x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY });
         }
       } else if (info.type === 'background') {
-        setMenuInfo({ type: 'background', timestamp: info.timestamp, trackIndex: info.trackIndex });
+        // Accept both 'timestamp' and 'time' for compatibility
+        setMenuInfo({ type: 'background', timestamp: (info as any).timestamp, trackIndex: info.trackIndex });
         if (event && typeof event === 'object' && 'clientX' in event && 'clientY' in event) {
           setMenuPosition({ x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY });
         }
@@ -293,12 +294,15 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                 hovered={rest.hoveredId === rect.id}
                 selected={rest.selectedId === rect.id}
                 {...pointerHandler.getRectProps(rect.id)}
-                onContextMenu={(evt: any) => {
-                  if (evt.evt && typeof evt.evt.preventDefault === 'function') evt.evt.preventDefault();
-                  if (evt.evt) evt.cancelBubble = true;
+                onContextMenu={(evt) => {
+                  console.error("TIMELINE VISUALS onContextMenu", evt);
+                  // Type guard for Konva synthetic event
+                  const maybeKonva = evt as { evt?: MouseEvent; cancelBubble?: boolean; clientX?: number; clientY?: number };
+                  if (maybeKonva.evt && typeof maybeKonva.evt.preventDefault === 'function') maybeKonva.evt.preventDefault();
+                  if ('cancelBubble' in maybeKonva && maybeKonva.evt) maybeKonva.cancelBubble = true;
                   setMenuOpen(true);
-                  if (evt.evt && 'clientX' in evt.evt && 'clientY' in evt.evt) {
-                    setMenuPosition({ x: evt.evt.clientX, y: evt.evt.clientY });
+                  if (maybeKonva.evt && 'clientX' in maybeKonva.evt && 'clientY' in maybeKonva.evt) {
+                    setMenuPosition({ x: maybeKonva.evt.clientX, y: maybeKonva.evt.clientY });
                   }
                   setMenuInfo({ type: 'rect', rect });
                   console.log('Rendering context menu with info:', { type: 'rect', rect });

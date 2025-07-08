@@ -117,12 +117,20 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     },
                 ]);
             },
+            submenu: [
+                {
+                    key: "test",
+                    text: "value for submenu"
+                }
+            ]
         },
         {
             key: 'close',
             text: 'Close',
             icon: 'cross',
-            onClick: () => {},
+            onClick: () => {
+                console.log("Closed");
+            },
         },
     ];
 
@@ -133,6 +141,20 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 const updated = { ...r, timestamp, trackIndex };
                 console.log('[DASHBOARD] Rect moved:', updated, { destroyAndRespawn });
                 return updated;
+            }
+            return r;
+        }));
+    };
+
+    // Add this handler to update rects on resize
+    const handleRectResize = (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => {
+        setResponses(responses => responses.map(r => {
+            if (r.id === id) {
+                return {
+                    ...r,
+                    timestamp: edge === 'start' ? newTimestamp : r.timestamp,
+                    duration: newDuration,
+                };
             }
             return r;
         }));
@@ -275,6 +297,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         windowDuration={windowDuration}
                         actions={actions}
                         onRectMove={handleRectMove}
+                        onRectResize={handleRectResize}
                     />
                 </div>
                 {/* Debug info below timeline */}

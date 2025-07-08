@@ -128,6 +128,15 @@ export function useTimelinePointerHandler({
       }
       // Always allow context menu to open (do not skip for selectedId/hoveredId)
       resetPointerState();
+      // Always use the cursor's position for the menu
+      let x = 0, y = 0;
+      if (evt && 'clientX' in evt && 'clientY' in evt) {
+        x = evt.clientX;
+        y = evt.clientY;
+      } else if ((e as any).clientX && (e as any).clientY) {
+        x = (e as any).clientX;
+        y = (e as any).clientY;
+      }
       const boundingRect = (e as any).target.getStage ? (e as any).target.getStage().container().getBoundingClientRect() : (e as any).currentTarget.getBoundingClientRect();
       const pointerX = (e as any).evt ? (e as any).evt.clientX : (e as any).clientX;
       const pointerY = (e as any).evt ? (e as any).evt.clientY : (e as any).clientY;
@@ -148,7 +157,8 @@ export function useTimelinePointerHandler({
       if (!info) return;
       if (onContextMenu) {
         console.log('[TrackArea] calling onContextMenu with', { type: 'background', timestamp: info.time, trackIndex: info.trackIndex });
-        onContextMenu({ type: 'background', timestamp: info.time, trackIndex: info.trackIndex }, e);
+        // Pass the cursor position up for menu placement
+        onContextMenu({ type: 'background', timestamp: info.time, trackIndex: info.trackIndex }, { clientX: x, clientY: y });
       }
     },
   }), [selectedId, hoveredId, onBackgroundClick, onContextMenu, windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks, totalDuration]);
@@ -242,14 +252,14 @@ export function useTimelinePointerHandler({
         console.log('[Rect] RESIZE START', id, edge);
         if (!edge) return; // Defensive: only call with valid edge
         setResizing({ id, edge });
-        resizeStartRef.current = { x: (e as any).evt ? (e as any).evt.clientX : (e as any).target.getStage().getPointerPosition().x, timestamp: rect.timestamp, duration: rect.duration };
+        const initialX = (e as any).evt ? (e as any).evt.clientX : (e as any).target.getStage().getPointerPosition().x;
+        resizeStartRef.current = { x: initialX, timestamp: rect.timestamp, duration: rect.duration };
         (e as any).cancelBubble = true;
         // Add global listeners
         function handleMouseMove(ev: MouseEvent) {
           const pointerX = ev.clientX;
           const dx = pointerX - (resizeStartRef.current ? resizeStartRef.current.x : 0);
           const timeDelta = (dx / tracksWidth) * windowDuration;
-          console.log("TIME DELTA", timeDelta);
           let newTimestamp = resizeStartRef.current ? resizeStartRef.current.timestamp : 0;
           let newDuration = resizeStartRef.current ? resizeStartRef.current.duration : 0.1;
           if (edge === 'start') {
@@ -258,11 +268,8 @@ export function useTimelinePointerHandler({
           } else if (edge === 'end') {
             newDuration = Math.max(0.1, (resizeStartRef.current ? resizeStartRef.current.duration : 0.1) + timeDelta);
           }
-          // console.log('[Rect] handleMouseMove (resize)', { id, edge, newTimestamp, newDuration });
-          if (onRectResize && id && edge) {
-            console.error("CALLING ON RECT RESIZE", id, edge, newTimestamp, newDuration);
-            onRectResize(id, edge, newTimestamp, newDuration)
-          }
+          console.log('[Rect] handleMouseMove (resize)', { id, edge, pointerX, initialX: resizeStartRef.current?.x, dx, timeDelta, newTimestamp, newDuration });
+          if (onRectResize && id && edge) onRectResize(id, edge, newTimestamp, newDuration);
         }
         function handleMouseUp(ev: MouseEvent) {
           setResizing({ id: null, edge: null });
@@ -295,8 +302,11 @@ export function useTimelinePointerHandler({
     if (!resizing.id || !resizing.edge || !resizeStartRef.current) return;
     function handleMouseMove(e: MouseEvent) {
       const pointerX = e.clientX;
+      console.log("POINTER X", pointerX);
       const dx = pointerX - (resizeStartRef.current ? resizeStartRef.current.x : 0);
+      console.log("DX", dx);
       const timeDelta = (dx / tracksWidth) * windowDuration;
+      console.log("TIME DELTA", timeDelta);
       let newTimestamp = resizeStartRef.current ? resizeStartRef.current.timestamp : 0;
       let newDuration = resizeStartRef.current ? resizeStartRef.current.duration : 0.1;
       if (resizing.edge === 'start') {
