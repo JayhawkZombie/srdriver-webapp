@@ -4,6 +4,7 @@ import TimelineControls from "./TimelineControls";
 import { usePlaybackState, usePlaybackController } from "./PlaybackContext";
 import type { TimelineResponse } from "./TimelineVisuals";
 import { useAppStore } from "../../store/appStore";
+import type { TrackTarget } from "../../store/appStore";
 import { useTimelineSelectionState } from "./useTimelineSelectionState";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import { Mixer } from "../../controllers/Mixer";
@@ -37,9 +38,13 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     const devices = useAppStore((state) => state.devices);
     const deviceMetadata = useAppStore((state) => state.deviceMetadata);
     // Removed unused setTrackTarget assignment
-    // Track targets from app store (array)
+    // Track assignment state from Zustand
     const trackMapping = useAppStore((state) => state.tracks.mapping);
-    const trackTargets = [0, 1, 2].map((i) => trackMapping[i]);
+    const trackTargets: (TrackTarget | undefined)[] = [0, 1, 2].map(i => trackMapping[i]);
+    const setTrackTarget = useAppStore((state) => state.setTrackTarget);
+    // Track targets from app store (array)
+    // const trackMapping = useAppStore((state) => state.tracks.mapping);
+    // const trackTargets = [0, 1, 2].map((i) => trackMapping[i]);
 
     // Instantiate mixer (replace null with your actual engine if needed)
     const mixer = React.useMemo(() => new Mixer(), []);
@@ -203,7 +208,8 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     rect.data.type &&
                     rect.data.pattern
                 ) {
-                    mixer.triggerResponse(rect.data as any); // pattern is now required, so this is safe
+                    // Mixer expects MixerResponseInfo, which requires type and patternId (or pattern). We check above.
+                    mixer.triggerResponse(rect.data as unknown as import('../../controllers/Mixer').MixerResponseInfo);
                 }
                 return { ...rect, triggered: isActive };
             })
@@ -309,7 +315,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         trackTargets={trackTargets}
                         devices={devices}
                         deviceMetadata={deviceMetadata}
-                        setTrackTarget={() => {}} // no-op to satisfy prop type
+                        setTrackTarget={setTrackTarget}
                         activeRectIds={activeRectIds}
                         geometry={{
                             ...geometry,

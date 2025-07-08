@@ -2,7 +2,7 @@ import React from "react";
 import { TimelineVisuals } from "./TimelineVisuals";
 import type { TimelineResponse, Palettes, TrackTarget, Geometry } from "./TimelineVisuals";
 import type { TimelinePointerInfo } from './useTimelinePointerHandler';
-import type { TimelineMenuAction, TimelineContextInfo } from './TimelineVisuals';
+import type { TimelineMenuAction } from './TimelineVisuals';
 import { Select } from '@blueprintjs/select';
 import { MenuItem } from '@blueprintjs/core';
 
@@ -13,7 +13,7 @@ interface KonvaResponseTimelineProps {
   setHoveredId: (id: string | null) => void;
   setSelectedId: (id: string | null) => void;
   palettes: Palettes;
-  trackTargets: TrackTarget[];
+  trackTargets: (TrackTarget | undefined)[];
   devices: string[];
   deviceMetadata: Record<string, { nickname?: string; name?: string }>;
   setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => void;
@@ -23,7 +23,7 @@ interface KonvaResponseTimelineProps {
   windowStart: number;
   windowDuration: number;
   onBackgroundClick?: (args: TimelinePointerInfo) => void;
-  onContextMenu?: (info: any, event: MouseEvent) => void;
+  onContextMenu?: (info: unknown, event: MouseEvent) => void;
   actions: TimelineMenuAction[];
   onRectMove?: (id: string, args: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => void;
   onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
