@@ -3,6 +3,7 @@ import { Stage, Layer, Line, Rect, Text as KonvaText, Group } from "react-konva"
 import { ResponseRect } from "./ResponseRect";
 import { getPaletteColor } from "./colorUtils";
 import { trackIndexToCenterY, snapYToTrackIndex } from "./timelineMath";
+import type { TimelinePointerHandler, TimelinePointerInfo } from './useTimelinePointerHandler';
 
 // --- Types ---
 export type TimelineResponse = {
@@ -45,7 +46,7 @@ interface TimelineVisualsProps {
   selectedId: string | null;
   setHoveredId: (id: string | null) => void;
   setSelectedId: (id: string | null) => void;
-  pointerHandler: any;
+  pointerHandler: TimelinePointerHandler;
   palettes: Palettes;
   trackTargets: TrackTarget[];
   activeRectIds: string[];
@@ -53,12 +54,13 @@ interface TimelineVisualsProps {
   draggingId: string | null;
   draggingRectPos: { x: number; y: number } | null;
   currentTime: number;
+  onBackgroundClick?: (args: TimelinePointerInfo) => void;
 }
 
 export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
   numTracks, tracksWidth, tracksHeight, trackHeight, trackGap, tracksTopOffset,
   windowStart, windowDuration, responses, hoveredId, selectedId, setHoveredId, setSelectedId,
-  pointerHandler, palettes, trackTargets, activeRectIds, geometry, draggingId, draggingRectPos, currentTime
+  pointerHandler, palettes, trackTargets, activeRectIds, geometry, draggingId, draggingRectPos, currentTime, onBackgroundClick
 }) => {
   // Playhead X
   const playheadX = ((currentTime - windowStart) / windowDuration) * tracksWidth;
@@ -94,6 +96,21 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
       onMouseLeave={() => {
         setHoveredId(null);
       }}
+      onClick={onBackgroundClick ? (evt) => {
+        const stage = evt.target.getStage();
+        if (!stage) return;
+        const pointerPos = stage.getPointerPosition();
+        if (!pointerPos) return;
+        const x = pointerPos.x;
+        const y = pointerPos.y;
+        // Calculate time from x
+        const time = windowStart + (x / tracksWidth) * windowDuration;
+        // Calculate track index from y
+        let trackIndex = Math.floor((y - tracksTopOffset) / (trackHeight + trackGap));
+        if (trackIndex < 0) trackIndex = 0;
+        if (trackIndex >= numTracks) trackIndex = numTracks - 1;
+        onBackgroundClick({ time, trackIndex });
+      } : undefined}
     >
       <Layer>
         {/* Track backgrounds with midlines and subtle borders */}

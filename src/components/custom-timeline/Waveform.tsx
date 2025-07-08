@@ -9,11 +9,12 @@ interface WaveformProps {
   showPeakTrace?: boolean;
   waveform: number[];
   duration: number;
+  fillParent?: boolean;
   currentTime: number;
   onSeek?: (time: number) => void;
 }
 
-const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, waveform, duration, currentTime, onSeek }) => {
+const Waveform: React.FC<WaveformProps> = ({ width, height, fillParent, showPeakTrace, waveform, duration, currentTime, onSeek }) => {
   if (!waveform || !duration || !Array.isArray(waveform) || waveform.length === 0) return null;
 
   const points = waveformToSvgPoints(waveform, width, height);
@@ -32,18 +33,22 @@ const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, wavef
     onSeek(time);
   };
 
+  let style = {
+    width: width,
+    height: height,
+    cursor: onSeek ? "pointer" : "default",
+  };
+  if (fillParent) {
+    style.width = "100%";
+    style.height = "100%";
+  }
+
   console.log('[Waveform] Rendering with waveform:', waveform, 'duration:', duration, 'width:', width, 'height:', height);
 
   return (
-      <div className={styles.waveformRoot} style={{ width, height }}>
+      <div className={styles.waveformRoot} style={style}>
           <svg
-              style={{
-                  width: width,
-                  height: height,
-                  cursor: onSeek ? "pointer" : "default",
-              }}
-              // width={width}
-              // height={height}
+              style={style}
               className={styles.waveformSvg}
               onClick={onSeek ? handleClick : undefined}
           >

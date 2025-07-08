@@ -23,6 +23,7 @@ interface KonvaResponseTimelineProps {
   currentTime: number;
   windowStart: number;
   windowDuration: number;
+  onBackgroundClick?: (args: { time: number; trackIndex: number }) => void;
 }
 
 const labelWidth = 110;
@@ -52,6 +53,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
   currentTime,
   windowStart,
   windowDuration,
+  onBackgroundClick,
 }) => {
   // Helper to get device label
   const getDeviceLabel = (id: string) => deviceMetadata[id]?.nickname || deviceMetadata[id]?.name || id;
@@ -155,6 +157,7 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
           draggingId={draggingId}
           draggingRectPos={draggingRectPos}
           currentTime={currentTime}
+          {...(onBackgroundClick ? { onBackgroundClick } : {})}
         />
       </div>
     </div>

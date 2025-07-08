@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { getTimelinePointerInfo, snapYToTrackIndex } from "./timelineMath";
 
+export type TimelinePointerInfo = { time: number; trackIndex: number };
+
 /**
  * useTimelinePointerHandler
  *
@@ -42,8 +44,8 @@ export function useTimelinePointerHandler({
   responses: { id: string; timestamp: number; duration: number; trackIndex: number }[];
   onRectMove?: (id: string, newProps: { timestamp: number; trackIndex: number }) => void;
   onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
-  onContextMenu?: (info: any, event: any) => void;
-  onBackgroundClick?: (info: any, event: any) => void;
+  onContextMenu?: (info: TimelinePointerInfo, event: any) => void;
+  onBackgroundClick?: (info: TimelinePointerInfo, event: any) => void;
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -272,4 +274,6 @@ export function useTimelinePointerHandler({
     closeContextMenu,
     contextMenuRef,
   };
-} 
+}
+
+export type TimelinePointerHandler = ReturnType<typeof useTimelinePointerHandler>; 

@@ -206,71 +206,72 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 boxSizing: "border-box",
             }}
         >
-            {/* Controls + waveform header */}
-            <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                <div style={{ width: labelWidth, minWidth: labelWidth }}>
-                    {/* Controls go here */}
-                    <TimelineControls
-                        isPlaying={isPlaying}
-                        currentTime={currentTime}
+            {/* Controls bar (top row, full width) */}
+            <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                <TimelineControls
+                    isPlaying={isPlaying}
+                    currentTime={currentTime}
+                    duration={duration}
+                    onPlay={play}
+                    onPause={pause}
+                    onSeek={seek}
+                    onRestart={() => seek(0)}
+                    onAudioBuffer={handleAudioBuffer}
+                    windowDuration={windowDuration}
+                    setWindowDuration={setWindowDuration}
+                />
+                <button style={{ padding: 8, borderRadius: 6, background: '#333', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                    Analysis Tools
+                </button>
+            </div>
+            {/* Waveform header (full width) */}
+            {waveform && waveform.length > 0 ? (
+                <div
+                    style={{
+                        width: '100%',
+                        height: 80,
+                        background: '#181c22',
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                        marginBottom: 16,
+                    }}
+                    onClick={handleWaveformClick}
+                >
+                    <Waveform
+                        waveform={waveform}
+                        width={contentWidth}
+                        height={100}
                         duration={duration}
-                        onPlay={play}
-                        onPause={pause}
-                        onSeek={seek}
-                        onRestart={() => seek(0)}
-                        onAudioBuffer={handleAudioBuffer}
-                        windowDuration={windowDuration}
-                        setWindowDuration={setWindowDuration}
+                        currentTime={currentTime}
                     />
                 </div>
-                <div style={{ flex: 1, minWidth: 0, paddingLeft: 16, paddingRight: 16, boxSizing: 'border-box' }}>
-                    {waveform && waveform.length > 0 ? (
-                        <div
-                            style={{
-                                width: '100%',
-                                height: 100,
-                                background: '#181c22',
-                                borderRadius: 8,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                overflow: 'hidden',
-                            }}
-                            onClick={handleWaveformClick}
-                        >
-                            <Waveform
-                                waveform={waveform}
-                                width={Math.max(100, measuredWidth - labelWidth - 2 * 16)}
-                                height={100}
-                                duration={duration}
-                                currentTime={currentTime}
-                            />
-                        </div>
-                    ) : (
-                        <div
-                            style={{
-                                width: '100%',
-                                height: 80,
-                                background: '#181c22',
-                                borderRadius: 8,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#888',
-                            }}
-                        >
-                            Waveform (upload audio)
-                        </div>
-                    )}
+            ) : (
+                <div
+                    style={{
+                        width: '100%',
+                        height: 80,
+                        background: '#181c22',
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#888',
+                        marginBottom: 16,
+                    }}
+                >
+                    Waveform (upload audio)
                 </div>
-            </div>
-            {/* Timeline below */}
+            )}
+            {/* Timeline visuals below waveform (full width) */}
             <div
                 style={{
                     background: "#23272f",
                     borderRadius: 16,
-                    marginTop: 24,
+                    marginTop: 0,
                     padding: timelinePadding,
                     boxSizing: "border-box",
                     width: "100%",
@@ -299,6 +300,20 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     currentTime={currentTime}
                     windowStart={windowStart}
                     windowDuration={windowDuration}
+                    onBackgroundClick={({ time, trackIndex }) => {
+                        const duration = 1;
+                        setResponses((responses) => [
+                            ...responses,
+                            {
+                                id: crypto.randomUUID(),
+                                timestamp: time,
+                                duration,
+                                trackIndex,
+                                data: { paletteName: "lightPulse" },
+                                triggered: false,
+                            },
+                        ]);
+                    }}
                 />
             </div>
             {/* Debug info below timeline */}
