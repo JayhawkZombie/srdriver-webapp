@@ -43,8 +43,6 @@ const Waveform: React.FC<WaveformProps> = ({ width, height, fillParent, showPeak
     style.height = "100%";
   }
 
-  console.log('[Waveform] Rendering with waveform:', waveform, 'duration:', duration, 'width:', width, 'height:', height);
-
   return (
       <div className={styles.waveformRoot} style={style}>
           <svg

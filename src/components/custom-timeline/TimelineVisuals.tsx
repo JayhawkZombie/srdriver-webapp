@@ -126,39 +126,6 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
     setMenuOpen(false);
   };
 
-  // Single entry point for actions
-  const getMenuActions = (info: TimelineContextInfo | null): TimelineMenuAction[] => {
-    if (!info) return [];
-    if (info.type === 'background') {
-      return [
-        {
-          key: 'add',
-          text: 'Add Response',
-          onClick: () => {
-            if (rest.onBackgroundClick) {
-              console.log("BACKGROUND MENU ACTION", info);
-              rest.onBackgroundClick({ time: info.timestamp, trackIndex: info.trackIndex });
-            }
-            setMenuOpen(false);
-          },
-        },
-      ];
-    } else if (info.type === 'rect') {
-      return [
-        {
-          key: 'delete',
-          text: 'Delete',
-          onClick: () => {
-            console.log("RECT MENU ACTION");
-            // You would call a delete handler here, e.g. via props
-            setMenuOpen(false);
-          },
-        },
-      ];
-    }
-    return [];
-  };
-
   // Playhead X
   const playheadX = ((rest.currentTime - rest.windowStart) / rest.windowDuration) * rest.tracksWidth;
   // Ticks
@@ -351,7 +318,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         isOpen={menuOpen}
         position={menuPosition}
         info={menuInfo}
-        actions={getMenuActions(menuInfo)}
+        actions={props.actions}
         onClose={handleMenuClose}
         menuRef={menuRef}
       />

@@ -15,6 +15,7 @@ export class Mixer {
   // }
 
   triggerResponse(info: MixerResponseInfo) {
+    console.log("Mixer triggerResponse", info);
     if (info.type === 'led') {
       // You can expand this logic for more complex pattern args
       // this.ledEngine.firePattern(info.patternId, info.args || {});

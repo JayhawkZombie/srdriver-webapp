@@ -24,7 +24,7 @@ interface KonvaResponseTimelineProps {
   windowDuration: number;
   onBackgroundClick?: (args: TimelinePointerInfo) => void;
   onContextMenu?: (info: any, event: MouseEvent) => void;
-  actions: TimelineMenuAction[] | ((info: TimelineContextInfo) => TimelineMenuAction[]);
+  actions: TimelineMenuAction[];
   onRectMove?: (id: string, args: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => void;
   onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
 }

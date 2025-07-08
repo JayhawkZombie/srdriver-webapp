@@ -8,7 +8,6 @@ import { useTimelineSelectionState } from "./useTimelineSelectionState";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import { Mixer } from "../../controllers/Mixer";
 import Waveform from "./Waveform";
-import TimelineContextMenu from "./TimelineContextMenu";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
 
 const numTracks = 3;
@@ -58,24 +57,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     );
 
     // Timeline state (local for now)
-    const [responses, setResponses] = useState<TimelineResponse[]>([
-        {
-            id: crypto.randomUUID(),
-            timestamp: 1,
-            duration: 1.5,
-            trackIndex: 0,
-            data: { paletteName: "lightPulse" },
-            triggered: false,
-        },
-        {
-            id: crypto.randomUUID(),
-            timestamp: 3,
-            duration: 0.8,
-            trackIndex: 2,
-            data: { paletteName: "singleFirePattern" },
-            triggered: false,
-        },
-    ]);
+    const [responses, setResponses] = useState<TimelineResponse[]>([]);
     const [windowDuration, setWindowDuration] = useState(5);
     const windowStart = Math.max(
         0,
@@ -101,9 +83,11 @@ const KonvaTimelineDashboardInner: React.FC = () => {
             text: 'Add Random Response',
             icon: 'add',
             onClick: () => {
-                console.log("DASHBOARD add random response");
+                // For demo, pick the first template from the store
+                const template = Object.values(useAppStore.getState().rectTemplates)[0];
+                if (!template) return;
                 const timestamp = Math.random() * 10;
-                const duration = 0.5 + Math.random() * 2;
+                const duration = template.defaultDuration;
                 const trackIndex = Math.floor(Math.random() * 3);
                 setResponses((responses) => [
                     ...responses,
@@ -112,17 +96,22 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         timestamp,
                         duration,
                         trackIndex,
-                        data: {},
+                        data: {
+                            ...template.defaultData,
+                            type: template.type,
+                            paletteName: template.paletteName,
+                        },
                         triggered: false,
                     },
                 ]);
             },
-            submenu: [
-                {
-                    key: "test",
-                    text: "value for submenu"
-                }
-            ]
+        },
+        {
+            key: 'test',
+            text: 'test',
+            onClick: () => {
+                console.log("TEST");
+            }
         },
         {
             key: 'close',
@@ -179,13 +168,12 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     rect.data &&
                     rect.data.type
                 ) {
-                    mixer.triggerResponse({ ...rect.data });
+                    mixer.triggerResponse(rect.data);
                 }
                 return { ...rect, triggered: isActive };
             })
         );
     }, [currentTime, mixer]);
-    console.log("Waveform", waveform);
 
     // Layout: controls + waveform header, timeline below
     return (
