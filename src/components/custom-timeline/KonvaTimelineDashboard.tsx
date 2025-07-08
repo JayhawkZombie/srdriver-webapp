@@ -207,60 +207,64 @@ const KonvaTimelineDashboardInner: React.FC = () => {
             }}
         >
             {/* Controls + waveform header */}
-            <TimelineControls
-                isPlaying={isPlaying}
-                currentTime={currentTime}
-                duration={duration}
-                onPlay={play}
-                onPause={pause}
-                onSeek={seek}
-                onRestart={() => seek(0)}
-                onAudioBuffer={handleAudioBuffer}
-                windowDuration={windowDuration}
-                setWindowDuration={setWindowDuration}
-            >
-                {waveform && waveform.length > 0 ? (
-                    <div
-                        style={{
-                            width: `${contentWidth}px`,
-                            margin: "0 auto",
-                            height: 100,
-                            background: "#181c22",
-                            borderRadius: 8,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            overflow: "hidden", // Prevents SVG overflow
-                        }}
-                        onClick={handleWaveformClick}
-                    >
-                        <Waveform
-                            waveform={waveform}
-                            width={contentWidth}
-                            height={100}
-                            duration={duration}
-                            currentTime={currentTime}
-                        />
-                    </div>
-                ) : (
-                    <div
-                        style={{
-                            width: "100%",
-                            margin: "0 auto",
-                            height: 80,
-                            background: "#181c22",
-                            borderRadius: 8,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#888",
-                        }}
-                    >
-                        Waveform (upload audio)
-                    </div>
-                )}
-            </TimelineControls>
+            <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                <div style={{ width: labelWidth, minWidth: labelWidth }}>
+                    {/* Controls go here */}
+                    <TimelineControls
+                        isPlaying={isPlaying}
+                        currentTime={currentTime}
+                        duration={duration}
+                        onPlay={play}
+                        onPause={pause}
+                        onSeek={seek}
+                        onRestart={() => seek(0)}
+                        onAudioBuffer={handleAudioBuffer}
+                        windowDuration={windowDuration}
+                        setWindowDuration={setWindowDuration}
+                    />
+                </div>
+                <div style={{ flex: 1, minWidth: 0, paddingLeft: 16, paddingRight: 16, boxSizing: 'border-box' }}>
+                    {waveform && waveform.length > 0 ? (
+                        <div
+                            style={{
+                                width: '100%',
+                                height: 100,
+                                background: '#181c22',
+                                borderRadius: 8,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                overflow: 'hidden',
+                            }}
+                            onClick={handleWaveformClick}
+                        >
+                            <Waveform
+                                waveform={waveform}
+                                width={Math.max(100, measuredWidth - labelWidth - 2 * 16)}
+                                height={100}
+                                duration={duration}
+                                currentTime={currentTime}
+                            />
+                        </div>
+                    ) : (
+                        <div
+                            style={{
+                                width: '100%',
+                                height: 80,
+                                background: '#181c22',
+                                borderRadius: 8,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#888',
+                            }}
+                        >
+                            Waveform (upload audio)
+                        </div>
+                    )}
+                </div>
+            </div>
             {/* Timeline below */}
             <div
                 style={{
