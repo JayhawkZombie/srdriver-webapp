@@ -44,6 +44,40 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     // Instantiate mixer (replace null with your actual engine if needed)
     const mixer = React.useMemo(() => new Mixer(), []);
 
+    // Get rect templates from the app store
+    const rectTemplates = useAppStore(state => state.rectTemplates);
+    type RectTemplate = typeof rectTemplates extends Record<string, infer T> ? T : never;
+
+    // Helper: create a TimelineResponse from a RectTemplate
+    function createResponseFromTemplate(
+        template: RectTemplate,
+        timestamp: number,
+        trackIndex: number
+    ): TimelineResponse {
+        return {
+            id: crypto.randomUUID(),
+            timestamp,
+            duration: template.defaultDuration,
+            trackIndex,
+            data: {
+                ...template.defaultData,
+                type: template.type,
+                paletteName: template.paletteName,
+            },
+            triggered: false,
+        };
+    }
+
+    // Handler for background click: add a new rect from the first template
+    const handleBackgroundClick = ({ time, trackIndex }: { time: number; trackIndex: number }) => {
+        const template = Object.values(rectTemplates)[0];
+        if (!template) return;
+        setResponses(responses => [
+            ...responses,
+            createResponseFromTemplate(template, time, trackIndex)
+        ]);
+    };
+
     // Responsive container size
     const [containerRef, { width: measuredWidth }] = useMeasuredContainerSize({
         minWidth: 400,
@@ -166,9 +200,10 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     isActive &&
                     !rect.triggered &&
                     rect.data &&
-                    rect.data.type
+                    rect.data.type &&
+                    rect.data.pattern
                 ) {
-                    mixer.triggerResponse(rect.data);
+                    mixer.triggerResponse(rect.data as any); // pattern is now required, so this is safe
                 }
                 return { ...rect, triggered: isActive };
             })
@@ -286,6 +321,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         actions={actions}
                         onRectMove={handleRectMove}
                         onRectResize={handleRectResize}
+                        onBackgroundClick={handleBackgroundClick}
                     />
                 </div>
                 {/* Debug info below timeline */}
