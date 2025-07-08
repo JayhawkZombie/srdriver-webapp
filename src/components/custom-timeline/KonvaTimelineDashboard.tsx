@@ -197,7 +197,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     React.useEffect(() => {
         setResponses((prevResponses) =>
             prevResponses.map((rect) => {
-                const assignedTarget = trackTargets[rect.trackIndex];
+                const assignedTarget = trackMapping[rect.trackIndex];
                 const isActive =
                     !!assignedTarget &&
                     currentTime >= rect.timestamp &&
@@ -215,7 +215,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 return { ...rect, triggered: isActive };
             })
         );
-    }, [currentTime, mixer, trackTargets]);
+    }, [currentTime, mixer, trackMapping]);
 
     // Layout: controls + waveform header, timeline below
     return (
