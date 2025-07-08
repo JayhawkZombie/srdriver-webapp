@@ -4,6 +4,7 @@ import { ResponseRect } from "./ResponseRect";
 import { getPaletteColor } from "./colorUtils";
 import type { TimelinePointerInfo } from './useTimelinePointerHandler';
 import TimelineContextMenu from './TimelineContextMenu';
+import { useTimelinePointerHandler } from './useTimelinePointerHandler';
 
 // --- Types ---
 export type TimelineResponse = {
@@ -68,6 +69,8 @@ interface TimelineVisualsProps {
   geometry: Geometry;
   currentTime: number;
   onBackgroundClick?: (args: TimelinePointerInfo) => void;
+  onRectMove?: (id: string, args: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => void;
+  onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
   onContextMenu?: (info: TimelineContextInfo, event: MouseEvent) => void;
   actions: TimelineMenuAction[];
 }
@@ -78,6 +81,51 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
   const [menuPosition, setMenuPosition] = React.useState<{ x: number; y: number } | null>(null);
   const [menuInfo, setMenuInfo] = React.useState<TimelineContextInfo | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // --- Pointer/drag/resize/selection logic ---
+  const pointerHandler = useTimelinePointerHandler({
+    ...rest.geometry,
+    responses: rest.responses,
+    onRectMove: (id: string, args: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => {
+      // Call up to dashboard to update responses
+      if (typeof rest.onRectMove === 'function') {
+        rest.onRectMove(id, args);
+      }
+    },
+    onRectResize: (id, edge, newTimestamp, newDuration) => {
+      if (typeof rest.onRectResize === 'function') {
+        rest.onRectResize(id, edge, newTimestamp, newDuration);
+      }
+    },
+    onContextMenu: (info, event) => {
+      pointerHandler.resetPointerState();
+      setMenuOpen(true);
+      if (info.type === 'rect') {
+        // Look up the full TimelineResponse for this rect
+        const fullRect = rest.responses.find(r => r.id === info.rect.id);
+        if (fullRect) {
+          setMenuInfo({ type: 'rect', rect: fullRect });
+        } else {
+          setMenuInfo(info); // fallback
+        }
+        if (event && typeof event === 'object' && 'evt' in event) {
+          setMenuPosition({ x: (event as any).evt.clientX, y: (event as any).evt.clientY });
+        }
+      } else if (info.type === 'background') {
+        setMenuInfo(info);
+        if (event && typeof event === 'object' && 'evt' in event) {
+          setMenuPosition({ x: (event as any).evt.clientX, y: (event as any).evt.clientY });
+        }
+      }
+    },
+    onBackgroundClick: rest.onBackgroundClick,
+  });
+
+  // When closing the menu, also reset pointer state
+  const handleMenuClose = () => {
+    pointerHandler.resetPointerState();
+    setMenuOpen(false);
+  };
 
   // Context menu handler for background
   const handleBackgroundContextMenu = (evt: unknown) => {
@@ -143,6 +191,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
           text: 'Add Response',
           onClick: () => {
             if (rest.onBackgroundClick) {
+              console.log("BACKGROUND MENU ACTION", info);
               rest.onBackgroundClick({ time: info.time, trackIndex: info.trackIndex });
             }
             setMenuOpen(false);
@@ -155,6 +204,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
           key: 'delete',
           text: 'Delete',
           onClick: () => {
+            console.log("RECT MENU ACTION");
             // You would call a delete handler here, e.g. via props
             setMenuOpen(false);
           },
@@ -199,34 +249,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         onMouseLeave={() => {
           rest.setHoveredId(null);
         }}
-        onClick={rest.onBackgroundClick ? (evt: unknown) => {
-          if (
-            typeof evt === "object" &&
-            evt !== null &&
-            "target" in evt &&
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            typeof (evt as any).target.getStage === "function"
-          ) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const stage = (evt as any).target.getStage();
-            if (!stage) return;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const pointerPos = stage.getPointerPosition ? stage.getPointerPosition() : null;
-            if (!pointerPos) return;
-            const x = pointerPos.x;
-            const y = pointerPos.y;
-            // Calculate time from x
-            const time = rest.windowStart + (x / rest.tracksWidth) * rest.windowDuration;
-            // Calculate track index from y
-            let trackIndex = Math.floor((y - rest.tracksTopOffset) / (rest.trackHeight + rest.trackGap));
-            if (trackIndex < 0) trackIndex = 0;
-            if (trackIndex >= rest.numTracks) trackIndex = rest.numTracks - 1;
-            if (typeof rest.onBackgroundClick === 'function') {
-              rest.onBackgroundClick({ time, trackIndex });
-            }
-          }
-        } : undefined}
-        onContextMenu={handleBackgroundContextMenu}
+        {...pointerHandler.getTrackAreaProps()}
       >
         <Layer>
           {/* Track backgrounds with midlines and subtle borders */}
@@ -325,13 +348,46 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                 opacity={opacity}
                 hovered={rest.hoveredId === rect.id}
                 selected={rest.selectedId === rect.id}
-                onGroupMouseEnter={() => rest.setHoveredId(rect.id)}
-                onGroupMouseLeave={() => rest.setHoveredId(null)}
-                onPointerDown={() => rest.setSelectedId(rect.id)}
+                {...pointerHandler.getRectProps(rect.id)}
                 onContextMenu={(evt: unknown) => handleRectContextMenu(rect, evt)}
               />
             );
           })}
+          {/* Shadow rect for dragging */}
+          {pointerHandler.pointerState.draggingId && pointerHandler.draggingRectPos && (() => {
+            const draggingRect = rest.responses.find(r => r.id === pointerHandler.pointerState.draggingId);
+            if (!draggingRect) return null;
+            const { x, y } = pointerHandler.draggingRectPos;
+            // Snap y to track
+            const snapYToTrackIndex = (window as unknown as { snapYToTrackIndex?: (y: number, geometry: typeof rest.geometry) => number }).snapYToTrackIndex;
+            const snappedTrackIndex = snapYToTrackIndex
+              ? snapYToTrackIndex(y, rest.geometry)
+              : Math.round((y - rest.tracksTopOffset) / (rest.trackHeight + rest.trackGap));
+            const snappedY = rest.tracksTopOffset + snappedTrackIndex * (rest.trackHeight + rest.trackGap) + rest.trackHeight / 2 - 16;
+            const paletteName = String(draggingRect.data?.paletteName || 'demo');
+            const palette = getPaletteSafe(paletteName);
+            const paletteState = palette.states?.selected || { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
+            const { color, opacity } = getPaletteColor({
+              baseColor: palette.baseColor,
+              borderColor: palette.borderColor,
+              state: paletteState,
+            });
+            return (
+              <ResponseRect
+                x={x}
+                y={snappedY}
+                width={(draggingRect.duration / rest.windowDuration) * rest.tracksWidth}
+                height={32}
+                color={color}
+                borderColor="#ff00ff"
+                borderWidth={4}
+                opacity={0.7 * (opacity ?? 1)}
+                selected={false}
+                hovered={false}
+                dragging={true}
+              />
+            );
+          })()}
         </Layer>
       </Stage>
       <TimelineContextMenu
@@ -339,7 +395,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         position={menuPosition}
         info={menuInfo}
         actions={getMenuActions(menuInfo)}
-        onClose={() => setMenuOpen(false)}
+        onClose={handleMenuClose}
         menuRef={menuRef}
       />
     </>

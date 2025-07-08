@@ -2,6 +2,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { getTimelinePointerInfo, snapYToTrackIndex } from "./timelineMath";
 
 export type TimelinePointerInfo = { time: number; trackIndex: number };
+export type TimelineContextInfo =
+  | { type: 'background'; time: number; trackIndex: number }
+  | { type: 'rect'; rect: { id: string; timestamp: number; duration: number; trackIndex: number } };
 
 /**
  * useTimelinePointerHandler
@@ -42,10 +45,10 @@ export function useTimelinePointerHandler({
   numTracks: number;
   totalDuration: number;
   responses: { id: string; timestamp: number; duration: number; trackIndex: number }[];
-  onRectMove?: (id: string, newProps: { timestamp: number; trackIndex: number }) => void;
+  onRectMove?: (id: string, newProps: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => void;
   onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
-  onContextMenu?: (info: TimelinePointerInfo, event: any) => void;
-  onBackgroundClick?: (info: TimelinePointerInfo, event: any) => void;
+  onContextMenu?: (info: TimelineContextInfo, event: unknown) => void;
+  onBackgroundClick?: (info: TimelinePointerInfo, event: unknown) => void;
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -57,14 +60,14 @@ export function useTimelinePointerHandler({
   // Context menu state for IMGUI/Blueprint menus
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [contextMenuInfo, setContextMenuInfo] = useState<any>(null);
+  const [contextMenuInfo, setContextMenuInfo] = useState<TimelineContextInfo | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
 
   const [draggingRectPos, setDraggingRectPos] = useState<{ x: number; y: number } | null>(null);
   // Track the last snapped shadow position for DAR
   const lastSnappedShadowRef = useRef<{ timestamp: number; trackIndex: number } | null>(null);
 
-  const openContextMenu = (position: { x: number; y: number }, info: any) => {
+  const openContextMenu = (position: { x: number; y: number }, info: TimelineContextInfo) => {
     console.log('[TimelinePointerHandler] open ContextMenu', position, info);
     setContextMenuPosition(position);
     setContextMenuInfo(info);
@@ -79,17 +82,27 @@ export function useTimelinePointerHandler({
   // Helper to get rect by id
   const getRectById = (id: string) => responses.find(r => r.id === id);
 
+  // Helper to reset all pointer state
+  const resetPointerState = () => {
+    setSelectedId(null);
+    setHoveredId(null);
+    setDraggingId(null);
+    setResizing({ id: null, edge: null });
+  };
+
   // --- Track area pointer logic (for Stage or background Rect/div) ---
   const getTrackAreaProps = useCallback(() => ({
-    onClick: (e: any) => {
+    onClick: (e: unknown) => {
+      console.log('[TrackArea] onClick', e, { selectedId, hoveredId });
       // Only add if not clicking on a rect
       if (selectedId || hoveredId) return;
-      if ((e as any).evt && typeof (e as any).evt.preventDefault === 'function') {
-        (e as any).evt.preventDefault();
+      const evt = (e as any).evt ?? e;
+      if (evt && typeof evt.preventDefault === 'function') {
+        evt.preventDefault();
       }
-      const boundingRect = e.target.getStage ? e.target.getStage().container().getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
-      const pointerX = (e as any).evt ? e.evt.clientX : e.clientX;
-      const pointerY = (e as any).evt ? e.evt.clientY : e.clientY;
+      const boundingRect = (e as any).target.getStage ? (e as any).target.getStage().container().getBoundingClientRect() : (e as any).currentTarget.getBoundingClientRect();
+      const pointerX = (e as any).evt ? (e as any).evt.clientX : (e as any).clientX;
+      const pointerY = (e as any).evt ? (e as any).evt.clientY : (e as any).clientY;
       const info = getTimelinePointerInfo({
         pointerX,
         pointerY,
@@ -103,17 +116,21 @@ export function useTimelinePointerHandler({
         numTracks,
         totalDuration,
       });
-      console.log('getTrackAreaProps', info);
+      console.log('[TrackArea] onClick info', info);
       if (!info) return;
       if (onBackgroundClick) onBackgroundClick(info, e);
     },
-    onContextMenu: (e: any) => {
-      console.log('[TimelinePointerHandler] onContextMenu', e);
-      // Only open if not clicking on a rect
-      if (selectedId || hoveredId) return;
-      const boundingRect = e.target.getStage ? e.target.getStage().container().getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
-      const pointerX = (e as any).evt ? e.evt.clientX : e.clientX;
-      const pointerY = (e as any).evt ? e.evt.clientY : e.clientY;
+    onContextMenu: (e: unknown) => {
+      console.log('[TrackArea] onContextMenu', e, { selectedId, hoveredId });
+      const evt = (e as any).evt ?? e;
+      if (evt && typeof evt.preventDefault === 'function') {
+        evt.preventDefault();
+      }
+      // Always allow context menu to open (do not skip for selectedId/hoveredId)
+      resetPointerState();
+      const boundingRect = (e as any).target.getStage ? (e as any).target.getStage().container().getBoundingClientRect() : (e as any).currentTarget.getBoundingClientRect();
+      const pointerX = (e as any).evt ? (e as any).evt.clientX : (e as any).clientX;
+      const pointerY = (e as any).evt ? (e as any).evt.clientY : (e as any).clientY;
       const info = getTimelinePointerInfo({
         pointerX,
         pointerY,
@@ -127,8 +144,12 @@ export function useTimelinePointerHandler({
         numTracks,
         totalDuration,
       });
+      console.log('[TrackArea] onContextMenu info', info);
       if (!info) return;
-      if (onContextMenu) onContextMenu(info, e);
+      if (onContextMenu) {
+        console.log('[TrackArea] calling onContextMenu with', { type: 'background', time: info.time, trackIndex: info.trackIndex });
+        onContextMenu({ type: 'background', time: info.time, trackIndex: info.trackIndex }, e);
+      }
     },
   }), [selectedId, hoveredId, onBackgroundClick, onContextMenu, windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks, totalDuration]);
 
@@ -142,32 +163,36 @@ export function useTimelinePointerHandler({
       dragging: draggingId === id,
       resizing: resizing.id === id,
       resizeEdge: resizing.id === id ? resizing.edge : null,
-      onPointerDown: (e: any) => {
+      onPointerDown: (e: unknown) => {
+        console.log('[Rect] onPointerDown', id, e);
         setSelectedId(id);
         setHoveredId(id);
-        e.cancelBubble = true;
+        (e as any).cancelBubble = true;
       },
-      onPointerMove: (e: any) => {
+      onPointerMove: (e: unknown) => {
+        console.log('[Rect] onPointerMove', id, e);
         setHoveredId(id);
-        e.cancelBubble = true;
+        (e as any).cancelBubble = true;
       },
-      onPointerUp: (e: any) => {
+      onPointerUp: (e: unknown) => {
+        console.log('[Rect] onPointerUp', id, e);
         setHoveredId(null);
         setDraggingId(null);
         setResizing({ id: null, edge: null });
         dragStartRef.current = null;
         resizeStartRef.current = null;
-        e.cancelBubble = true;
+        (e as any).cancelBubble = true;
       },
-      onDragStart: (e: any) => {
+      onDragStart: (e: unknown) => {
+        console.log('[Rect] onDragStart', id, e);
         setDraggingId(id);
-        dragStartRef.current = { x: e.target.x(), y: e.target.y(), timestamp: rect.timestamp, trackIndex: rect.trackIndex };
-        e.cancelBubble = true;
+        dragStartRef.current = { x: (e as any).target.x(), y: (e as any).target.y(), timestamp: rect.timestamp, trackIndex: rect.trackIndex };
+        (e as any).cancelBubble = true;
       },
-      onDragMove: (e: any) => {
+      onDragMove: (e: unknown) => {
         if (!dragStartRef.current) return;
-        const x = e.target.x();
-        const y = e.target.y();
+        const x = (e as any).target.x();
+        const y = (e as any).target.y();
         setDraggingRectPos({ x, y });
         const dx = x - dragStartRef.current.x;
         // Convert dx to time delta
@@ -189,42 +214,51 @@ export function useTimelinePointerHandler({
         lastSnappedShadowRef.current = { timestamp: newTimestamp, trackIndex: snappedTrackIndex };
         // Do NOT update trackIndex during drag; keep it at the original track
         if (onRectMove) onRectMove(id, { timestamp: newTimestamp, trackIndex: dragStartRef.current.trackIndex });
-        e.cancelBubble = true;
+        (e as any).cancelBubble = true;
       },
-      onDragEnd: (e: any) => {
+      onDragEnd: (e: unknown) => {
         // Always DAR using the last snapped shadow position
         const snapped = lastSnappedShadowRef.current;
         if (!snapped) return;
+        const evt = (e as any).evt ?? e;
+        if (evt && typeof evt.preventDefault === 'function') {
+          evt.preventDefault();
+        }
         // Debug log for DAR drop
         console.log('[DAR DEBUG] onDragEnd using last shadow position:', snapped);
+        resetPointerState();
         if (onRectMove) onRectMove(id, { ...snapped, destroyAndRespawn: true });
-        setDraggingId(null);
-        dragStartRef.current = null;
-        setDraggingRectPos(null);
-        lastSnappedShadowRef.current = null;
-        e.cancelBubble = true;
       },
-      onResizeStart: (e: any, edge: 'start' | 'end') => {
+      onGroupMouseEnter: () => {
+        console.log('[Rect] onGroupMouseEnter', id);
+        setHoveredId(id);
+      },
+      onGroupMouseLeave: () => {
+        console.log('[Rect] onGroupMouseLeave', id);
+        setHoveredId(null);
+      },
+      onResizeStart: (e: unknown, edge: 'start' | 'end') => {
         if (!edge) return; // Defensive: only call with valid edge
         setResizing({ id, edge });
-        resizeStartRef.current = { x: e.evt ? e.evt.clientX : e.target.getStage().getPointerPosition().x, timestamp: rect.timestamp, duration: rect.duration };
-        e.cancelBubble = true;
+        resizeStartRef.current = { x: (e as any).evt ? (e as any).evt.clientX : (e as any).target.getStage().getPointerPosition().x, timestamp: rect.timestamp, duration: rect.duration };
+        (e as any).cancelBubble = true;
       },
-      onResizeEnd: (e: any) => {
+      onResizeEnd: (e: unknown) => {
         setResizing({ id: null, edge: null });
         resizeStartRef.current = null;
-        e.cancelBubble = true;
+        (e as any).cancelBubble = true;
       },
-      onContextMenu: (e: any) => {
-        console.log('[TimelinePointerHandler] onContextMenu', e);
-        if (onContextMenu) onContextMenu(id, e);
-        e.cancelBubble = true;
-        if ((e as any).evt && typeof (e as any).evt.preventDefault === 'function') {
-          (e as any).evt.preventDefault();
+      onContextMenu: (e: unknown) => {
+        const evt = (e as any).evt ?? e;
+        if (evt && typeof evt.preventDefault === 'function') {
+          evt.preventDefault();
         }
+        console.log('[Rect] onContextMenu', id, rect, e);
+        resetPointerState();
+        if (onContextMenu) onContextMenu({ type: 'rect', rect }, e);
       },
     };
-  }, [selectedId, hoveredId, draggingId, resizing, responses, onRectMove, onRectResize, onContextMenu, tracksWidth, windowDuration, trackHeight, trackGap, numTracks, totalDuration]);
+  }, [selectedId, hoveredId, draggingId, resizing, onRectMove, onRectResize, windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks, totalDuration]);
 
   // --- Resizing effect ---
   useEffect(() => {
@@ -273,6 +307,7 @@ export function useTimelinePointerHandler({
     openContextMenu,
     closeContextMenu,
     contextMenuRef,
+    resetPointerState,
   };
 }
 
