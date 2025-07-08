@@ -3,7 +3,6 @@ import KonvaResponseTimeline from "./KonvaResponseTimeline";
 import TimelineControls from "./TimelineControls";
 import { usePlaybackState, usePlaybackController } from "./PlaybackContext";
 import type { TimelineResponse } from "./TimelineVisuals";
-import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { useAppStore } from "../../store/appStore";
 import { useTimelineSelectionState } from "./useTimelineSelectionState";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
@@ -11,8 +10,6 @@ import { Mixer } from "../../controllers/Mixer";
 import Waveform from "./Waveform";
 import TimelineContextMenu from "./TimelineContextMenu";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
-import type { TimelinePointerInfo } from "./useTimelinePointerHandler";
-import type { TimelinePointerHandler } from "./useTimelinePointerHandler";
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -20,12 +17,6 @@ const trackHeight = (tracksHeight - 32 - 2 * 8) / numTracks - 8;
 const trackGap = 8;
 const tracksTopOffset = 32;
 const labelWidth = 110;
-
-type RectMoveArgs = {
-    timestamp: number;
-    trackIndex: number;
-    destroyAndRespawn?: boolean;
-};
 
 const KonvaTimelineDashboardInner: React.FC = () => {
     // Audio state
@@ -103,137 +94,38 @@ const KonvaTimelineDashboardInner: React.FC = () => {
         totalDuration: duration,
     };
 
-    // Context menu state
-    const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
-    const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
-    const [contextMenuInfo, setContextMenuInfo] = useState<
-        | (TimelinePointerInfo & { type: 'background' })
-        | (TimelinePointerInfo & { type: 'rect'; responseId: string; duration: number })
-        | null
-    >(null);
-    const [contextMenuActions, setContextMenuActions] = useState<TimelineMenuAction[] | undefined>(undefined);
-    const contextMenuRef = React.useRef<HTMLDivElement>(null);
-
-    // Context menu open handler
-    type ContextMenuInfo =
-        | (TimelinePointerInfo & { type: 'background' })
-        | (TimelinePointerInfo & { type: 'rect'; responseId: string; duration: number });
-    const openContextMenu = (position: { x: number; y: number }, info: ContextMenuInfo) => {
-        console.log("Opening context menu", position, info);
-        console.log((new Error()).stack);
-        setContextMenuPosition(position);
-        setContextMenuInfo(info);
-        // Choose actions based on type
-        if (info.type === 'rect') {
-            console.log("Rect context menu");
-            setContextMenuActions([
-                {
-                    key: 'edit',
-                    text: 'Edit',
-                    icon: 'edit',
-                    onClick: () => alert(`Edit rect ${info.responseId}`),
-                },
-                {
-                    key: 'delete',
-                    text: 'Delete',
-                    icon: 'trash',
-                    onClick: () => alert(`Delete rect ${info.responseId}`),
-                },
-                // Add more rect actions here, e.g. mixer actions
-            ]);
-        } else {
-            setContextMenuActions([
-                {
-                    key: 'add',
-                    text: 'Add Event',
-                    icon: 'add',
-                    onClick: () => alert(`Add event at ${info.time.toFixed(2)}s, track ${info.trackIndex}`),
-                },
-                // Add more background actions here
-            ]);
-        }
-        setIsContextMenuOpen(true);
-    };
-    const closeContextMenu = () => {
-        setIsContextMenuOpen(false);
-        setContextMenuPosition(null);
-        setContextMenuInfo(null);
-        setContextMenuActions(undefined);
-    };
+    // Define your actions array (or function)
+    const actions: TimelineMenuAction[] = [
+        {
+            key: 'add',
+            text: 'Add Random Response',
+            icon: 'add',
+            onClick: () => {
+                const timestamp = Math.random() * 10;
+                const duration = 0.5 + Math.random() * 2;
+                const trackIndex = Math.floor(Math.random() * 3);
+                setResponses((responses) => [
+                    ...responses,
+                    {
+                        id: crypto.randomUUID(),
+                        timestamp,
+                        duration,
+                        trackIndex,
+                        data: {},
+                        triggered: false,
+                    },
+                ]);
+            },
+        },
+        {
+            key: 'close',
+            text: 'Close',
+            icon: 'cross',
+            onClick: () => {},
+        },
+    ];
 
     // Pointer/drag/resize logic
-    const pointerHandler = useTimelinePointerHandler({
-        windowStart,
-        windowDuration,
-        tracksWidth: contentWidth,
-        tracksTopOffset,
-        trackHeight,
-        trackGap,
-        numTracks,
-        totalDuration: duration,
-        responses,
-        onRectMove: (id: string, args: RectMoveArgs) => {
-            const { timestamp, trackIndex, destroyAndRespawn } = args;
-            if (destroyAndRespawn) {
-                const oldRect = responses.find((r) => r.id === id);
-                if (!oldRect) return;
-                const newResponses = responses.filter((r) => r.id !== id);
-                const newRect = {
-                    ...oldRect,
-                    id: crypto.randomUUID(),
-                    timestamp,
-                    trackIndex,
-                };
-                setResponses([...newResponses, newRect]);
-            } else {
-                setResponses((responses) =>
-                    responses.map((r) =>
-                        r.id === id ? { ...r, timestamp, trackIndex } : r
-                    )
-                );
-            }
-        },
-        onRectResize: (id, edge, newTimestamp, newDuration) => {
-            setResponses((responses) =>
-                responses.map((r) => {
-                    if (r.id !== id) return r;
-                    if (edge === "start")
-                        return {
-                            ...r,
-                            timestamp: newTimestamp,
-                            duration: newDuration,
-                        };
-                    return { ...r, duration: newDuration };
-                })
-            );
-        },
-        onBackgroundClick: undefined, // handled separately
-        onContextMenu: (infoOrId: string | TimelinePointerInfo, event: MouseEvent) => {
-            console.log("usePointerHandler onContextMenu", "infoOrId", infoOrId, "event", event);
-            console.log((new Error()).stack);
-            // event.preventDefault();
-            // If infoOrId is a string, it's a rect id
-            if (typeof infoOrId === 'string') {
-                const rect = responses.find(r => r.id === infoOrId);
-                if (!rect) return;
-                openContextMenu(
-                    { x: event.clientX, y: event.clientY },
-                    {
-                        type: 'rect',
-                        responseId: rect.id,
-                        time: rect.timestamp,
-                        trackIndex: rect.trackIndex,
-                        duration: rect.duration,
-                    }
-                );
-            } else if (infoOrId && typeof infoOrId === 'object') {
-                openContextMenu(
-                    { x: event.clientX, y: event.clientY },
-                    { ...infoOrId, type: 'background' }
-                );
-            }
-        },
-    });
 
     // Active rects for highlighting
     const activeRectIds = responses.filter((r) => r.triggered).map((r) => r.id);
@@ -355,7 +247,6 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         selectedId={selectedId}
                         setHoveredId={setHoveredId}
                         setSelectedId={setSelectedId}
-                        pointerHandler={pointerHandler as TimelinePointerHandler}
                         palettes={palettes}
                         trackTargets={trackTargets}
                         devices={devices}
@@ -366,31 +257,10 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                             ...geometry,
                             tracksWidth: contentWidth,
                         }}
-                        draggingId={pointerHandler.pointerState.draggingId}
-                        draggingRectPos={pointerHandler.draggingRectPos}
                         currentTime={currentTime}
                         windowStart={windowStart}
                         windowDuration={windowDuration}
-                        onBackgroundClick={({ time, trackIndex }) => {
-                            const duration = 1;
-                            setResponses((responses) => [
-                                ...responses,
-                                {
-                                    id: crypto.randomUUID(),
-                                    timestamp: time,
-                                    duration,
-                                    trackIndex,
-                                    data: { paletteName: "lightPulse" },
-                                    triggered: false,
-                                },
-                            ]);
-                        }}
-                        onContextMenu={(info, event) => {
-                            openContextMenu(
-                                { x: event.clientX, y: event.clientY },
-                                info
-                            );
-                        }}
+                        actions={actions}
                     />
                 </div>
                 {/* Debug info below timeline */}
@@ -413,12 +283,12 @@ const KonvaTimelineDashboardInner: React.FC = () => {
             </div>
             {/* Context menu overlay */}
             <TimelineContextMenu
-                isOpen={isContextMenuOpen}
-                position={contextMenuPosition}
-                info={contextMenuInfo}
-                onClose={closeContextMenu}
-                menuRef={contextMenuRef}
-                actions={contextMenuActions}
+                isOpen={false} // This state is now managed by KonvaResponseTimeline
+                position={null} // This state is now managed by KonvaResponseTimeline
+                info={null} // This state is now managed by KonvaResponseTimeline
+                onClose={() => {}} // This state is now managed by KonvaResponseTimeline
+                menuRef={undefined} // This state is now managed by KonvaResponseTimeline
+                actions={actions}
             />
         </>
     );

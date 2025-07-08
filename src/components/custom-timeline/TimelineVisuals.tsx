@@ -1,9 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText, Group } from "react-konva";
 import { ResponseRect } from "./ResponseRect";
 import { getPaletteColor } from "./colorUtils";
-import { trackIndexToCenterY, snapYToTrackIndex } from "./timelineMath";
-import type { TimelinePointerHandler, TimelinePointerInfo } from './useTimelinePointerHandler';
+import type { TimelinePointerInfo } from './useTimelinePointerHandler';
+import TimelineContextMenu from './TimelineContextMenu';
 
 // --- Types ---
 export type TimelineResponse = {
@@ -11,7 +11,7 @@ export type TimelineResponse = {
   timestamp: number;
   duration: number;
   trackIndex: number;
-  data: any;
+  data: Record<string, unknown>;
   triggered: boolean;
 };
 export type Palette = {
@@ -32,6 +32,22 @@ export type Geometry = {
   totalDuration: number;
 };
 
+// Add types for context info and actions
+export type TimelineContextInfo =
+  | { type: 'background'; time: number; trackIndex: number }
+  | { type: 'rect'; rect: TimelineResponse };
+
+export type TimelineMenuAction = {
+  key: string;
+  text: string;
+  icon?: string;
+  onClick?: (info: TimelineContextInfo) => void;
+  disabled?: boolean;
+  hidden?: boolean;
+  submenu?: TimelineMenuAction[];
+  divider?: boolean;
+};
+
 interface TimelineVisualsProps {
   numTracks: number;
   tracksWidth: number;
@@ -46,242 +62,286 @@ interface TimelineVisualsProps {
   selectedId: string | null;
   setHoveredId: (id: string | null) => void;
   setSelectedId: (id: string | null) => void;
-  pointerHandler: TimelinePointerHandler;
   palettes: Palettes;
   trackTargets: TrackTarget[];
   activeRectIds: string[];
   geometry: Geometry;
-  draggingId: string | null;
-  draggingRectPos: { x: number; y: number } | null;
   currentTime: number;
   onBackgroundClick?: (args: TimelinePointerInfo) => void;
-  onContextMenu?: (info: any, event: MouseEvent) => void;
+  onContextMenu?: (info: TimelineContextInfo, event: MouseEvent) => void;
+  actions: TimelineMenuAction[];
 }
 
-export const TimelineVisuals: React.FC<TimelineVisualsProps> = ({
-  numTracks, tracksWidth, tracksHeight, trackHeight, trackGap, tracksTopOffset,
-  windowStart, windowDuration, responses, hoveredId, selectedId, setHoveredId, setSelectedId,
-  pointerHandler, palettes, trackTargets, activeRectIds, geometry, draggingId, draggingRectPos, currentTime, onBackgroundClick, onContextMenu
-}) => {
+export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
+  const { /* actions, */ ...rest } = props;
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [menuPosition, setMenuPosition] = React.useState<{ x: number; y: number } | null>(null);
+  const [menuInfo, setMenuInfo] = React.useState<TimelineContextInfo | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Context menu handler for background
+  const handleBackgroundContextMenu = (evt: unknown) => {
+    if (
+      typeof evt === "object" &&
+      evt !== null &&
+      "evt" in evt &&
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      typeof (evt as any).evt.preventDefault === "function"
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (evt as any).evt.preventDefault();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const target = (evt as any).target;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stage = target && typeof target.getStage === "function" ? target.getStage() : null;
+      if (!stage) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pointerPos = stage.getPointerPosition ? stage.getPointerPosition() : null;
+      if (!pointerPos) return;
+      const x = pointerPos.x;
+      const y = pointerPos.y;
+      const { windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks } = rest;
+      const time = windowStart + (x / tracksWidth) * windowDuration;
+      let trackIndex = Math.floor((y - tracksTopOffset) / (trackHeight + trackGap));
+      if (trackIndex < 0) trackIndex = 0;
+      if (trackIndex >= numTracks) trackIndex = numTracks - 1;
+      const info: TimelineContextInfo = { type: 'background', time, trackIndex };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setMenuOpen(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setMenuPosition({ x: (evt as any).evt.clientX, y: (evt as any).evt.clientY });
+      setMenuInfo(info);
+    }
+  };
+
+  // Context menu handler for rects
+  const handleRectContextMenu = (rect: TimelineResponse, evt: unknown) => {
+    if (
+      typeof evt === "object" &&
+      evt !== null &&
+      "evt" in evt &&
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      typeof (evt as any).evt.preventDefault === "function"
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (evt as any).evt.preventDefault();
+      const info: TimelineContextInfo = { type: 'rect', rect };
+      setMenuOpen(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setMenuPosition({ x: (evt as any).evt.clientX, y: (evt as any).evt.clientY });
+      setMenuInfo(info);
+    }
+  };
+
+  // Single entry point for actions
+  const getMenuActions = (info: TimelineContextInfo | null): TimelineMenuAction[] => {
+    if (!info) return [];
+    if (info.type === 'background') {
+      return [
+        {
+          key: 'add',
+          text: 'Add Response',
+          onClick: () => {
+            if (rest.onBackgroundClick) {
+              rest.onBackgroundClick({ time: info.time, trackIndex: info.trackIndex });
+            }
+            setMenuOpen(false);
+          },
+        },
+      ];
+    } else if (info.type === 'rect') {
+      return [
+        {
+          key: 'delete',
+          text: 'Delete',
+          onClick: () => {
+            // You would call a delete handler here, e.g. via props
+            setMenuOpen(false);
+          },
+        },
+      ];
+    }
+    return [];
+  };
+
   // Playhead X
-  const playheadX = ((currentTime - windowStart) / windowDuration) * tracksWidth;
+  const playheadX = ((rest.currentTime - rest.windowStart) / rest.windowDuration) * rest.tracksWidth;
   // Ticks
   const majorTickEvery = 1;
   const minorTickEvery = 0.2;
   const ticks = useMemo(() => {
     const arr = [];
-    for (let t = Math.ceil(windowStart / minorTickEvery) * minorTickEvery; t <= windowStart + windowDuration; t += minorTickEvery) {
+    for (let t = Math.ceil(rest.windowStart / minorTickEvery) * minorTickEvery; t <= rest.windowStart + rest.windowDuration; t += minorTickEvery) {
       const isMajor = Math.abs(t % majorTickEvery) < 0.001 || Math.abs((t % majorTickEvery) - majorTickEvery) < 0.001;
-      const x = ((t - windowStart) / windowDuration) * tracksWidth;
+      const x = ((t - rest.windowStart) / rest.windowDuration) * rest.tracksWidth;
       arr.push({ t, x, isMajor });
     }
     return arr;
-  }, [windowStart, windowDuration, majorTickEvery, minorTickEvery, tracksWidth]);
-  const tracksTotalHeight = numTracks * trackHeight + (numTracks - 1) * trackGap;
+  }, [rest.windowStart, rest.windowDuration, majorTickEvery, minorTickEvery, rest.tracksWidth]);
+  const tracksTotalHeight = rest.numTracks * rest.trackHeight + (rest.numTracks - 1) * rest.trackGap;
 
   // Helper to get a fallback palette
   function getPaletteSafe(name: string): Palette {
-    if (palettes[name]) return palettes[name];
-    if (palettes['demo']) return palettes['demo'];
-    const first = Object.values(palettes)[0];
+    if (rest.palettes[name]) return rest.palettes[name];
+    if (rest.palettes['demo']) return rest.palettes['demo'];
+    const first = Object.values(rest.palettes)[0];
     if (first) return first;
     // fallback
     return { baseColor: '#2196f3', borderColor: '#fff', states: {} };
   }
 
   return (
-    <Stage
-      width={tracksWidth}
-      height={tracksHeight}
-      style={{ background: '#181c22', borderRadius: 8 }}
-      onMouseLeave={() => {
-        setHoveredId(null);
-      }}
-      onClick={onBackgroundClick ? (evt) => {
-        const stage = evt.target.getStage();
-        if (!stage) return;
-        const pointerPos = stage.getPointerPosition();
-        if (!pointerPos) return;
-        const x = pointerPos.x;
-        const y = pointerPos.y;
-        // Calculate time from x
-        const time = windowStart + (x / tracksWidth) * windowDuration;
-        // Calculate track index from y
-        let trackIndex = Math.floor((y - tracksTopOffset) / (trackHeight + trackGap));
-        if (trackIndex < 0) trackIndex = 0;
-        if (trackIndex >= numTracks) trackIndex = numTracks - 1;
-        onBackgroundClick({ time, trackIndex });
-      } : undefined}
-      onContextMenu={onContextMenu ? (evt) => {
-        evt.evt.preventDefault();
-        const stage = evt.target.getStage();
-        if (!stage) return;
-        const pointerPos = stage.getPointerPosition();
-        if (!pointerPos) return;
-        const x = pointerPos.x;
-        const y = pointerPos.y;
-        const time = windowStart + (x / tracksWidth) * windowDuration;
-        let trackIndex = Math.floor((y - tracksTopOffset) / (trackHeight + trackGap));
-        if (trackIndex < 0) trackIndex = 0;
-        if (trackIndex >= numTracks) trackIndex = numTracks - 1;
-        onContextMenu({ type: 'background', time, trackIndex }, evt.evt);
-      } : undefined}
-    >
-      <Layer>
-        {/* Track backgrounds with midlines and subtle borders */}
-        {[...Array(numTracks)].map((_, i) => {
-          const y = tracksTopOffset + i * (trackHeight + trackGap);
-          const isTrackAssigned = !!trackTargets[i];
-          const fill = i % 2 === 0 ? '#23272f' : '#20232a';
-          return (
-            <Group key={i}>
-              {/* Track background */}
-              <Rect
-                x={0}
-                y={y}
-                width={tracksWidth}
-                height={trackHeight}
-                fill={fill}
-                cornerRadius={6}
-                opacity={isTrackAssigned ? 1 : 0.7}
-                stroke="#444"
-                strokeWidth={2}
-              />
-              {/* Midline */}
-              <Line
-                points={[0, y + trackHeight / 2, tracksWidth, y + trackHeight / 2]}
-                stroke="#333"
-                strokeWidth={1}
-                dash={[4, 4]}
-              />
-              {/* Track border bottom (except last) */}
-              {i < numTracks - 1 && (
-                <Line
-                  points={[0, y + trackHeight, tracksWidth, y + trackHeight]}
-                  stroke="#555"
+    <>
+      <Stage
+        width={rest.tracksWidth}
+        height={rest.tracksHeight}
+        style={{ background: '#181c22', borderRadius: 8 }}
+        onMouseLeave={() => {
+          rest.setHoveredId(null);
+        }}
+        onClick={rest.onBackgroundClick ? (evt: unknown) => {
+          if (
+            typeof evt === "object" &&
+            evt !== null &&
+            "target" in evt &&
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            typeof (evt as any).target.getStage === "function"
+          ) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stage = (evt as any).target.getStage();
+            if (!stage) return;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const pointerPos = stage.getPointerPosition ? stage.getPointerPosition() : null;
+            if (!pointerPos) return;
+            const x = pointerPos.x;
+            const y = pointerPos.y;
+            // Calculate time from x
+            const time = rest.windowStart + (x / rest.tracksWidth) * rest.windowDuration;
+            // Calculate track index from y
+            let trackIndex = Math.floor((y - rest.tracksTopOffset) / (rest.trackHeight + rest.trackGap));
+            if (trackIndex < 0) trackIndex = 0;
+            if (trackIndex >= rest.numTracks) trackIndex = rest.numTracks - 1;
+            if (typeof rest.onBackgroundClick === 'function') {
+              rest.onBackgroundClick({ time, trackIndex });
+            }
+          }
+        } : undefined}
+        onContextMenu={handleBackgroundContextMenu}
+      >
+        <Layer>
+          {/* Track backgrounds with midlines and subtle borders */}
+          {[...Array(rest.numTracks)].map((_, i) => {
+            const y = rest.tracksTopOffset + i * (rest.trackHeight + rest.trackGap);
+            const isTrackAssigned = !!rest.trackTargets[i];
+            const fill = i % 2 === 0 ? '#23272f' : '#20232a';
+            return (
+              <Group key={i}>
+                {/* Track background */}
+                <Rect
+                  x={0}
+                  y={y}
+                  width={rest.tracksWidth}
+                  height={rest.trackHeight}
+                  fill={fill}
+                  cornerRadius={6}
+                  opacity={isTrackAssigned ? 1 : 0.7}
+                  stroke="#444"
                   strokeWidth={2}
                 />
-              )}
-            </Group>
-          );
-        })}
-        {/* Ticks and labels */}
-        {ticks.map(({ t, x, isMajor }) => (
-          <React.Fragment key={t.toFixed(2)}>
-            <Line
-              points={[x, tracksTopOffset, x, tracksTopOffset + tracksTotalHeight]}
-              stroke={isMajor ? '#fff' : '#888'}
-              strokeWidth={isMajor ? 2 : 1}
-              dash={isMajor ? undefined : [2, 4]}
-            />
-            {isMajor && (
-              <KonvaText
-                x={x + 2}
-                y={tracksTopOffset - 22}
-                text={t.toFixed(1)}
-                fontSize={14}
-                fill="#fff"
+                {/* Midline */}
+                <Line
+                  points={[0, y + rest.trackHeight / 2, rest.tracksWidth, y + rest.trackHeight / 2]}
+                  stroke="#333"
+                  strokeWidth={1}
+                  dash={[4, 4]}
+                />
+                {/* Track border bottom (except last) */}
+                {i < rest.numTracks - 1 && (
+                  <Line
+                    points={[0, y + rest.trackHeight, rest.tracksWidth, y + rest.trackHeight]}
+                    stroke="#555"
+                    strokeWidth={2}
+                  />
+                )}
+              </Group>
+            );
+          })}
+          {/* Ticks and labels */}
+          {ticks.map(({ t, x, isMajor }) => (
+            <React.Fragment key={t.toFixed(2)}>
+              <Line
+                points={[x, rest.tracksTopOffset, x, rest.tracksTopOffset + tracksTotalHeight]}
+                stroke={isMajor ? '#fff' : '#888'}
+                strokeWidth={isMajor ? 2 : 1}
+                dash={isMajor ? undefined : [2, 4]}
               />
-            )}
-          </React.Fragment>
-        ))}
-        {/* Playhead */}
-        <Line
-          points={[playheadX, tracksTopOffset, playheadX, tracksTopOffset + tracksTotalHeight]}
-          stroke="#FFD600"
-          strokeWidth={3}
-          dash={[8, 8]}
-        />
-        {/* Response rects */}
-        {responses.map(rect => {
-          const isTrackAssigned = !!trackTargets[rect.trackIndex];
-          const isActive = isTrackAssigned && activeRectIds.includes(rect.id);
-          const paletteName = String(rect.data?.paletteName || 'demo');
-          const palette = getPaletteSafe(paletteName);
-          let paletteState;
-          if (!isTrackAssigned) paletteState = palette.states?.unassigned;
-          else if (selectedId === rect.id) paletteState = palette.states?.selected;
-          else if (hoveredId === rect.id) paletteState = palette.states?.hovered;
-          else if (isActive) paletteState = palette.states?.active;
-          if (!paletteState) paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
-          const { color, opacity } = getPaletteColor({
-            baseColor: palette.baseColor,
-            borderColor: palette.borderColor,
-            state: paletteState,
-          });
-          const x = ((rect.timestamp - windowStart) / windowDuration) * tracksWidth;
-          const y = tracksTopOffset + rect.trackIndex * (trackHeight + trackGap) + trackHeight / 2 - 16;
-          const width = (rect.duration / windowDuration) * tracksWidth;
-          const height = 32;
-          const pointerHandlerRectProps = pointerHandler.getRectProps(rect.id) as Record<string, unknown>;
-          delete pointerHandlerRectProps.hovered;
-          delete pointerHandlerRectProps.selected;
-          // Add onContextMenu handler to prevent browser menu and trigger pointerHandler logic
-          const onContextMenu = (evt: any) => {
-            if (evt && evt.evt) {
-              evt.evt.preventDefault();
-            }
-            if (onContextMenu) {
-              onContextMenu({
-                type: 'rect',
-                responseId: rect.id,
-                time: rect.timestamp,
-                trackIndex: rect.trackIndex,
-                duration: rect.duration,
-              }, evt.evt);
-            }
-          };
-          return (
-            <ResponseRect
-              key={rect.id}
-              x={x}
-              y={y}
-              width={width}
-              height={height}
-              color={color}
-              opacity={opacity}
-              hovered={hoveredId === rect.id}
-              selected={selectedId === rect.id}
-              onGroupMouseEnter={() => setHoveredId(rect.id)}
-              onGroupMouseLeave={() => setHoveredId(null)}
-              onPointerDown={() => setSelectedId(rect.id)}
-              onContextMenu={onContextMenu}
-              {...pointerHandlerRectProps}
-            />
-          );
-        })}
-        {/* Shadow rect for dragging */}
-        {draggingId && draggingRectPos && (() => {
-          const draggingRect = responses.find(r => r.id === draggingId);
-          if (!draggingRect) return null;
-          const { x, y } = draggingRectPos;
-          const snappedTrackIndex = snapYToTrackIndex(y, geometry);
-          const snappedY = trackIndexToCenterY(snappedTrackIndex, geometry) - 16;
-          const paletteName = String(draggingRect.data?.paletteName || 'demo');
-          const palette = getPaletteSafe(paletteName);
-          const paletteState = palette.states?.selected || { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
-          const { color, opacity } = getPaletteColor({
-            baseColor: palette.baseColor,
-            borderColor: palette.borderColor,
-            state: paletteState,
-          });
-          return (
-            <ResponseRect
-              x={x}
-              y={snappedY}
-              width={(draggingRect.duration / windowDuration) * tracksWidth}
-              height={32}
-              color={color}
-              borderColor="#ff00ff"
-              borderWidth={4}
-              opacity={0.7 * (opacity ?? 1)}
-              selected={false}
-              hovered={false}
-              dragging={true}
-            />
-          );
-        })()}
-      </Layer>
-    </Stage>
+              {isMajor && (
+                <KonvaText
+                  x={x + 2}
+                  y={rest.tracksTopOffset - 22}
+                  text={t.toFixed(1)}
+                  fontSize={14}
+                  fill="#fff"
+                />
+              )}
+            </React.Fragment>
+          ))}
+          {/* Playhead */}
+          <Line
+            points={[playheadX, rest.tracksTopOffset, playheadX, rest.tracksTopOffset + tracksTotalHeight]}
+            stroke="#FFD600"
+            strokeWidth={3}
+            dash={[8, 8]}
+          />
+          {/* Response rects */}
+          {rest.responses.map(rect => {
+            const isTrackAssigned = !!rest.trackTargets[rect.trackIndex];
+            const isActive = isTrackAssigned && rest.activeRectIds.includes(rect.id);
+            const paletteName = String(rect.data?.paletteName || 'demo');
+            const palette = getPaletteSafe(paletteName);
+            let paletteState;
+            if (!isTrackAssigned) paletteState = palette.states?.unassigned;
+            else if (rest.selectedId === rect.id) paletteState = palette.states?.selected;
+            else if (rest.hoveredId === rect.id) paletteState = palette.states?.hovered;
+            else if (isActive) paletteState = palette.states?.active;
+            if (!paletteState) paletteState = { color: palette.baseColor, borderColor: palette.borderColor, opacity: 1 };
+            const { color, opacity } = getPaletteColor({
+              baseColor: palette.baseColor,
+              borderColor: palette.borderColor,
+              state: paletteState,
+            });
+            const x = ((rect.timestamp - rest.windowStart) / rest.windowDuration) * rest.tracksWidth;
+            const y = rest.tracksTopOffset + rect.trackIndex * (rest.trackHeight + rest.trackGap) + rest.trackHeight / 2 - 16;
+            const width = (rect.duration / rest.windowDuration) * rest.tracksWidth;
+            const height = 32;
+            return (
+              <ResponseRect
+                key={rect.id}
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                color={color}
+                opacity={opacity}
+                hovered={rest.hoveredId === rect.id}
+                selected={rest.selectedId === rect.id}
+                onGroupMouseEnter={() => rest.setHoveredId(rect.id)}
+                onGroupMouseLeave={() => rest.setHoveredId(null)}
+                onPointerDown={() => rest.setSelectedId(rect.id)}
+                onContextMenu={(evt: unknown) => handleRectContextMenu(rect, evt)}
+              />
+            );
+          })}
+        </Layer>
+      </Stage>
+      <TimelineContextMenu
+        isOpen={menuOpen}
+        position={menuPosition}
+        info={menuInfo}
+        actions={getMenuActions(menuInfo)}
+        onClose={() => setMenuOpen(false)}
+        menuRef={menuRef}
+      />
+    </>
   );
 }; 

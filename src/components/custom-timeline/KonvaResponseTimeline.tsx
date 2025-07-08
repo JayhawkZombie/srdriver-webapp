@@ -2,6 +2,7 @@ import React from "react";
 import { TimelineVisuals } from "./TimelineVisuals";
 import type { TimelineResponse, Palettes, TrackTarget, Geometry } from "./TimelineVisuals";
 import type { TimelinePointerInfo } from './useTimelinePointerHandler';
+import type { TimelineMenuAction, TimelineContextInfo } from './TimelineVisuals';
 import { Select } from '@blueprintjs/select';
 import { MenuItem } from '@blueprintjs/core';
 
@@ -11,7 +12,6 @@ interface KonvaResponseTimelineProps {
   selectedId: string | null;
   setHoveredId: (id: string | null) => void;
   setSelectedId: (id: string | null) => void;
-  pointerHandler: Record<string, unknown>;
   palettes: Palettes;
   trackTargets: TrackTarget[];
   devices: string[];
@@ -19,13 +19,12 @@ interface KonvaResponseTimelineProps {
   setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => void;
   activeRectIds: string[];
   geometry: Geometry;
-  draggingId: string | null;
-  draggingRectPos: { x: number; y: number } | null;
   currentTime: number;
   windowStart: number;
   windowDuration: number;
   onBackgroundClick?: (args: TimelinePointerInfo) => void;
   onContextMenu?: (info: any, event: MouseEvent) => void;
+  actions: TimelineMenuAction[] | ((info: TimelineContextInfo) => TimelineMenuAction[]);
 }
 
 const labelWidth = 110;
@@ -42,7 +41,6 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
   selectedId,
   setHoveredId,
   setSelectedId,
-  pointerHandler,
   palettes,
   trackTargets,
   devices,
@@ -50,13 +48,12 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
   setTrackTarget,
   activeRectIds,
   geometry,
-  draggingId,
-  draggingRectPos,
   currentTime,
   windowStart,
   windowDuration,
   onBackgroundClick,
   onContextMenu,
+  actions,
 }) => {
   // Helper to get device label
   const getDeviceLabel = (id: string) => deviceMetadata[id]?.nickname || deviceMetadata[id]?.name || id;
@@ -152,16 +149,14 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
           selectedId={selectedId}
           setHoveredId={setHoveredId}
           setSelectedId={setSelectedId}
-          pointerHandler={pointerHandler}
           palettes={palettes}
           trackTargets={Array.isArray(trackTargets) ? trackTargets : Object.values(trackTargets)}
           activeRectIds={activeRectIds}
           geometry={geometry}
-          draggingId={draggingId}
-          draggingRectPos={draggingRectPos}
           currentTime={currentTime}
           onBackgroundClick={onBackgroundClick}
           onContextMenu={onContextMenu}
+          actions={actions}
         />
       </div>
     </div>
