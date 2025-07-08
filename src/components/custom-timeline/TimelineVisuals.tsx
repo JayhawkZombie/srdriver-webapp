@@ -164,6 +164,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
 
   // Context menu handler for rects
   const handleRectContextMenu = (rect: TimelineResponse, evt: unknown) => {
+    console.log("Handling rect context menu", rect, evt);
     if (
       typeof evt === "object" &&
       evt !== null &&
