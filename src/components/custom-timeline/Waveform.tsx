@@ -1,20 +1,19 @@
 import React from "react";
 import { getPeakIndex, waveformToSvgPoints, getPeakCoordinate } from "./audioMath";
 import styles from "./Waveform.module.css";
-import { usePlayback } from "./PlaybackContext";
+// No usePlayback import; this is now a pure component
 
 interface WaveformProps {
   width: number;
   height: number;
   showPeakTrace?: boolean;
   waveform: number[];
-  duration?: number;
+  duration: number;
+  currentTime: number;
+  onSeek?: (time: number) => void;
 }
 
-const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, waveform, duration }) => {
-  // Playback state
-  const { currentTime, seek } = usePlayback();
-
+const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, waveform, duration, currentTime, onSeek }) => {
   if (!waveform || !duration || !Array.isArray(waveform) || waveform.length === 0) return null;
 
   const points = waveformToSvgPoints(waveform, width, height);
@@ -26,10 +25,11 @@ const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, wavef
 
   // Click-to-seek
   const handleClick = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
+    if (!onSeek) return;
     const rect = (e.target as SVGSVGElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
     const time = (x / width) * duration;
-    seek(time);
+    onSeek(time);
   };
 
   return (
@@ -38,8 +38,8 @@ const Waveform: React.FC<WaveformProps> = ({ width, height, showPeakTrace, wavef
         width={width}
         height={height}
         className={styles.waveformSvg}
-        onClick={handleClick}
-        style={{ cursor: 'pointer' }}
+        onClick={onSeek ? handleClick : undefined}
+        style={{ cursor: onSeek ? 'pointer' : 'default' }}
       >
         <polyline fill="none" stroke="#4fc3f7" strokeWidth={2} points={points} />
         {showPeakTrace && (

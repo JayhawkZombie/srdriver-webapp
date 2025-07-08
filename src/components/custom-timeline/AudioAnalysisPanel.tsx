@@ -4,7 +4,6 @@ import { useAppStore } from "../../store/appStore";
 import { workerManager } from "../../controllers/workerManager";
 import Waveform from "./Waveform";
 import { ProgressBar } from "@blueprintjs/core";
-import { usePlayback } from "./PlaybackContext";
 import { WindowedTimeSeriesPlot } from "./WindowedTimeSeriesPlot";
 import {
     DetectionDataProvider,
@@ -13,6 +12,7 @@ import {
 import { AudioAnalysisProvider } from "./AudioAnalysisContext";
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
 import type { BandConfig, DetectionResult } from "./DetectionDataTypes";
+import { usePlaybackState } from "./PlaybackContext";
 
 // BandData type (inline, matching worker output)
 type BandData = {
@@ -77,7 +77,7 @@ const FFTSection = ({
     const setBandDataArr = useAppStore((s) => s.setBandDataArr);
     const fftProgress = useAppStore((s) => s.fftProgress);
     const bandDataArr = useAppStore((s) => s.audio.analysis?.bandDataArr);
-    const { currentTime } = usePlayback();
+    const { currentTime } = usePlaybackState();
     const windowDuration = 15;
     const windowStart = Math.max(0, currentTime - windowDuration / 2);
 
@@ -95,40 +95,46 @@ const FFTSection = ({
                 (progress) => setFftProgress(progress)
             )
             .then((result: unknown) => {
-                const fftResult = result as {
-                    fftSequence: Float32Array[];
-                    normalizedFftSequence: Float32Array[];
-                    summary: Record<string, unknown>;
-                };
-                // Convert Float32Array[] to number[][] for downstream consumers
-                const fftSequenceNum = fftResult.fftSequence.map(arr => Array.from(arr));
-                const normFftSequenceNum = fftResult.normalizedFftSequence.map(arr => Array.from(arr));
-                setFftResult({
-                    normalizedFftSequence: normFftSequenceNum,
-                    summary: fftResult.summary,
-                });
-                const worker = new Worker(
-                    new URL(
-                        "../../../controllers/visualizationWorker.ts",
-                        import.meta.url
-                    ),
-                    { type: "module" }
-                );
-                worker.postMessage({
-                    fftSequence: fftSequenceNum,
-                    bands: BAND_DEFS,
-                    sampleRate,
-                    hopSize: 512,
-                });
-                worker.onmessage = (
-                    e: MessageEvent<{ bandDataArr: BandData[] }>
-                ) => {
-                    setBandDataArr(e.data.bandDataArr);
-                    worker.terminate();
-                    onFftComplete(); // Mark FFT as complete
-                };
+                console.log("FFTSection: worker result", result);
+                if (result && typeof result === 'object' && result !== null) {
+                    const r = result as any;
+                    // Log types and shapes
+                    console.log('fftSequence type:', Array.isArray(r.fftSequence) ? typeof r.fftSequence[0] : typeof r.fftSequence);
+                    console.log('fftSequence[0] instanceof Float32Array:', r.fftSequence && r.fftSequence[0] instanceof Float32Array);
+                    // Convert Float32Array[] to number[][] if needed
+                    let fftSequenceNum = r.fftSequence;
+                    let normFftSequenceNum = r.normalizedFftSequence;
+                    if (Array.isArray(r.fftSequence) && r.fftSequence[0] instanceof Float32Array) {
+                        fftSequenceNum = r.fftSequence.map((arr: Float32Array) => Array.from(arr));
+                    }
+                    if (Array.isArray(r.normalizedFftSequence) && r.normalizedFftSequence[0] instanceof Float32Array) {
+                        normFftSequenceNum = r.normalizedFftSequence.map((arr: Float32Array) => Array.from(arr));
+                    }
+                    setFftResult({
+                        normalizedFftSequence: normFftSequenceNum,
+                        summary: r.summary,
+                    });
+                    // Use workerManager for visualization
+                    workerManager.enqueueJob('visualization', {
+                        fftSequence: fftSequenceNum,
+                        bands: BAND_DEFS,
+                        sampleRate,
+                        hopSize: 512,
+                    }).then((vizResult: any) => {
+                        console.log('FFTSection: visualization worker result', vizResult);
+                        setBandDataArr(vizResult.bandDataArr);
+                        onFftComplete(); // Mark FFT as complete
+                    }).catch((err: any) => {
+                        console.error('FFTSection: visualization worker error', err);
+                    });
+                }
+            })
+            .catch((err) => {
+                console.error("FFTSection: worker error", err);
             });
     };
+
+    console.log('FFTSection: bandDataArr', bandDataArr);
 
     return (
         <div style={{ marginTop: 32 }}>

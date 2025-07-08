@@ -3,7 +3,7 @@
 
 import { logWorkerMessage } from '../store/appLogger';
 
-type WorkerType = 'waveform' | 'fft' | 'aubio' | 'bandFilter';
+type WorkerType = 'waveform' | 'fft' | 'aubio' | 'bandFilter' | 'visualization';
 
 interface WorkerJob<Request, Result> {
   jobId: string;
@@ -97,6 +97,7 @@ class WorkerManager {
     fft: new WorkerHandle('../workers/audioWorker.ts'),
     aubio: new WorkerHandle('../workers/aubioWorker.ts'),
     bandFilter: new WorkerHandle('../workers/bandFilterWorker.ts'),
+    visualization: new WorkerHandle('../workers/visualizationWorker.ts'),
   };
 
   getInfo() {
