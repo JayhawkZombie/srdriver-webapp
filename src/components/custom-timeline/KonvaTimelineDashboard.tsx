@@ -11,6 +11,9 @@ import { Mixer } from "../../controllers/Mixer";
 import Waveform from "./Waveform";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
 import KonvaTimelineTemplateSelector from "./KonvaTimelineTemplateSelector";
+import { AudioAnalysisProvider } from "./AudioAnalysisContext";
+import AudioAnalysisPanel from "./AudioAnalysisPanel";
+import { Drawer } from "@blueprintjs/core";
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -221,9 +224,12 @@ const KonvaTimelineDashboardInner: React.FC = () => {
         );
     }, [currentTime, mixer, trackMapping]);
 
+    // Drawer state for analysis tools
+    const [drawerOpen, setDrawerOpen] = useState(false);
+
     // Layout: controls + waveform header, timeline below
     return (
-        <>
+        <AudioAnalysisProvider>
             {/* Main dashboard UI */}
             <div
                 ref={containerRef}
@@ -252,10 +258,22 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         windowDuration={windowDuration}
                         setWindowDuration={setWindowDuration}
                     />
-                    <button style={{ padding: 8, borderRadius: 6, background: '#333', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                    <button
+                        style={{ padding: 8, borderRadius: 6, background: '#333', color: '#fff', border: 'none', cursor: 'pointer' }}
+                        onClick={() => setDrawerOpen(true)}
+                    >
                         Analysis Tools
                     </button>
                 </div>
+                {/* Drawer for analysis tools */}
+                <Drawer
+                    isOpen={drawerOpen}
+                    onClose={() => setDrawerOpen(false)}
+                    title="Audio Analysis Tools"
+                    size="large"
+                >
+                    <AudioAnalysisPanel />
+                </Drawer>
                 {/* Waveform header (full width) */}
                 {waveform && waveform.length > 0 ? (
                     <div
@@ -378,7 +396,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 menuRef={undefined} // This state is now managed by KonvaResponseTimeline
                 actions={actions}
             /> */}
-        </>
+        </AudioAnalysisProvider>
     );
 
     // Audio upload handler

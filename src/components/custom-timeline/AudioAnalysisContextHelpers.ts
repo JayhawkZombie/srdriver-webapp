@@ -31,6 +31,8 @@ export type AudioAnalysisContextType = {
     handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     progress: { processed: number; total: number; jobId?: string } | null;
     bandDataArr: BandData[];
+    plotReady: boolean;
+    setPlotReady: (ready: boolean) => void;
 };
 
 export const AudioAnalysisContext = createContext<AudioAnalysisContextType | null>(null);

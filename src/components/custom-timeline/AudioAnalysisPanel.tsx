@@ -75,6 +75,7 @@ const FFTSection = ({
     const setFftProgress = useAppStore((s) => s.setFftProgress);
     const setFftResult = useAppStore((s) => s.setFftResult);
     const setBandDataArr = useAppStore((s) => s.setBandDataArr);
+    const { setPlotReady } = useAudioAnalysis();
     const fftProgress = useAppStore((s) => s.fftProgress);
     const bandDataArr = useAppStore((s) => s.audio.analysis?.bandDataArr);
     const { currentTime } = usePlaybackState();
@@ -83,6 +84,7 @@ const FFTSection = ({
 
     const handleRunFFT = () => {
         setFftProgress({ processed: 0, total: 1 });
+        setPlotReady(false);
         workerManager
             .enqueueJob(
                 "fft",
@@ -123,13 +125,16 @@ const FFTSection = ({
                     }).then((vizResult: any) => {
                         console.log('FFTSection: visualization worker result', vizResult);
                         setBandDataArr(vizResult.bandDataArr);
+                        setPlotReady(true);
                         onFftComplete(); // Mark FFT as complete
                     }).catch((err: any) => {
+                        setPlotReady(true); // Avoid spinner hang on error
                         console.error('FFTSection: visualization worker error', err);
                     });
                 }
             })
             .catch((err) => {
+                setPlotReady(true); // Avoid spinner hang on error
                 console.error("FFTSection: worker error", err);
             });
     };
@@ -435,9 +440,9 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
 // Replace the default export function with the provider wrapping the panel
 export default function AudioAnalysisPanel() {
     return (
-        <AudioAnalysisProvider>
+        // <AudioAnalysisProvider>
             <AudioAnalysisPanelInner />
-        </AudioAnalysisProvider>
+        // </AudioAnalysisProvider>
     );
 }
 
