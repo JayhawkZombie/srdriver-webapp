@@ -21,7 +21,8 @@ export type Palette = {
   states: Record<string, { color: string; borderColor: string; opacity: number }>;
 };
 export type Palettes = Record<string, Palette>;
-export type TrackTarget = { type: string; id: string } | undefined;
+// Update TrackTarget type to match appStore
+export type TrackTarget = { type: 'device' | 'group' | 'other'; id: string } | undefined;
 export type Geometry = {
   windowStart: number;
   windowDuration: number;

@@ -67,11 +67,11 @@ export const KonvaResponseTimeline: React.FC<KonvaResponseTimelineProps> = ({
       style={{
         display: "flex",
         flexDirection: "row",
-        width: geometry.tracksWidth + labelWidth + 40,
-        margin: "40px auto",
+        width: geometry.tracksWidth + labelWidth,
+        margin: 0,
         background: "#23272f",
         borderRadius: 12,
-        padding: 24,
+        padding: 0,
       }}
     >
       {/* Track labels column with dropdowns */}
