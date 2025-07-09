@@ -104,41 +104,16 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     );
     const { hoveredId, setHoveredId, selectedId, setSelectedId } =
         useTimelineSelectionState();
-    // Add gallery row above tracks
-    const galleryHeight = 48;
-    const tracksTopOffsetWithGallery = galleryHeight + tracksTopOffset; // old tracksTopOffset was 32
-    const totalHeight = galleryHeight + tracksHeight;
     const geometry = {
         windowStart,
         windowDuration,
         tracksWidth: contentWidth,
-        tracksTopOffset: tracksTopOffsetWithGallery,
+        tracksTopOffset,
         trackHeight,
         trackGap,
         numTracks,
         totalDuration: duration,
-        galleryHeight,
-        totalHeight,
     };
-
-    // Handler for gallery rect pointer down (spawn new rect at pointer)
-    function handleGalleryRectPointerDown(template, pointerPos) {
-        // Convert pointerPos to timeline time/trackIndex
-        // Use the same math as your pointer handler
-        const { x, y } = pointerPos;
-        // Calculate time
-        const time = geometry.windowStart + (x / geometry.tracksWidth) * geometry.windowDuration;
-        // Calculate trackIndex
-        const relY = y - geometry.tracksTopOffset;
-        const trackIndex = Math.max(0, Math.min(
-            geometry.numTracks - 1,
-            Math.floor(relY / (geometry.trackHeight + geometry.trackGap))
-        ));
-        setResponses(responses => [
-            ...responses,
-            createResponseFromTemplate(template, time, trackIndex)
-        ]);
-    }
 
     // Define your actions array (or function)
     const actions: TimelineMenuAction[] = [
@@ -354,8 +329,6 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         onRectMove={handleRectMove}
                         onRectResize={handleRectResize}
                         onBackgroundClick={handleBackgroundClick}
-                        rectTemplates={rectTemplates}
-                        onGalleryRectPointerDown={handleGalleryRectPointerDown}
                     />
                 </div>
                 {/* Debug info below timeline */}

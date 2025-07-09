@@ -156,9 +156,9 @@ export function useTimelinePointerHandler({
       console.log('[TrackArea] onContextMenu info', info);
       if (!info) return;
       if (onContextMenu) {
-        console.log('[TrackArea] calling onContextMenu with', { type: 'background', time: info.time, trackIndex: info.trackIndex });
+        console.log('[TrackArea] calling onContextMenu with', { type: 'background', timestamp: info.time, trackIndex: info.trackIndex });
         // Pass the cursor position up for menu placement
-        onContextMenu({ type: 'background', time: info.time, trackIndex: info.trackIndex }, { clientX: x, clientY: y });
+        onContextMenu({ type: 'background', timestamp: info.time, trackIndex: info.trackIndex }, { clientX: x, clientY: y });
       }
     },
   }), [selectedId, hoveredId, onBackgroundClick, onContextMenu, windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks, totalDuration]);

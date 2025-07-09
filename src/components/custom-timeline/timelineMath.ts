@@ -63,7 +63,7 @@ export function yToTrackIndex(y: number, trackHeight: number, trackGap: number, 
  * @returns {number} The clamped duration (or 0 if not possible).
  */
 export function clampResponseDuration(timestamp: number, duration: number, totalDuration: number, minDuration: number): number {
-  const maxAllowed = totalDuration - timestamp;
+  let maxAllowed = totalDuration - timestamp;
   if (maxAllowed < minDuration) return 0;
   return Math.max(minDuration, Math.min(duration, maxAllowed));
 }
@@ -126,15 +126,4 @@ export function snapYToTrackIndex(y: number, geometry: TimelineGeometry): number
 export function trackIndexToCenterY(trackIndex: number, geometry: TimelineGeometry): number {
   const { trackHeight, trackGap, tracksTopOffset } = geometry;
   return tracksTopOffset + trackIndex * (trackHeight + trackGap) + trackHeight / 2;
-} 
-
-/**
- * Snap a Y position to the center Y of the nearest valid track.
- * @param {number} y - The Y position in px.
- * @param {TimelineGeometry} geometry - Timeline geometry.
- * @returns {number} The center Y position of the nearest track.
- */
-export function snapYToTrackCenterY(y: number, geometry: TimelineGeometry): number {
-  const trackIndex = snapYToTrackIndex(y, geometry);
-  return trackIndexToCenterY(trackIndex, geometry);
 } 
