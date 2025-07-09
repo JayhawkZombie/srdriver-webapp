@@ -40,6 +40,9 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
     idbGet(key).then((stored: unknown) => {
       if (stored && typeof stored === 'object' && stored !== null) {
         const s = stored as Partial<AppState>;
+        if (s.timeline) {
+          console.log('[Zustand] Hydrating timeline from storage:', Array.isArray(s.timeline.responses) ? s.timeline.responses.length : 0, s.timeline.responses?.slice(0, 2));
+        }
         if (s.audio) {
           set((state: T) => ({ ...state, audio: s.audio } as T));
         }
@@ -55,6 +58,12 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
         if (s.devices) {
           set((state: T) => ({ ...state, devices: s.devices } as T));
         }
+        if (s.rectTemplates) set((state: T) => ({ ...state, rectTemplates: s.rectTemplates } as T));
+        if (s.palettes) set((state: T) => ({ ...state, palettes: s.palettes } as T));
+        if (s.templateTypes) set((state: T) => ({ ...state, templateTypes: s.templateTypes } as T));
+        if (s.timeline) set((state: T) => ({ ...state, timeline: s.timeline } as T));
+        if (s.tracks) set((state: T) => ({ ...state, tracks: s.tracks } as T));
+        if (s.deviceUserPrefs) set((state: T) => ({ ...state, deviceUserPrefs: s.deviceUserPrefs } as T));
       }
       set((state: T) => ({ ...state, hydrated: true } as T));
       const current = _get();
@@ -85,7 +94,19 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
         ui: state.ui,
         deviceMetadata: state.deviceMetadata,
         devices: state.devices,
+        rectTemplates: state.rectTemplates,
+        templateTypes: state.templateTypes,
+        palettes: state.palettes,
+        timeline: state.timeline,
+        tracks: state.tracks,
+        // TODO: Think about whether to persist deviceData
+        // deviceState: state.deviceState,
+        // deviceData: state.deviceData,
+        deviceUserPrefs: state.deviceUserPrefs,
       };
+      if (stateToPersist.timeline) {
+        console.log('[Zustand] Persisting timeline:', Array.isArray(stateToPersist.timeline.responses) ? stateToPersist.timeline.responses.length : 0, stateToPersist.timeline.responses?.slice(0, 2));
+      }
       idbSet(key, stateToPersist);
     };
     return config(setAndPersist, _get, api);

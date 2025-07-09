@@ -1,18 +1,17 @@
 import React, { useState, useContext } from 'react';
-import { Button, NumericInput, Popover, Position, Card, Collapse } from '@blueprintjs/core';
+import { Button, NumericInput, Card, Collapse } from '@blueprintjs/core';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
-import Select from '@mui/material/Select';
 import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { Stage, Layer } from 'react-konva';
 import { ResponseRect } from './ResponseRect';
-import { ResponsePaletteEditor } from './ResponsePaletteEditor';
 import type { RectTemplate } from '../../store/appStore';
-import { useAppStore, selectTemplateTypes, useAddTemplateType, useUpdateTemplateType, useRemoveTemplateType } from '../../store/appStore';
+import { useAppStore, selectTemplateTypes, useAddTemplateType } from '../../store/appStore';
 import EditableKeyValueTree from '../utility/EditableKeyValueTree';
 import { UnifiedThemeContext } from '../../context/UnifiedThemeContext';
+import Menu from '@mui/material/Menu';
 
 // Extend RectTemplate locally to allow tags and notes
 type RectTemplateWithMeta = RectTemplate & { tags?: string[]; notes?: string };
@@ -26,16 +25,12 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
   const palettes = useAppStore(state => state.palettes);
   const templateTypes = useAppStore(selectTemplateTypes);
   const addTemplateType = useAddTemplateType();
-  const updateTemplateType = useUpdateTemplateType();
-  const removeTemplateType = useRemoveTemplateType();
   const [local, setLocal] = useState<RectTemplateWithMeta>({ ...template, defaultData: { ...template.defaultData } });
   const [showNotes, setShowNotes] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [addingType, setAddingType] = useState(false);
   const [newTypeLabel, setNewTypeLabel] = useState('');
   const [newTypeValue, setNewTypeValue] = useState('');
-  const [editTypeValue, setEditTypeValue] = useState<string | null>(null);
-  const [editTypeLabel, setEditTypeLabel] = useState('');
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [userData, setUserData] = useState<Record<string, unknown>>({});
@@ -43,6 +38,10 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
   const [userKey, setUserKey] = useState('');
   const [userValue, setUserValue] = useState('');
   const { mode } = useContext(UnifiedThemeContext) ?? { mode: 'light' };
+  const [typeMenuAnchorEl, setTypeMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [paletteDropdownOpen, setPaletteDropdownOpen] = useState(false);
+  const handlePaletteDropdownToggle = () => setPaletteDropdownOpen(v => !v);
+  const handlePaletteDropdownClose = () => setPaletteDropdownOpen(false);
 
   // Helper: tags as array
   const tags: string[] = (local.tags as string[]) || [];
@@ -61,9 +60,6 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
   // Handlers
   const handleChange = <K extends keyof RectTemplate>(field: K, value: RectTemplate[K]) => {
     setLocal(l => ({ ...l, [field]: value }));
-  };
-  const handlePaletteCreated = (newName: string) => {
-    setLocal(l => ({ ...l, paletteName: newName }));
   };
   const handleTagAdd = () => {
     if (!tagInput.trim()) return;
@@ -85,6 +81,20 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
     setUserKey('');
     setUserValue('');
     setShowUserAdd(false);
+  };
+  const handleTypeMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setTypeMenuAnchorEl(event.currentTarget);
+  };
+  const handleTypeMenuClose = () => {
+    setTypeMenuAnchorEl(null);
+  };
+  const handleTypeSelect = (value: string) => {
+    handleChange('type', value);
+    setTypeMenuAnchorEl(null);
+  };
+  const handlePaletteSelect = (name: string) => {
+    setLocal(l => ({ ...l, paletteName: name }));
+    setPaletteDropdownOpen(false);
   };
 
   // Helper to get the label for the current type
@@ -133,123 +143,45 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
               minWidth: 120,
             }}
           >
-            {/* Prevent popover close on type select */}
-            <div onClick={e => e.stopPropagation()}>
-              <Select
-                value={local.type}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  if (e.target.value === "__new__") {
-                    setAddingType(true);
-                    setNewTypeLabel("");
-                    setNewTypeValue("");
-                  } else {
-                    handleChange("type", e.target.value as string);
-                  }
-                }}
-                MenuProps={{
-                  disablePortal: true,
-                  // container: document.body,
-                }}
-                size="small"
-                variant="standard"
-                sx={{ minWidth: 90, fontSize: 14 }}
-              >
-                {templateTypes.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      {editTypeValue === opt.value ? (
-                        <>
-                          <TextField
-                            value={editTypeLabel}
-                            onChange={(e) =>
-                              setEditTypeLabel(
-                                e.target.value
-                              )
-                            }
-                            size="small"
-                            variant="standard"
-                            sx={{ width: 80, fontSize: 14 }}
-                            onBlur={() => {
-                              updateTemplateType(
-                                opt.value,
-                                { label: editTypeLabel }
-                              );
-                              setEditTypeValue(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                updateTemplateType(
-                                  opt.value,
-                                  {
-                                    label: editTypeLabel,
-                                  }
-                                );
-                                setEditTypeValue(null);
-                              }
-                            }}
-                            autoFocus
-                          />
-                          <IconButton
-                            size="small"
-                            onClick={() =>
-                              setEditTypeValue(null)
-                            }
-                          >
-                            <span className="bp5-icon bp5-icon-cross" />
-                          </IconButton>
-                        </>
-                      ) : (
-                        <>
-                          <span>{opt.label}</span>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditTypeValue(opt.value);
-                              setEditTypeLabel(opt.label);
-                            }}
-                            style={{
-                              marginLeft: 2,
-                              padding: 2,
-                            }}
-                          >
-                            <span className="bp5-icon bp5-icon-edit" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeTemplateType(opt.value);
-                            }}
-                            style={{
-                              marginLeft: 2,
-                              padding: 2,
-                            }}
-                          >
-                            <span className="bp5-icon bp5-icon-trash" />
-                          </IconButton>
-                        </>
-                      )}
-                    </span>
-                  </MenuItem>
-                ))}
+            {/* Custom type menu button */}
+            <Button
+              variant="outlined"
+              size="small"
+              style={{ textTransform: 'none', fontWeight: 500, fontSize: 15, marginBottom: 2 }}
+              onClick={handleTypeMenuOpen}
+            >
+              {typeLabel}
+              <span style={{ marginLeft: 6, fontSize: 12 }}>▼</span>
+            </Button>
+            <Menu
+              anchorEl={typeMenuAnchorEl}
+              open={Boolean(typeMenuAnchorEl)}
+              onClose={handleTypeMenuClose}
+              MenuListProps={{ dense: true }}
+            >
+              {templateTypes.map(opt => (
                 <MenuItem
-                  key="__new__"
-                  value="__new__"
-                  style={{ fontStyle: "italic", color: "#137cbd" }}
+                  key={opt.value}
+                  selected={local.type === opt.value}
+                  onClick={() => handleTypeSelect(opt.value)}
                 >
-                  + New Type…
+                  {opt.label}
                 </MenuItem>
-              </Select>
-            </div>
+              ))}
+              <MenuItem
+                key="__new__"
+                onClick={() => {
+                  setAddingType(true);
+                  setNewTypeLabel("");
+                  setNewTypeValue("");
+                  setTypeMenuAnchorEl(null);
+                }}
+                style={{ fontStyle: "italic", color: "#137cbd" }}
+              >
+                + New Type…
+              </MenuItem>
+            </Menu>
+            {/* New type creation UI remains unchanged below */}
             {addingType && (
               <div
                 style={{
@@ -350,73 +282,69 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
             alignItems: "center",
             gap: 10,
             marginBottom: 10,
+            position: 'relative',
           }}
         >
           <span style={{ fontWeight: 500, fontSize: 14 }}>Palette:</span>
-          <Popover
-            position={Position.RIGHT}
-            content={
-              <div style={{ minWidth: 180, padding: 4 }}>
-                <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 6, color: '#137cbd' }}>Select Palette</div>
-                {Object.keys(palettes).map(name => (
-                  <div
-                    key={name}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      background: name === local.paletteName ? '#1e88e5' : undefined,
-                      color: name === local.paletteName ? '#fff' : undefined,
-                      borderRadius: 4,
-                      marginBottom: 2,
-                      padding: '4px 8px',
-                      fontWeight: name === local.paletteName ? 600 : 400,
-                      boxShadow: name === local.paletteName ? '0 1px 4px #0002' : undefined,
-                    }}
-                    onClick={() => {
-                      setLocal(l => ({ ...l, paletteName: name }));
-                      // Let the popover close naturally on selection
-                    }}
-                  >
-                    <div style={{ width: 24, height: 12, background: palettes[name].baseColor, borderRadius: 2, marginRight: 8, border: '1px solid #fff2' }} />
-                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>{name}</span>
-                  </div>
-                ))}
-                <div style={{ borderTop: '1px solid #eee', margin: '8px 0 4px 0' }} />
-                <ResponsePaletteEditor onPaletteCreated={handlePaletteCreated} autoFocusNewPalette />
-              </div>
-            }
-            interactionKind="click"
-            enforceFocus={false}
+          <Button
+            onClick={handlePaletteDropdownToggle}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: 0,
+              marginRight: 4,
+              background: 'none',
+              minWidth: 0,
+              boxShadow: 'none',
+              position: 'relative',
+              zIndex: 2,
+            }}
+            variant="outlined"
+            size="small"
           >
-            <Button minimal style={{ padding: 0, marginRight: 4 }}>
-              <Stage
-                width={rectWidth}
-                height={rectHeight}
-                style={{ background: "none", borderRadius: 4 }}
-              >
-                <Layer>
-                  <ResponseRect
-                    x={0}
-                    y={0}
-                    width={rectWidth}
-                    height={rectHeight}
-                    color={
-                      palettes[local.paletteName]?.baseColor ||
-                      "#eee"
-                    }
-                    borderColor={
-                      palettes[local.paletteName]
-                        ?.borderColor || "#ccc"
-                    }
-                  />
-                </Layer>
-              </Stage>
-            </Button>
-          </Popover>
-          <span style={{ fontWeight: 500, fontSize: 14 }}>
-            {local.paletteName}
-          </span>
+            <div style={{ width: 24, height: 16, background: palettes[local.paletteName]?.baseColor || '#eee', borderRadius: 4, border: '1px solid #fff2', marginRight: 6 }} />
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: mode === 'dark' ? '#fff' : undefined }}>{local.paletteName}</span>
+            <span style={{ marginLeft: 6, fontSize: 12, color: mode === 'dark' ? '#fff' : undefined }}>▼</span>
+          </Button>
+          {paletteDropdownOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 36,
+                left: 0,
+                minWidth: 160,
+                background: mode === 'dark' ? '#23272f' : '#fff',
+                color: mode === 'dark' ? '#e6eaf3' : '#222',
+                border: '1.5px solid #2224',
+                borderRadius: 8,
+                boxShadow: '0 4px 16px #0004',
+                zIndex: 10,
+                padding: '6px 0',
+              }}
+              onMouseLeave={handlePaletteDropdownClose}
+            >
+              {Object.keys(palettes).map(name => (
+                <div
+                  key={name}
+                  onClick={() => handlePaletteSelect(name)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    background: name === local.paletteName ? '#1e88e5' : 'transparent',
+                    color: name === local.paletteName ? '#fff' : undefined,
+                    fontWeight: name === local.paletteName ? 600 : 400,
+                    borderRadius: 4,
+                    margin: '2px 8px',
+                    padding: '4px 8px',
+                  }}
+                >
+                  <div style={{ width: 24, height: 12, background: palettes[name].baseColor, borderRadius: 2, marginRight: 8, border: '1px solid #fff2' }} />
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>{name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {/* Live Preview (placeholder) */}
         <div style={{ marginLeft: "auto", marginRight: 8 }}>
