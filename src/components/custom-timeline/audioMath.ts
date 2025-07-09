@@ -61,4 +61,12 @@ export function getPeakCoordinate(
   const peakX = (peakIdx / (len - 1)) * width;
   const peakY = height / 2 - (data[peakIdx] * (height / 2));
   return [peakX, peakY];
+}
+
+// Utility: log-normalize an array for plotting
+export function logNormalize(arr: number[]): number[] {
+  const logArr = arr.map(v => Math.log10(Math.abs(v) + 1e-6));
+  const min = Math.min(...logArr);
+  const max = Math.max(...logArr);
+  return logArr.map(v => (max - min > 0 ? (v - min) / (max - min) : 0.5));
 } 

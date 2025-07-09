@@ -11,6 +11,7 @@ import {
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
 import type { BandConfig, DetectionResult } from "./DetectionDataTypes";
 import { usePlaybackState } from "./PlaybackContext";
+import { logNormalize } from "./audioMath";
 
 // BandData type (inline, matching worker output)
 type BandData = {
@@ -53,13 +54,7 @@ const BAND_LABELS = [
   { name: "Treble", color: "#756bb1" },
 ];
 
-// Utility: log-normalize an array for plotting
-function logNormalize(arr: number[]): number[] {
-  const logArr = arr.map(v => Math.log10(Math.abs(v) + 1e-6));
-  const min = Math.min(...logArr);
-  const max = Math.max(...logArr);
-  return logArr.map(v => (max - min > 0 ? (v - min) / (max - min) : 0.5));
-}
+// (Moved logNormalize to audioMath.ts)
 
 const FFTSection = ({
     pcm,
@@ -392,35 +387,35 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
                                                 .detectionFunction
                                         )}
                                         xValues={
-                                            bandResults[selectedBand].times
-                                        }
-                                        eventTimes={
-                                            bandResults[selectedBand].events
-                                                ? bandResults[
-                                                      selectedBand
-                                                  ].events.map(
-                                                      (e: {
-                                                          time: number;
-                                                          strength?: number;
-                                                      }) => e.time
-                                                  )
-                                                : undefined
-                                        }
-                                        windowStart={windowStart}
-                                        windowDuration={windowDuration}
-                                        width={800}
-                                        height={100}
-                                        color={bands[selectedBand].color}
-                                        markerColor="yellow"
-                                        showAxes={true}
-                                        showTicks={true}
-                                    />
-                                </>
-                            )}
+                                                bandResults[selectedBand].times
+                                            }
+                                            eventTimes={
+                                                bandResults[selectedBand].events
+                                                    ? bandResults[
+                                                        selectedBand
+                                                    ].events.map(
+                                                        (e: {
+                                                            time: number;
+                                                            strength?: number;
+                                                        }) => e.time
+                                                    )
+                                                    : undefined
+                                            }
+                                            windowStart={windowStart}
+                                            windowDuration={windowDuration}
+                                            width={800}
+                                            height={100}
+                                            color={bands[selectedBand].color}
+                                            markerColor="yellow"
+                                            showAxes={true}
+                                            showTicks={true}
+                                        />
+                                    </>
+                                )}
+                        </div>
                     </div>
-                </div>
-            )}
-            {/* Indeterminate progress bar if not UI ready */}
+                )}
+                {/* Indeterminate progress bar if not UI ready */}
             {!uiReady && (
                 <ProgressBar
                     animate

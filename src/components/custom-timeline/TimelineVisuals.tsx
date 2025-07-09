@@ -3,9 +3,7 @@ import {
     Stage,
     Layer,
     Line,
-    Rect,
     Text as KonvaText,
-    Group,
 } from "react-konva";
 import { ResponseRect } from "./ResponseRect";
 import { getPaletteColor } from "./colorUtils";
@@ -14,7 +12,7 @@ import TimelineContextMenu from "./TimelineContextMenu";
 import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { useDetectionData } from "./DetectionDataContext";
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
-import WindowedTimeSeriesPlot from "./WindowedTimeSeriesPlot";
+import Track from "./Track";
 
 // --- Types ---
 export type TimelineResponse = {
@@ -114,6 +112,18 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         null
     );
     const menuRef = useRef<HTMLDivElement>(null);
+
+    // Add per-track band selection state
+    const { bandResults } = useDetectionData();
+    const { bandConfigs } = useAudioAnalysis();
+    const [selectedBands, setSelectedBands] = React.useState<number[]>(() => Array(rest.numTracks).fill(0));
+    const handleSelectBand = (trackIdx: number, bandIdx: number) => {
+        setSelectedBands((bands) => {
+            const copy = [...bands];
+            copy[trackIdx] = bandIdx;
+            return copy;
+        });
+    };
 
     // --- Pointer/drag/resize/selection logic ---
     const pointerHandler = useTimelinePointerHandler({
@@ -235,31 +245,6 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         return { baseColor: "#2196f3", borderColor: "#fff", states: {} };
     }
 
-    // Impulse plot underlay logic (now internal)
-    const { results, bandResults } = useDetectionData();
-    const { bandConfigs } = useAudioAnalysis();
-    const [selectedBand, setSelectedBand] = React.useState<number>(0);
-    // Helper: get plot data for selected band or PCM
-    let plotY: number[] | undefined = undefined;
-    let plotX: number[] | undefined = undefined;
-    let plotEvents: number[] | undefined = undefined;
-    let plotColor = "rgba(79,195,247,0.7)";
-    if (bandResults && bandResults.length > 0 && bandResults[selectedBand]) {
-        console.log("BAND RESULTS", bandResults);
-        plotY = bandResults[selectedBand].detectionFunction;
-        plotX = bandResults[selectedBand].times;
-        plotEvents = bandResults[selectedBand].events?.map(
-            (e: { time: number; [key: string]: any }) => e.time
-        );
-        plotColor = bandConfigs[selectedBand]?.color || plotColor;
-    } else if (results && results.detectionFunction && results.times) {
-        plotY = results.detectionFunction;
-        plotX = results.times;
-        plotEvents = results.events?.map(
-            (e: { time: number; [key: string]: any }) => e.time
-        );
-    }
-
     return (
         <>
             <div
@@ -269,84 +254,6 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                     height: rest.tracksHeight,
                 }}
             >
-                {/* Band selection UI and impulse plot underlay */}
-                {bandResults && bandResults.length > 0 && (
-                    <div
-                        style={{
-                            position: "absolute",
-                            left: 0,
-                            top: 0,
-                            width: "100%",
-                            zIndex: 1,
-                            pointerEvents: "auto",
-                            display: "flex",
-                            flexDirection: "row",
-                            gap: 8,
-                            alignItems: "center",
-                            background: "rgba(34,36,39,0.7)",
-                            padding: 4,
-                        }}
-                    >
-                        <span
-                            style={{
-                                color: "#fff",
-                                fontSize: 13,
-                                marginRight: 8,
-                            }}
-                        >
-                            Band:
-                        </span>
-                        {bandConfigs.map((band, i) => (
-                            <button
-                                key={i}
-                                style={{
-                                    background:
-                                        i === selectedBand
-                                            ? band.color
-                                            : "#222",
-                                    color: "#fff",
-                                    border: "none",
-                                    borderRadius: 4,
-                                    padding: "2px 10px",
-                                    cursor: "pointer",
-                                    fontWeight: i === selectedBand ? 700 : 400,
-                                }}
-                                onClick={() => setSelectedBand(i)}
-                            >
-                                {band.name || `Band ${i + 1}`}
-                            </button>
-                        ))}
-                    </div>
-                )}
-                {/* Impulse plot underlay, perfectly aligned with tracks */}
-                {plotY && plotX && (
-                    <div
-                        style={{
-                            position: "absolute",
-                            left: 0,
-                            top: 0,
-                            width: rest.tracksWidth,
-                            height: rest.tracksHeight,
-                            zIndex: 0,
-                            pointerEvents: "none",
-                            opacity: 0.5,
-                        }}
-                    >
-                        <WindowedTimeSeriesPlot
-                            yValues={plotY}
-                            xValues={plotX}
-                            eventTimes={plotEvents}
-                            windowStart={rest.windowStart}
-                            windowDuration={rest.windowDuration}
-                            width={rest.tracksWidth}
-                            height={rest.tracksHeight}
-                            color={plotColor}
-                            markerColor="rgba(255,0,0,0.7)"
-                            showAxes={false}
-                            showTicks={false}
-                        />
-                    </div>
-                )}
                 <Stage
                     width={rest.tracksWidth}
                     height={rest.tracksHeight}
@@ -363,38 +270,33 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                     {...pointerHandler.getTrackAreaProps()}
                 >
                     <Layer>
-                        {/* Track backgrounds with midlines and subtle borders */}
+                        {/* Track backgrounds, band selector, and plot underlay */}
                         {[...Array(rest.numTracks)].map((_, i) => {
                             const y =
                                 rest.tracksTopOffset +
                                 i * (rest.trackHeight + rest.trackGap);
                             const isTrackAssigned = !!rest.trackTargets[i];
                             const fill = i % 2 === 0 ? "#23272f" : "#20232a";
+                            // Per-track band selection
+                            const selectedBandIdx = selectedBands[i] || 0;
                             return (
-                                <Group key={i}>
-                                    {/* Track background */}
-                                    <Rect
-                                        x={0}
+                                <React.Fragment key={i}>
+                                    <Track
                                         y={y}
                                         width={rest.tracksWidth}
                                         height={rest.trackHeight}
+                                        trackIndex={i}
+                                        isTrackAssigned={isTrackAssigned}
                                         fill={fill}
-                                        cornerRadius={6}
-                                        opacity={isTrackAssigned ? 1 : 0.7}
-                                        stroke="#444"
-                                        strokeWidth={2}
-                                    />
-                                    {/* Midline */}
-                                    <Line
-                                        points={[
-                                            0,
-                                            y + rest.trackHeight / 2,
-                                            rest.tracksWidth,
-                                            y + rest.trackHeight / 2,
-                                        ]}
-                                        stroke="#333"
-                                        strokeWidth={1}
-                                        dash={[4, 4]}
+                                        selectedBandIdx={selectedBandIdx}
+                                        bandConfigs={bandConfigs}
+                                        bandResults={bandResults}
+                                        onSelectBand={handleSelectBand}
+                                        plotPadX={12}
+                                        plotPadY={6}
+                                        windowStart={rest.windowStart}
+                                        windowDuration={rest.windowDuration}
+                                        playhead={rest.currentTime}
                                     />
                                     {/* Track border bottom (except last) */}
                                     {i < rest.numTracks - 1 && (
@@ -409,7 +311,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                                             strokeWidth={2}
                                         />
                                     )}
-                                </Group>
+                                </React.Fragment>
                             );
                         })}
                         {/* Ticks and labels */}

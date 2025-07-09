@@ -1,13 +1,14 @@
 import React from "react";
-import TimeSeriesPlotWithEvents from "./TimeSeriesPlotWithEvents";
+import { Group, Line } from "react-konva";
+import KonvaTimeSeriesPlot from "./KonvaTimeSeriesPlot";
 
-export interface WindowedTimeSeriesPlotProps {
+export interface WindowedKonvaTimeSeriesPlotProps {
   yValues: number[];
   xValues?: number[];
   eventTimes?: number[];
-  windowStart: number; // in same units as xValues (seconds or index)
-  windowDuration: number; // in same units as xValues (seconds or index)
-  playhead?: number; // in same units as xValues (seconds or index)
+  windowStart: number;
+  windowDuration: number;
+  playhead?: number;
   width?: number;
   height?: number;
   color?: string;
@@ -15,9 +16,13 @@ export interface WindowedTimeSeriesPlotProps {
   playheadColor?: string;
   showAxes?: boolean;
   showTicks?: boolean;
+  padX?: number;
+  padY?: number;
+  /** Vertical offset for the plot within the parent (in px, default 0) */
+  yOffset?: number;
 }
 
-const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
+const WindowedKonvaTimeSeriesPlot: React.FC<WindowedKonvaTimeSeriesPlotProps> = ({
   yValues,
   xValues,
   eventTimes,
@@ -31,15 +36,16 @@ const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
   playheadColor = "#ff1744",
   showAxes = true,
   showTicks = true,
+  padX = 12,
+  padY = 6,
+  yOffset = 0,
 }) => {
-  console.log("WINDOWED TIME SERIES PLOT", yValues.length, xValues?.length, eventTimes?.length, windowStart, windowDuration, playhead, width, height, color, markerColor, playheadColor, showAxes, showTicks);
-  // Determine windowed indices
+  // Windowing logic
   let startIdx = 0, endIdx = yValues.length;
   let windowedY: number[] = [];
   let windowedX: number[] | undefined = undefined;
   let windowedEvents: number[] | undefined = undefined;
   if (xValues && xValues.length === yValues.length) {
-    // Find indices within windowStart to windowStart+windowDuration
     startIdx = xValues.findIndex((x) => x >= windowStart);
     endIdx = xValues.findIndex((x) => x > windowStart + windowDuration);
     if (startIdx === -1) startIdx = 0;
@@ -50,7 +56,6 @@ const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
       windowedEvents = eventTimes.filter((t) => t >= windowStart && t <= windowStart + windowDuration);
     }
   } else {
-    // Use indices as x axis
     startIdx = Math.max(0, Math.floor(windowStart));
     endIdx = Math.min(yValues.length, Math.ceil(windowStart + windowDuration));
     windowedY = yValues.slice(startIdx, endIdx);
@@ -62,18 +67,16 @@ const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
   let playheadX: number | undefined = undefined;
   if (typeof playhead === "number" && windowedY.length > 1) {
     if (windowedX) {
-      // Find closest x in windowedX
       const i = windowedX.reduce((bestIdx, t, j) => Math.abs(t - playhead) < Math.abs(windowedX[bestIdx] - playhead) ? j : bestIdx, 0);
-      playheadX = (i / (windowedY.length - 1)) * width;
+      playheadX = padX + (i / (windowedY.length - 1)) * (width - 2 * padX);
     } else {
-      // Use index
       const i = Math.max(0, Math.min(windowedY.length - 1, Math.round(playhead - startIdx)));
-      playheadX = (i / (windowedY.length - 1)) * width;
+      playheadX = padX + (i / (windowedY.length - 1)) * (width - 2 * padX);
     }
   }
   return (
-    <div style={{ position: "relative", width, height }}>
-      <TimeSeriesPlotWithEvents
+    <Group>
+      <KonvaTimeSeriesPlot
         yValues={windowedY}
         xValues={windowedX}
         eventTimes={windowedEvents}
@@ -83,14 +86,22 @@ const WindowedTimeSeriesPlot: React.FC<WindowedTimeSeriesPlotProps> = ({
         markerColor={markerColor}
         showAxes={showAxes}
         showTicks={showTicks}
+        padX={padX}
+        padY={padY}
+        yOffset={yOffset}
       />
-      {/* Playhead overlay using absolute div */}
+      {/* Playhead overlay as a Konva Line */}
       {typeof playheadX === "number" && (
-        <div style={{ position: "absolute", left: playheadX, top: 0, width: 2, height, background: playheadColor, zIndex: 2 }} />
+        <Line
+          points={[playheadX, yOffset, playheadX, yOffset + height]}
+          stroke={playheadColor}
+          strokeWidth={2}
+          dash={[8, 8]}
+        />
       )}
-    </div>
+    </Group>
   );
 };
 
-export default WindowedTimeSeriesPlot;
-export { WindowedTimeSeriesPlot }; 
+export default WindowedKonvaTimeSeriesPlot;
+export { WindowedKonvaTimeSeriesPlot }; 
