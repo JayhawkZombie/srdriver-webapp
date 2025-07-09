@@ -10,6 +10,7 @@ import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
 import { Mixer } from "../../controllers/Mixer";
 import Waveform from "./Waveform";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
+import KonvaTimelineTemplateSelector from "./KonvaTimelineTemplateSelector";
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -73,9 +74,12 @@ const KonvaTimelineDashboardInner: React.FC = () => {
         };
     }
 
-    // Handler for background click: add a new rect from the first template
+    // Add state for selected template key
+    const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>(() => Object.keys(rectTemplates)[0] || "");
+
+    // Handler for background click: add a new rect from the selected template
     const handleBackgroundClick = ({ time, trackIndex }: { time: number; trackIndex: number }) => {
-        const template = Object.values(rectTemplates)[0];
+        const template = rectTemplates[selectedTemplateKey] || Object.values(rectTemplates)[0];
         if (!template) return;
         setResponses(responses => [
             ...responses,
@@ -89,7 +93,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
         maxWidth: 1800,
     });
     const parentPadding = 24; // matches the parent container's padding
-    const timelinePadding = 24; // padding inside the timeline area
+    const timelinePadding = 0; // padding inside the timeline area
     const contentWidth = Math.max(
         400,
         measuredWidth - labelWidth - 2 * parentPadding - 2 * timelinePadding
@@ -294,6 +298,12 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         Waveform (upload audio)
                     </div>
                 )}
+                {/* Template selector below waveform */}
+                <KonvaTimelineTemplateSelector
+                    rectTemplates={rectTemplates}
+                    selectedTemplateKey={selectedTemplateKey}
+                    onSelect={setSelectedTemplateKey}
+                />
                 {/* Timeline visuals below waveform (full width) */}
                 <div
                     style={{
