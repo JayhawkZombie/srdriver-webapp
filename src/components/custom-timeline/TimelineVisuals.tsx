@@ -2,51 +2,20 @@ import React, { useMemo, useRef } from "react";
 import { Stage, Layer, Line, Rect, Text as KonvaText, Group } from "react-konva";
 import { ResponseRect } from "./ResponseRect";
 import { getPaletteColor } from "./colorUtils";
-import type { TimelinePointerInfo } from './useTimelinePointerHandler';
-import TimelineContextMenu from './TimelineContextMenu';
+import type { TimelinePointerInfo, TimelineContextInfo } from './useTimelinePointerHandler';
+import TimelineContextMenu, { type TimelineMenuAction } from './TimelineContextMenu';
 import { useTimelinePointerHandler } from './useTimelinePointerHandler';
+import type { RectTemplate, TimelineResponse, TrackTarget } from "../../store/appStore";
+import type { ResponseRectPalette } from "../../types/ResponseRectPalette";
+import type { TimelineGeometry } from "./timelineMath";
+import { useAppStore } from "../../store/appStore";
 
-// --- Types ---
-export type TimelineResponse = {
-  id: string;
-  timestamp: number;
-  duration: number;
-  trackIndex: number;
-  data: Record<string, unknown>;
-  triggered: boolean;
-};
-export type Palette = {
-  baseColor: string;
-  borderColor: string;
-  states: Record<string, { color: string; borderColor: string; opacity: number }>;
-};
-export type Palettes = Record<string, Palette>;
-export type TrackTarget = { type: string; id: string } | undefined;
-export type Geometry = {
-  windowStart: number;
-  windowDuration: number;
-  tracksWidth: number;
-  tracksTopOffset: number;
-  trackHeight: number;
-  trackGap: number;
-  numTracks: number;
-  totalDuration: number;
-};
-
-// Add types for context info and actions
-export type TimelineContextInfo =
-  | { type: 'background'; timestamp: number; trackIndex: number }
-  | { type: 'rect'; rect: TimelineResponse };
-
-export type TimelineMenuAction = {
-  key: string;
-  text: string;
-  icon?: string;
-  onClick?: (info: TimelineContextInfo) => void;
-  disabled?: boolean;
-  hidden?: boolean;
-  submenu?: TimelineMenuAction[];
-  divider?: boolean;
+// Type aliases for convenience
+type Palettes = Record<string, ResponseRectPalette>;
+type Palette = ResponseRectPalette;
+type Geometry = TimelineGeometry & {
+  galleryHeight?: number;
+  totalHeight?: number;
 };
 
 interface TimelineVisualsProps {
@@ -73,10 +42,12 @@ interface TimelineVisualsProps {
   onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
   onContextMenu?: (info: TimelineContextInfo, event: MouseEvent) => void;
   actions: TimelineMenuAction[];
+  onGalleryRectPointerDown?: (template: RectTemplate, pointerPos: { x: number; y: number }) => void;
 }
 
 export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
   const { /* actions, */ ...rest } = props;
+  const rectTemplates = useAppStore(state => state.rectTemplates);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [menuPosition, setMenuPosition] = React.useState<{ x: number; y: number } | null>(null);
   const [menuInfo, setMenuInfo] = React.useState<TimelineContextInfo | null>(null);
@@ -111,7 +82,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         }
       } else if (info.type === 'background') {
         // Accept both 'timestamp' and 'time' for compatibility
-        setMenuInfo({ type: 'background', timestamp: (info as any).timestamp, trackIndex: info.trackIndex });
+        setMenuInfo({ type: 'background', time: info.time, trackIndex: info.trackIndex });
         if (event && typeof event === 'object' && 'clientX' in event && 'clientY' in event) {
           setMenuPosition({ x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY });
         }
@@ -142,21 +113,36 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
   }, [rest.windowStart, rest.windowDuration, majorTickEvery, minorTickEvery, rest.tracksWidth]);
   const tracksTotalHeight = rest.numTracks * rest.trackHeight + (rest.numTracks - 1) * rest.trackGap;
 
+  // Gallery row: render at the top of the canvas
+  const galleryRectWidth = 40;
+  const galleryRectHeight = 18;
+  const gallerySpacing = 18;
+  const galleryY = (props.geometry.galleryHeight ?? 48) / 2 - galleryRectHeight / 2;
+
   // Helper to get a fallback palette
   function getPaletteSafe(name: string): Palette {
     if (rest.palettes[name]) return rest.palettes[name];
     if (rest.palettes['demo']) return rest.palettes['demo'];
     const first = Object.values(rest.palettes)[0];
-    if (first) return first;
-    // fallback
-    return { baseColor: '#2196f3', borderColor: '#fff', states: {} };
+    if (first && typeof first === 'object' && 'baseColor' in first) return first;
+    // fallback with proper states
+    return { 
+      baseColor: '#2196f3', 
+      borderColor: '#fff', 
+      states: {
+        hovered: { color: '#42a5f5', borderColor: '#fff', hue: 210, borderHue: 0, opacity: 1 },
+        selected: { color: '#1976d2', borderColor: '#fff', hue: 210, borderHue: 0, opacity: 1 },
+        active: { color: '#1565c0', borderColor: '#fff', hue: 210, borderHue: 0, opacity: 1 },
+        unassigned: { color: '#90caf9', borderColor: '#ccc', hue: 210, borderHue: 0, opacity: 0.7 }
+      }
+    };
   }
 
   return (
     <>
       <Stage
         width={rest.tracksWidth}
-        height={rest.tracksHeight}
+        height={props.geometry.totalHeight ?? (rest.tracksHeight + (props.geometry.galleryHeight ?? 48))}
         style={{ background: '#181c22', borderRadius: 8 }}
         onMouseLeave={() => {
           rest.setHoveredId(null);
@@ -164,6 +150,29 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         {...pointerHandler.getTrackAreaProps()}
       >
         <Layer>
+          {/* Gallery row of rect templates */}
+          <Group>
+            {Object.values(rectTemplates).map((template: RectTemplate, i) => {
+              const palette = getPaletteSafe(template.paletteName);
+              return (
+                <ResponseRect
+                  key={template.id}
+                  x={i * (galleryRectWidth + gallerySpacing) + 12}
+                  y={galleryY}
+                  width={galleryRectWidth}
+                  height={galleryRectHeight}
+                  color={palette.baseColor}
+                  borderColor={palette.borderColor}
+                  opacity={1}
+                  onPointerDown={e => {
+                    const stage = e.target.getStage();
+                    const pointerPos = stage ? stage.getPointerPosition() : { x: 0, y: 0 };
+                    props.onGalleryRectPointerDown?.(template, pointerPos);
+                  }}
+                />
+              );
+            })}
+          </Group>
           {/* Track backgrounds with midlines and subtle borders */}
           {[...Array(rest.numTracks)].map((_, i) => {
             const y = rest.tracksTopOffset + i * (rest.trackHeight + rest.trackGap);
