@@ -15,6 +15,7 @@ import AudioAnalysisPanel from "./AudioAnalysisPanel";
 import { Drawer } from "@blueprintjs/core";
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
 import { useDetectionData } from "./DetectionDataContext";
+import WindowedTimeSeriesPlot from "./WindowedTimeSeriesPlot";
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -227,22 +228,11 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 
     // Drawer state for analysis tools
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const {plotReady, bandDataArr} = useAudioAnalysis();
-    console.log('plotReady', plotReady);
-    console.log('bandDataArr', bandDataArr);
-    const {results, bandResults, progress, bandProgress, isLoading, error} = useDetectionData();
-    console.log('results', results);
-    console.log('bandResults', bandResults);
-    console.log('progress', progress);
-    console.log('bandProgress', bandProgress);
-    console.log('isLoading', isLoading);
-    console.log('error', error);
-    if (results) {
-        console.log('READY TO PLOT ON TIMELINE', results);
-    }
 
     // Layout: controls + waveform header, timeline below
     return (
+        <>
+            {/* Main dashboard UI */}
             <div
                 ref={containerRef}
                 style={{
@@ -339,6 +329,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 {/* Timeline visuals below waveform (full width) */}
                 <div
                     style={{
+                        position: "relative",
                         background: "#23272f",
                         borderRadius: 16,
                         marginTop: 0,
@@ -346,8 +337,15 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         boxSizing: "border-box",
                         width: "100%",
                         overflow: "hidden",
+                        height: tracksHeight + 32, // ensure enough height for both
                     }}
                 >
+                    {/* Impulse plot underlay, aligned with a specific track */}
+                    {/* Remove manual absolute positioning of the impulse plot underlay here */}
+                    {/* Instead, pass it as a prop to TimelineVisuals (via KonvaResponseTimeline if needed) */}
+                    {/* TimelineVisuals will handle its own positioning */}
+
+                    {/* Timeline visuals (Konva) */}
                     <KonvaResponseTimeline
                         responses={responses}
                         hoveredId={hoveredId}
@@ -401,6 +399,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     <div>Hovered rect ID: {hoveredId ? hoveredId : "none"}</div>
                 </div>
             </div>
+        </>
     );
 
     // Audio upload handler

@@ -27,6 +27,8 @@ interface KonvaResponseTimelineProps {
   actions: TimelineMenuAction[];
   onRectMove?: (id: string, args: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => void;
   onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
+  /** Optional: render an underlay (e.g., impulse plot) behind the tracks, perfectly aligned. */
+  impulsePlotUnderlay?: React.ReactNode;
 }
 
 const labelWidth = 110;
