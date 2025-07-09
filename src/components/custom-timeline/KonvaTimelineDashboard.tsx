@@ -16,6 +16,7 @@ import { Drawer } from "@blueprintjs/core";
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
 import { useDetectionData } from "./DetectionDataContext";
 import WindowedTimeSeriesPlot from "./WindowedTimeSeriesPlot";
+import { useDeviceControllerContext, useDeviceControllerMap } from "../../controllers/DeviceControllerContext";
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -43,6 +44,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     const palettes = useAppStore((state) => state.palettes);
     const devices = useAppStore((state) => state.devices);
     const deviceMetadata = useAppStore((state) => state.deviceMetadata);
+    const { getController } = useDeviceControllerMap();
     // Removed unused setTrackTarget assignment
     // Track assignment state from Zustand
     const trackMapping = useAppStore((state) => state.tracks.mapping);
@@ -219,8 +221,10 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     rect.data.type &&
                     rect.data.pattern
                 ) {
-                    console.log("RECT", rect);
-                    mixer.triggerResponse({...rect} as unknown as import('../../controllers/Mixer').MixerResponseInfo);
+                    console.log("RECT", rect, assignedTarget);
+                    const controller = getController(assignedTarget.id);
+                    console.log("CONTROLLER", controller);
+                    mixer.triggerResponse({...rect} as unknown as import('../../controllers/Mixer').MixerResponseInfo, [controller]);
                 }
                 return { ...rect, triggered: isActive };
             })

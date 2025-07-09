@@ -1,3 +1,8 @@
+import type { IMixerEngine } from "../components/custom-timeline/engines/IMixerEngine";
+import type { WebSRDriverController } from "./WebSRDriverController";
+import { LEDEngine } from "../components/custom-timeline/engines/LEDEngine";
+import type { TimelineResponse } from "../components/custom-timeline/TimelineVisuals";
+
 export interface MixerResponseInfo {
   type: string;
   patternId: number;
@@ -5,20 +10,19 @@ export interface MixerResponseInfo {
 }
 
 export class Mixer {
-  // private ledEngine: LedEngine;
+  private ledEngine: LEDEngine;
 
   constructor() {
-    
+    this.ledEngine = new LEDEngine();
   }
   // constructor(ledEngine: LedEngine) {
   //   this.ledEngine = ledEngine;
   // }
 
-  triggerResponse(info: MixerResponseInfo) {
-    console.log("Mixer triggerResponse", info);
-    if (info.type === 'led') {
-      // You can expand this logic for more complex pattern args
-      // this.ledEngine.firePattern(info.patternId, info.args || {});
+  triggerResponse(info: TimelineResponse, deviceControllers: WebSRDriverController[]) {
+    console.log("Mixer triggerResponse", info, deviceControllers);
+    if (info.data?.type === 'led') {
+      this.ledEngine.triggerResponse(info, deviceControllers);
     }
     // Add more types (audio, etc.) as needed
   }

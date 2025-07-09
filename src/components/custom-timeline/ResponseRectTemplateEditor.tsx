@@ -133,114 +133,123 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
               minWidth: 120,
             }}
           >
-            <Select
-              value={local.type}
-              onChange={(e) => {
-                if (e.target.value === "__new__") {
-                  setAddingType(true);
-                  setNewTypeLabel("");
-                  setNewTypeValue("");
-                } else {
-                  handleChange("type", e.target.value as string);
-                }
-              }}
-              size="small"
-              variant="standard"
-              sx={{ minWidth: 90, fontSize: 14 }}
-            >
-              {templateTypes.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    {editTypeValue === opt.value ? (
-                      <>
-                        <TextField
-                          value={editTypeLabel}
-                          onChange={(e) =>
-                            setEditTypeLabel(
-                              e.target.value
-                            )
-                          }
-                          size="small"
-                          variant="standard"
-                          sx={{ width: 80, fontSize: 14 }}
-                          onBlur={() => {
-                            updateTemplateType(
-                              opt.value,
-                              { label: editTypeLabel }
-                            );
-                            setEditTypeValue(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
+            {/* Prevent popover close on type select */}
+            <div onClick={e => e.stopPropagation()}>
+              <Select
+                value={local.type}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (e.target.value === "__new__") {
+                    setAddingType(true);
+                    setNewTypeLabel("");
+                    setNewTypeValue("");
+                  } else {
+                    handleChange("type", e.target.value as string);
+                  }
+                }}
+                MenuProps={{
+                  disablePortal: true,
+                  // container: document.body,
+                }}
+                size="small"
+                variant="standard"
+                sx={{ minWidth: 90, fontSize: 14 }}
+              >
+                {templateTypes.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      {editTypeValue === opt.value ? (
+                        <>
+                          <TextField
+                            value={editTypeLabel}
+                            onChange={(e) =>
+                              setEditTypeLabel(
+                                e.target.value
+                              )
+                            }
+                            size="small"
+                            variant="standard"
+                            sx={{ width: 80, fontSize: 14 }}
+                            onBlur={() => {
                               updateTemplateType(
                                 opt.value,
-                                {
-                                  label: editTypeLabel,
-                                }
+                                { label: editTypeLabel }
                               );
                               setEditTypeValue(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                updateTemplateType(
+                                  opt.value,
+                                  {
+                                    label: editTypeLabel,
+                                  }
+                                );
+                                setEditTypeValue(null);
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() =>
+                              setEditTypeValue(null)
                             }
-                          }}
-                          autoFocus
-                        />
-                        <IconButton
-                          size="small"
-                          onClick={() =>
-                            setEditTypeValue(null)
-                          }
-                        >
-                          <span className="bp5-icon bp5-icon-cross" />
-                        </IconButton>
-                      </>
-                    ) : (
-                      <>
-                        <span>{opt.label}</span>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditTypeValue(opt.value);
-                            setEditTypeLabel(opt.label);
-                          }}
-                          style={{
-                            marginLeft: 2,
-                            padding: 2,
-                          }}
-                        >
-                          <span className="bp5-icon bp5-icon-edit" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeTemplateType(opt.value);
-                          }}
-                          style={{
-                            marginLeft: 2,
-                            padding: 2,
-                          }}
-                        >
-                          <span className="bp5-icon bp5-icon-trash" />
-                        </IconButton>
-                      </>
-                    )}
-                  </span>
+                          >
+                            <span className="bp5-icon bp5-icon-cross" />
+                          </IconButton>
+                        </>
+                      ) : (
+                        <>
+                          <span>{opt.label}</span>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditTypeValue(opt.value);
+                              setEditTypeLabel(opt.label);
+                            }}
+                            style={{
+                              marginLeft: 2,
+                              padding: 2,
+                            }}
+                          >
+                            <span className="bp5-icon bp5-icon-edit" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeTemplateType(opt.value);
+                            }}
+                            style={{
+                              marginLeft: 2,
+                              padding: 2,
+                            }}
+                          >
+                            <span className="bp5-icon bp5-icon-trash" />
+                          </IconButton>
+                        </>
+                      )}
+                    </span>
+                  </MenuItem>
+                ))}
+                <MenuItem
+                  key="__new__"
+                  value="__new__"
+                  style={{ fontStyle: "italic", color: "#137cbd" }}
+                >
+                  + New Type…
                 </MenuItem>
-              ))}
-              <MenuItem
-                key="__new__"
-                value="__new__"
-                style={{ fontStyle: "italic", color: "#137cbd" }}
-              >
-                + New Type…
-              </MenuItem>
-            </Select>
+              </Select>
+            </div>
             {addingType && (
               <div
                 style={{
@@ -347,11 +356,38 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
           <Popover
             position={Position.RIGHT}
             content={
-              <ResponsePaletteEditor
-                onPaletteCreated={handlePaletteCreated}
-                autoFocusNewPalette
-              />
+              <div style={{ minWidth: 180, padding: 4 }}>
+                <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 6, color: '#137cbd' }}>Select Palette</div>
+                {Object.keys(palettes).map(name => (
+                  <div
+                    key={name}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      background: name === local.paletteName ? '#1e88e5' : undefined,
+                      color: name === local.paletteName ? '#fff' : undefined,
+                      borderRadius: 4,
+                      marginBottom: 2,
+                      padding: '4px 8px',
+                      fontWeight: name === local.paletteName ? 600 : 400,
+                      boxShadow: name === local.paletteName ? '0 1px 4px #0002' : undefined,
+                    }}
+                    onClick={() => {
+                      setLocal(l => ({ ...l, paletteName: name }));
+                      // Let the popover close naturally on selection
+                    }}
+                  >
+                    <div style={{ width: 24, height: 12, background: palettes[name].baseColor, borderRadius: 2, marginRight: 8, border: '1px solid #fff2' }} />
+                    <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>{name}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid #eee', margin: '8px 0 4px 0' }} />
+                <ResponsePaletteEditor onPaletteCreated={handlePaletteCreated} autoFocusNewPalette />
+              </div>
             }
+            interactionKind="click"
+            enforceFocus={false}
           >
             <Button minimal style={{ padding: 0, marginRight: 4 }}>
               <Stage
@@ -381,40 +417,34 @@ export const ResponseRectTemplateEditor: React.FC<ResponseRectTemplateEditorProp
           <span style={{ fontWeight: 500, fontSize: 14 }}>
             {local.paletteName}
           </span>
-          <Popover
-            position={Position.RIGHT}
-            content={<ResponsePaletteEditor />}
-          >
-            <Button icon="edit" minimal small style={{ marginLeft: 2 }} />
-          </Popover>
-          {/* Live Preview (placeholder) */}
-          <div style={{ marginLeft: "auto", marginRight: 8 }}>
-            <Stage
-              width={rectWidth}
-              height={rectHeight}
-              style={{ background: "none", borderRadius: 4 }}
-            >
-              <Layer>
-                <ResponseRect
-                  x={0}
-                  y={0}
-                  width={rectWidth}
-                  height={rectHeight}
-                  color={
-                    palettes[local.paletteName]?.baseColor ||
-                    "#eee"
-                  }
-                  borderColor={
-                    palettes[local.paletteName]?.borderColor ||
-                    "#ccc"
-                  }
-                />
-              </Layer>
-            </Stage>
-          </div>
-          {/* Device/Track Assignment (placeholder) */}
-          {/* <Select ... /> */}
         </div>
+        {/* Live Preview (placeholder) */}
+        <div style={{ marginLeft: "auto", marginRight: 8 }}>
+          <Stage
+            width={rectWidth}
+            height={rectHeight}
+            style={{ background: "none", borderRadius: 4 }}
+          >
+            <Layer>
+              <ResponseRect
+                x={0}
+                y={0}
+                width={rectWidth}
+                height={rectHeight}
+                color={
+                  palettes[local.paletteName]?.baseColor ||
+                  "#eee"
+                }
+                borderColor={
+                  palettes[local.paletteName]?.borderColor ||
+                  "#ccc"
+                }
+              />
+            </Layer>
+          </Stage>
+        </div>
+        {/* Device/Track Assignment (placeholder) */}
+        {/* <Select ... /> */}
         {/* Main Fields: Duration, Default Data */}
         <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
           <div style={{ minWidth: 90 }}>

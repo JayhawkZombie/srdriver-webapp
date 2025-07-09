@@ -1,5 +1,6 @@
 import React, { useState, useRef, useContext } from 'react';
 import { useAppStore } from '../../store/appStore';
+import type { RectTemplate } from '../../store/appStore';
 import { Stage, Layer } from 'react-konva';
 import { ResponseRect } from './ResponseRect';
 import Typography from '@mui/material/Typography';
@@ -18,6 +19,7 @@ export const ResponseRectToolbarGallery: React.FC = () => {
   const rectTemplates = useAppStore(state => state.rectTemplates);
   const palettes = useAppStore(state => state.palettes);
   const addRectTemplate = useAppStore(state => state.addRectTemplate);
+  const updateRectTemplate = useAppStore(state => state.updateRectTemplate);
   const { mode } = useContext(UnifiedThemeContext) ?? { mode: 'light' };
 
   const [creating, setCreating] = useState(false);
@@ -43,6 +45,22 @@ export const ResponseRectToolbarGallery: React.FC = () => {
     });
     setNewName('');
     setCreating(false);
+  };
+
+  const handleSaveTemplate = (template: RectTemplate & { tags?: string[]; notes?: string }) => {
+    // If the template has a "-copy" suffix, it's a new template
+    if (template.id.endsWith('-copy')) {
+      const newId = generateId();
+      addRectTemplate({
+        ...template,
+        id: newId,
+      });
+    } else {
+      // Update existing template
+      updateRectTemplate(template.id, template);
+    }
+    // Close the popover after saving
+    setOpenPopover(null);
   };
 
   return (
@@ -136,7 +154,7 @@ export const ResponseRectToolbarGallery: React.FC = () => {
               usePortal={true}
               content={
                 <div className={mode === 'dark' ? 'bp5-dark' : ''} style={{ background: mode === 'dark' ? '#181c22' : 'var(--bp5-card-background-color, #fff)', borderRadius: 10, minWidth: 340 }}>
-                  <ResponseRectTemplateEditor template={t} onSave={() => {}} />
+                  <ResponseRectTemplateEditor template={t} onSave={handleSaveTemplate} />
                 </div>
               }
             >
