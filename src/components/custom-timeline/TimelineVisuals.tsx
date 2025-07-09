@@ -113,6 +113,12 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
   }, [rest.windowStart, rest.windowDuration, majorTickEvery, minorTickEvery, rest.tracksWidth]);
   const tracksTotalHeight = rest.numTracks * rest.trackHeight + (rest.numTracks - 1) * rest.trackGap;
 
+  // Gallery row: render at the top of the canvas
+  const galleryRectWidth = 40;
+  const galleryRectHeight = 18;
+  const gallerySpacing = 18;
+  const galleryY = (props.geometry.galleryHeight ?? 48) / 2 - galleryRectHeight / 2;
+
   // Helper to get a fallback palette
   function getPaletteSafe(name: string): Palette {
     if (rest.palettes[name]) return rest.palettes[name];
@@ -144,6 +150,29 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         {...pointerHandler.getTrackAreaProps()}
       >
         <Layer>
+          {/* Gallery row of rect templates */}
+          <Group>
+            {Object.values(rectTemplates).map((template: RectTemplate, i) => {
+              const palette = getPaletteSafe(template.paletteName);
+              return (
+                <ResponseRect
+                  key={template.id}
+                  x={i * (galleryRectWidth + gallerySpacing) + 12}
+                  y={galleryY}
+                  width={galleryRectWidth}
+                  height={galleryRectHeight}
+                  color={palette.baseColor}
+                  borderColor={palette.borderColor}
+                  opacity={1}
+                  onPointerDown={e => {
+                    const stage = e.target.getStage();
+                    const pointerPos = stage ? stage.getPointerPosition() : { x: 0, y: 0 };
+                    props.onGalleryRectPointerDown?.(template, pointerPos);
+                  }}
+                />
+              );
+            })}
+          </Group>
           {/* Track backgrounds with midlines and subtle borders */}
           {[...Array(rest.numTracks)].map((_, i) => {
             const y = rest.tracksTopOffset + i * (rest.trackHeight + rest.trackGap);
