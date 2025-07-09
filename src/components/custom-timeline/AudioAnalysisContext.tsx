@@ -40,6 +40,8 @@ function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
     const [selectedEngine, setSelectedEngine] = useState<string>(engineOptions[0]);
     const [bandConfigs, setBandConfigs] = useState<BandConfig[]>([]);
     const [filtering, setFiltering] = useState<boolean>(false);
+    const [plotReady, _setPlotReady] = useState(false);
+    const setPlotReady = (ready: boolean) => _setPlotReady(ready);
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
@@ -88,7 +90,9 @@ function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
         handleFileChange,
         progress,
         bandDataArr,
-    }), [pcm, sampleRate, localWaveform, localDuration, bandConfigs, filtering, selectedEngine, engineOptions, handleFileChange, progress, bandDataArr]);
+        plotReady,
+        setPlotReady,
+    }), [pcm, sampleRate, localWaveform, localDuration, bandConfigs, filtering, selectedEngine, engineOptions, handleFileChange, progress, bandDataArr, plotReady]);
 
     return (
         <AudioAnalysisContext.Provider value={value}>

@@ -11,9 +11,10 @@ import { Mixer } from "../../controllers/Mixer";
 import Waveform from "./Waveform";
 import type { TimelineMenuAction } from "./TimelineContextMenu";
 import KonvaTimelineTemplateSelector from "./KonvaTimelineTemplateSelector";
-import { AudioAnalysisProvider } from "./AudioAnalysisContext";
 import AudioAnalysisPanel from "./AudioAnalysisPanel";
 import { Drawer } from "@blueprintjs/core";
+import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
+import { useDetectionData } from "./DetectionDataContext";
 
 const numTracks = 3;
 const tracksHeight = 300;
@@ -226,11 +227,22 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 
     // Drawer state for analysis tools
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const {plotReady, bandDataArr} = useAudioAnalysis();
+    console.log('plotReady', plotReady);
+    console.log('bandDataArr', bandDataArr);
+    const {results, bandResults, progress, bandProgress, isLoading, error} = useDetectionData();
+    console.log('results', results);
+    console.log('bandResults', bandResults);
+    console.log('progress', progress);
+    console.log('bandProgress', bandProgress);
+    console.log('isLoading', isLoading);
+    console.log('error', error);
+    if (results) {
+        console.log('READY TO PLOT ON TIMELINE', results);
+    }
 
     // Layout: controls + waveform header, timeline below
     return (
-        <AudioAnalysisProvider>
-            {/* Main dashboard UI */}
             <div
                 ref={containerRef}
                 style={{
@@ -272,7 +284,9 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     title="Audio Analysis Tools"
                     size="large"
                 >
-                    <AudioAnalysisPanel />
+                    <div style={{ display: drawerOpen ? 'block' : 'none', height: '100%' }}>
+                        <AudioAnalysisPanel />
+                    </div>
                 </Drawer>
                 {/* Waveform header (full width) */}
                 {waveform && waveform.length > 0 ? (
@@ -387,16 +401,6 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     <div>Hovered rect ID: {hoveredId ? hoveredId : "none"}</div>
                 </div>
             </div>
-            {/* Context menu overlay */}
-            {/* <TimelineContextMenu
-                isOpen={false} // This state is now managed by KonvaResponseTimeline
-                position={null} // This state is now managed by KonvaResponseTimeline
-                info={null} // This state is now managed by KonvaResponseTimeline
-                onClose={() => {}} // This state is now managed by KonvaResponseTimeline
-                menuRef={undefined} // This state is now managed by KonvaResponseTimeline
-                actions={actions}
-            /> */}
-        </AudioAnalysisProvider>
     );
 
     // Audio upload handler

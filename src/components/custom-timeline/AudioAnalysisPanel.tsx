@@ -6,10 +6,8 @@ import Waveform from "./Waveform";
 import { ProgressBar } from "@blueprintjs/core";
 import { WindowedTimeSeriesPlot } from "./WindowedTimeSeriesPlot";
 import {
-    DetectionDataProvider,
     useDetectionData,
 } from "./DetectionDataContext";
-import { AudioAnalysisProvider } from "./AudioAnalysisContext";
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
 import type { BandConfig, DetectionResult } from "./DetectionDataTypes";
 import { usePlaybackState } from "./PlaybackContext";
@@ -440,9 +438,7 @@ const DetectionEngineSection = ({ bands, pcm, sampleRate }: DetectionEngineSecti
 // Replace the default export function with the provider wrapping the panel
 export default function AudioAnalysisPanel() {
     return (
-        // <AudioAnalysisProvider>
             <AudioAnalysisPanelInner />
-        // </AudioAnalysisProvider>
     );
 }
 
@@ -516,7 +512,7 @@ function AudioAnalysisPanelInner() {
     };
 
     return (
-        <div style={{ maxWidth: 800, margin: "2rem auto", padding: 16 }}>
+        <div style={{ maxWidth: 800, height: "100%", overflowY: "scroll", margin: "2rem auto", padding: 16 }}>
             <input
                 type="file"
                 accept="audio/*"
@@ -619,9 +615,7 @@ function AudioAnalysisPanelInner() {
                             </button>
                         ))}
                     </div>
-                    <DetectionDataProvider>
                         <DetectionEngineSection bands={bandConfigs} pcm={pcm} sampleRate={sampleRate} />
-                    </DetectionDataProvider>
                 </div>
             )}
         </div>

@@ -6,6 +6,8 @@ import { FakeDeviceControllerProvider } from "../src/stories/FakeDeviceControlle
 import { UnifiedThemeProvider } from "../src/context/UnifiedThemeProvider";
 import "@blueprintjs/core/lib/css/blueprint.css";
 import { PlaybackProvider } from "../src/components/custom-timeline/PlaybackContext";
+import { AudioAnalysisProvider } from "../src/components/custom-timeline/AudioAnalysisContext";
+import { DetectionDataProvider } from "../src/components/custom-timeline/DetectionDataContext";
 
 export const globalTypes = {
   showLogDrawer: {
@@ -42,17 +44,21 @@ export const decorators = [
         <UnifiedThemeProvider>
             <FakeDeviceControllerProvider>
                 <FakeAppStateStoryProvider mockType="screenshotBar">
-                    <PlaybackProvider>
-                        <AppStateLogDrawer
-                            isOpen={!!showLogDrawer}
-                            onClose={() => {}}
-                        />
-                        <DevAppStateViewer
-                            isOpen={!!showDevAppStateDrawer}
-                            onClose={() => {}}
-                        />
-                        <Story />
-                    </PlaybackProvider>
+                    <AudioAnalysisProvider>
+                        <DetectionDataProvider>
+                            <PlaybackProvider>
+                                <AppStateLogDrawer
+                                    isOpen={!!showLogDrawer}
+                                    onClose={() => {}}
+                                />
+                                <DevAppStateViewer
+                                    isOpen={!!showDevAppStateDrawer}
+                                    onClose={() => {}}
+                                />
+                                <Story />
+                            </PlaybackProvider>
+                        </DetectionDataProvider>
+                    </AudioAnalysisProvider>
                 </FakeAppStateStoryProvider>
             </FakeDeviceControllerProvider>
         </UnifiedThemeProvider>
