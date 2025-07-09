@@ -75,8 +75,14 @@ const Track: React.FC<TrackProps> = ({
               stroke={selectedBandIdx === bandIdx ? "#fff" : "none"}
               strokeWidth={2}
               cornerRadius={10}
-              onClick={() => onSelectBand(trackIndex, bandIdx)}
-              onTap={() => onSelectBand(trackIndex, bandIdx)}
+              onClick={e => {
+                e.cancelBubble = true;
+                onSelectBand(trackIndex, bandIdx);
+              }}
+              onTap={e => {
+                e.cancelBubble = true;
+                onSelectBand(trackIndex, bandIdx);
+              }}
               perfectDrawEnabled={false}
             />
           ))}

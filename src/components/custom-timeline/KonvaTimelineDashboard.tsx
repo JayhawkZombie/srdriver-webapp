@@ -219,7 +219,8 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                     rect.data.type &&
                     rect.data.pattern
                 ) {
-                    mixer.triggerResponse(rect.data as unknown as import('../../controllers/Mixer').MixerResponseInfo);
+                    console.log("RECT", rect);
+                    mixer.triggerResponse({...rect} as unknown as import('../../controllers/Mixer').MixerResponseInfo);
                 }
                 return { ...rect, triggered: isActive };
             })

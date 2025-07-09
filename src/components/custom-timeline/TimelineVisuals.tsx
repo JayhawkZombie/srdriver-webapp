@@ -378,7 +378,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                                     borderColor: palette.borderColor,
                                     opacity: 1,
                                 };
-                            const { color, opacity } = getPaletteColor({
+                            const { color } = getPaletteColor({
                                 baseColor: palette.baseColor,
                                 borderColor: palette.borderColor,
                                 state: paletteState,
@@ -405,7 +405,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                                     width={width}
                                     height={height}
                                     color={color}
-                                    opacity={opacity}
+                                    opacity={isTrackAssigned ? 0.7 : 0.3}
                                     hovered={rest.hoveredId === rect.id}
                                     selected={rest.selectedId === rect.id}
                                     {...(pointerHandler.getRectProps(

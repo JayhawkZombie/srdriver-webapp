@@ -10,6 +10,7 @@ import {
     type AudioAnalysisProviderProps,
     isWaveformResult
 } from "./AudioAnalysisContextHelpers";
+import { usePlaybackController } from "./PlaybackContext";
 
 // BandData type (inline, matching worker output)
 export type BandData = {
@@ -42,11 +43,13 @@ function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
     const [filtering, setFiltering] = useState<boolean>(false);
     const [plotReady, _setPlotReady] = useState(false);
     const setPlotReady = (ready: boolean) => _setPlotReady(ready);
+    const { setBuffer } = usePlaybackController();
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
         if (!file) return;
         const audioBuffer = await decodeAudioFile(file);
+        setBuffer(audioBuffer); // Sync with global playback
         const pcmData = getMonoPCMData(audioBuffer);
         setPcm(pcmData);
         setSampleRate(audioBuffer.sampleRate);
@@ -73,7 +76,7 @@ function AudioAnalysisProvider({ children }: AudioAnalysisProviderProps) {
                     setWaveformProgress(null);
                 }
             });
-    }, [setAudioData, setWaveformProgress]);
+    }, [setAudioData, setWaveformProgress, setBuffer]);
 
     const value: AudioAnalysisContextType = useMemo(() => ({
         pcm,
