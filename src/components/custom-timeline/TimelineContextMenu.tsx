@@ -20,6 +20,7 @@ interface TimelineContextMenuProps {
   menuRef: React.RefObject<HTMLDivElement>;
   actions?: TimelineMenuAction[];
   onEditRectData?: (rectId: string, key: string, value: any) => void;
+  onDeleteRect?: (rectId: string) => void;
 }
 
 function renderMenuActions(actions: TimelineMenuAction[] = [], info: any) {
@@ -38,7 +39,7 @@ function renderMenuActions(actions: TimelineMenuAction[] = [], info: any) {
   );
 }
 
-const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, position, info, onClose, menuRef, actions, onEditRectData }) => {
+const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, position, info, onClose, menuRef, actions, onEditRectData, onDeleteRect }) => {
   if (!isOpen || !position) return null;
   // List of keys to skip (disabled fields)
   const disabledKeys = ["timestamp", "duration", "trackIndex"];
@@ -82,6 +83,15 @@ const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, posit
                   </div>
                 } />
               ))}
+              <MenuItem
+                text="Delete"
+                icon="trash"
+                intent="danger"
+                onClick={() => {
+                  if (onDeleteRect) onDeleteRect(info.rect.id);
+                  onClose();
+                }}
+              />
             </>
           ) : info?.type === 'background' ? (
             <>

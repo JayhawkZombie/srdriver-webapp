@@ -116,12 +116,12 @@ export function useTimelinePointerHandler({
         numTracks,
         totalDuration,
       });
-      console.log('[TrackArea] onClick info', info);
+      // console.log('[TrackArea] onClick info', info);
       if (!info) return;
       if (onBackgroundClick) onBackgroundClick(info, e);
     },
     onContextMenu: (e: unknown) => {
-      console.log('[TrackArea] onContextMenu', e, { selectedId, hoveredId });
+      // console.log('[TrackArea] onContextMenu', e, { selectedId, hoveredId });
       const evt = (e as any).evt ?? e;
       if (evt && typeof evt.preventDefault === 'function') {
         evt.preventDefault();
@@ -153,10 +153,10 @@ export function useTimelinePointerHandler({
         numTracks,
         totalDuration,
       });
-      console.log('[TrackArea] onContextMenu info', info);
+      // console.log('[TrackArea] onContextMenu info', info);
       if (!info) return;
       if (onContextMenu) {
-        console.log('[TrackArea] calling onContextMenu with', { type: 'background', time: info.time, trackIndex: info.trackIndex });
+        // console.log('[TrackArea] calling onContextMenu with', { type: 'background', time: info.time, trackIndex: info.trackIndex });
         // Pass the cursor position up for menu placement
         onContextMenu({ type: 'background', time: info.time, trackIndex: info.trackIndex }, { clientX: x, clientY: y });
       }
@@ -174,7 +174,7 @@ export function useTimelinePointerHandler({
       resizing: resizing.id === id,
       resizeEdge: resizing.id === id ? resizing.edge : null,
       onPointerDown: (e: unknown) => {
-        console.log('[Rect] onPointerDown', id, e);
+        // console.log('[Rect] onPointerDown', id, e);
         setSelectedId(id);
         setHoveredId(id);
         (e as any).cancelBubble = true;
@@ -185,7 +185,7 @@ export function useTimelinePointerHandler({
         (e as any).cancelBubble = true;
       },
       onPointerUp: (e: unknown) => {
-        console.log('[Rect] onPointerUp', id, e);
+        // console.log('[Rect] onPointerUp', id, e);
         setHoveredId(null);
         setDraggingId(null);
         setResizing({ id: null, edge: null });
@@ -194,13 +194,13 @@ export function useTimelinePointerHandler({
         (e as any).cancelBubble = true;
       },
       onDragStart: (e: unknown) => {
-        console.log('[Rect] onDragStart', id, e);
+        // console.log('[Rect] onDragStart', id, e);
         setDraggingId(id);
         dragStartRef.current = { x: (e as any).target.x(), y: (e as any).target.y(), timestamp: rect.timestamp, trackIndex: rect.trackIndex };
         (e as any).cancelBubble = true;
       },
       onDragMove: (e: unknown) => {
-        console.log('[Rect] onDragMove', id, e);
+        // console.log('[Rect] onDragMove', id, e);
         if (!dragStartRef.current) return;
         const x = (e as any).target.x();
         const y = (e as any).target.y();
@@ -236,20 +236,20 @@ export function useTimelinePointerHandler({
           evt.preventDefault();
         }
         // Debug log for DAR drop
-        console.log('[DAR DEBUG] onDragEnd using last shadow position:', snapped);
+        // console.log('[DAR DEBUG] onDragEnd using last shadow position:', snapped);
         resetPointerState();
         if (onRectMove) onRectMove(id, { ...snapped, destroyAndRespawn: true });
       },
       onGroupMouseEnter: () => {
-        console.log('[Rect] onGroupMouseEnter', id);
+        // console.log('[Rect] onGroupMouseEnter', id);
         setHoveredId(id);
       },
       onGroupMouseLeave: () => {
-        console.log('[Rect] onGroupMouseLeave', id);
+        // console.log('[Rect] onGroupMouseLeave', id);
         setHoveredId(null);
       },
       onResizeStart: (e: unknown, edge: 'start' | 'end') => {
-        console.log('[Rect] RESIZE START', id, edge);
+        // console.log('[Rect] RESIZE START', id, edge);
         if (!edge) return; // Defensive: only call with valid edge
         setResizing({ id, edge });
         const initialX = (e as any).evt ? (e as any).evt.clientX : (e as any).target.getStage().getPointerPosition().x;
@@ -268,7 +268,7 @@ export function useTimelinePointerHandler({
           } else if (edge === 'end') {
             newDuration = Math.max(0.1, (resizeStartRef.current ? resizeStartRef.current.duration : 0.1) + timeDelta);
           }
-          console.log('[Rect] handleMouseMove (resize)', { id, edge, pointerX, initialX: resizeStartRef.current?.x, dx, timeDelta, newTimestamp, newDuration });
+          // console.log('[Rect] handleMouseMove (resize)', { id, edge, pointerX, initialX: resizeStartRef.current?.x, dx, timeDelta, newTimestamp, newDuration });
           if (onRectResize && id && edge) onRectResize(id, edge, newTimestamp, newDuration);
         }
         function handleMouseUp(ev: MouseEvent) {
@@ -306,11 +306,11 @@ export function useTimelinePointerHandler({
     if (!resizing.id || !resizing.edge || !resizeStartRef.current) return;
     function handleMouseMove(e: MouseEvent) {
       const pointerX = e.clientX;
-      console.log("POINTER X", pointerX);
+      // console.log("POINTER X", pointerX);
       const dx = pointerX - (resizeStartRef.current ? resizeStartRef.current.x : 0);
-      console.log("DX", dx);
+      // console.log("DX", dx);
       const timeDelta = (dx / tracksWidth) * windowDuration;
-      console.log("TIME DELTA", timeDelta);
+      // console.log("TIME DELTA", timeDelta);
       let newTimestamp = resizeStartRef.current ? resizeStartRef.current.timestamp : 0;
       let newDuration = resizeStartRef.current ? resizeStartRef.current.duration : 0.1;
       if (resizing.edge === 'start') {

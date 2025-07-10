@@ -3,7 +3,7 @@ import KonvaResponseTimeline from "./KonvaResponseTimeline";
 import TimelineControls from "./TimelineControls";
 import { usePlaybackState, usePlaybackController } from "./PlaybackContext";
 import type { TimelineResponse } from "./TimelineVisuals";
-import { useAppStore } from "../../store/appStore";
+import { useAppStore, useTimelineResponses, useAddTimelineResponse, useUpdateTimelineResponse } from "../../store/appStore";
 import type { TrackTarget } from "../../store/appStore";
 import { useTimelineSelectionState } from "./useTimelineSelectionState";
 import { useMeasuredContainerSize } from "./useMeasuredContainerSize";
@@ -13,17 +13,14 @@ import type { TimelineMenuAction } from "./TimelineContextMenu";
 import KonvaTimelineTemplateSelector from "./KonvaTimelineTemplateSelector";
 import AudioAnalysisPanel from "./AudioAnalysisPanel";
 import { Drawer } from "@blueprintjs/core";
-import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
-import { useDetectionData } from "./DetectionDataContext";
-import WindowedTimeSeriesPlot from "./WindowedTimeSeriesPlot";
-import { useDeviceControllerContext, useDeviceControllerMap } from "../../controllers/DeviceControllerContext";
+import { useDeviceControllerMap } from "../../controllers/DeviceControllerContext";
 
-const numTracks = 3;
-const tracksHeight = 300;
-const trackHeight = (tracksHeight - 32 - 2 * 8) / numTracks - 8;
+const numTracks = 3; // Increased from 3 to 8 tracks
 const trackGap = 8;
 const tracksTopOffset = 32;
 const labelWidth = 110;
+const tracksHeight = 300;
+const trackHeight = (tracksHeight - 32 - 2 * 8) / numTracks - 8;
 
 const KonvaTimelineDashboardInner: React.FC = () => {
     // Audio state
@@ -48,7 +45,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     // Removed unused setTrackTarget assignment
     // Track assignment state from Zustand
     const trackMapping = useAppStore((state) => state.tracks.mapping);
-    const trackTargets: (TrackTarget | undefined)[] = [0, 1, 2].map(i => trackMapping[i]);
+    const trackTargets: (TrackTarget | undefined)[] = [0, 1, 2, 3, 4, 5, 6, 7].map(i => trackMapping[i]);
     const setTrackTarget = useAppStore((state) => state.setTrackTarget);
     // Track targets from app store (array)
     // const trackMapping = useAppStore((state) => state.tracks.mapping);
@@ -84,14 +81,16 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     // Add state for selected template key
     const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>(() => Object.keys(rectTemplates)[0] || "");
 
+    // Use global store for timeline responses
+    const responses = useTimelineResponses();
+    const addTimelineResponse = useAddTimelineResponse();
+    const updateTimelineResponse = useUpdateTimelineResponse();
+
     // Handler for background click: add a new rect from the selected template
     const handleBackgroundClick = ({ time, trackIndex }: { time: number; trackIndex: number }) => {
         const template = rectTemplates[selectedTemplateKey] || Object.values(rectTemplates)[0];
         if (!template) return;
-        setResponses(responses => [
-            ...responses,
-            createResponseFromTemplate(template, time, trackIndex)
-        ]);
+        addTimelineResponse(createResponseFromTemplate(template, time, trackIndex));
     };
 
     // Responsive container size
@@ -107,7 +106,6 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     );
 
     // Timeline state (local for now)
-    const [responses, setResponses] = useState<TimelineResponse[]>([]);
     const [windowDuration, setWindowDuration] = useState(5);
     const windowStart = Math.max(
         0,
@@ -138,22 +136,19 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                 if (!template) return;
                 const timestamp = Math.random() * 10;
                 const duration = template.defaultDuration;
-                const trackIndex = Math.floor(Math.random() * 3);
-                setResponses((responses) => [
-                    ...responses,
-                    {
-                        id: crypto.randomUUID(),
-                        timestamp,
-                        duration,
-                        trackIndex,
-                        data: {
-                            ...template.defaultData,
-                            type: template.type,
-                            paletteName: template.paletteName,
-                        },
-                        triggered: false,
+                const trackIndex = Math.floor(Math.random() * 8); // Updated to use 8 tracks
+                addTimelineResponse({
+                    id: crypto.randomUUID(),
+                    timestamp,
+                    duration,
+                    trackIndex,
+                    data: {
+                        ...template.defaultData,
+                        type: template.type,
+                        paletteName: template.paletteName,
                     },
-                ]);
+                    triggered: false,
+                });
             },
         },
         {
@@ -174,29 +169,16 @@ const KonvaTimelineDashboardInner: React.FC = () => {
     ];
 
     // Add this handler to update rects on drag/drop
-    const handleRectMove = (id: string, { timestamp, trackIndex, destroyAndRespawn }: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => {
-        setResponses(responses => responses.map(r => {
-            if (r.id === id) {
-                const updated = { ...r, timestamp, trackIndex };
-                console.log('[DASHBOARD] Rect moved:', updated, { destroyAndRespawn });
-                return updated;
-            }
-            return r;
-        }));
+    const handleRectMove = (id: string, { timestamp, trackIndex }: { timestamp: number; trackIndex: number; destroyAndRespawn?: boolean }) => {
+        updateTimelineResponse(id, { timestamp, trackIndex });
     };
 
     // Add this handler to update rects on resize
     const handleRectResize = (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => {
-        setResponses(responses => responses.map(r => {
-            if (r.id === id) {
-                return {
-                    ...r,
-                    timestamp: edge === 'start' ? newTimestamp : r.timestamp,
-                    duration: newDuration,
-                };
-            }
-            return r;
-        }));
+        updateTimelineResponse(id, {
+            timestamp: edge === 'start' ? newTimestamp : responses.find(r => r.id === id)?.timestamp || 0,
+            duration: newDuration,
+        });
     };
 
     // Pointer/drag/resize logic
@@ -206,30 +188,35 @@ const KonvaTimelineDashboardInner: React.FC = () => {
 
     // Update triggered state and fire mixer on playhead overlap
     React.useEffect(() => {
-        setResponses((prevResponses) =>
-            prevResponses.map((rect) => {
-                const assignedTarget = trackMapping[rect.trackIndex];
-                const isActive =
-                    !!assignedTarget &&
-                    currentTime >= rect.timestamp &&
-                    currentTime < rect.timestamp + rect.duration;
-                if (
-                    assignedTarget &&
-                    isActive &&
-                    !rect.triggered &&
-                    rect.data &&
-                    rect.data.type &&
-                    rect.data.pattern
-                ) {
-                    console.log("RECT", rect, assignedTarget);
-                    const controller = getController(assignedTarget.id);
-                    console.log("CONTROLLER", controller);
-                    mixer.triggerResponse({...rect} as unknown as import('../../controllers/Mixer').MixerResponseInfo, [controller]);
+        responses.forEach(rect => {
+            const assignedTarget = trackMapping[rect.trackIndex];
+            const isActive =
+                !!assignedTarget &&
+                currentTime >= rect.timestamp &&
+                currentTime < rect.timestamp + rect.duration;
+            
+            // Update triggered state if it changed
+            if (rect.triggered !== isActive) {
+                updateTimelineResponse(rect.id, { triggered: isActive });
+            }
+            
+            if (
+                assignedTarget &&
+                isActive &&
+                !rect.triggered &&
+                rect.data &&
+                rect.data.type &&
+                rect.data.pattern
+            ) {
+                // console.log("RECT", rect, assignedTarget);
+                const controller = getController(assignedTarget.id);
+                // console.log("CONTROLLER", controller);
+                if (controller) {
+                    mixer.triggerResponse(rect, [controller]);
                 }
-                return { ...rect, triggered: isActive };
-            })
-        );
-    }, [currentTime, mixer, trackMapping]);
+            }
+        });
+    }, [currentTime, mixer, trackMapping, responses, updateTimelineResponse]);
 
     // Drawer state for analysis tools
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -342,7 +329,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
                         boxSizing: "border-box",
                         width: "100%",
                         overflow: "hidden",
-                        height: tracksHeight + 32, // ensure enough height for both
+                        height: tracksHeight, // Use dynamic height
                     }}
                 >
                     {/* Impulse plot underlay, aligned with a specific track */}

@@ -13,6 +13,7 @@ import { useTimelinePointerHandler } from "./useTimelinePointerHandler";
 import { useDetectionData } from "./DetectionDataContext";
 import { useAudioAnalysis } from "./AudioAnalysisContextHelpers";
 import Track from "./Track";
+import { useUpdateTimelineResponse, useDeleteTimelineResponse } from "../../store/appStore";
 
 // --- Types ---
 export type TimelineResponse = {
@@ -246,20 +247,20 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
     }
 
     // Handler to update rect data instantly
+    const updateTimelineResponse = useUpdateTimelineResponse();
+    const deleteTimelineResponse = useDeleteTimelineResponse();
     const handleEditRectData = (rectId: string, key: string, value: any) => {
-        // Update the responses array
-        if (!menuInfo || menuInfo.type !== 'rect') return;
-        rest.setSelectedId(rectId); // keep selection
-        rest.setHoveredId(rectId);
-        if (typeof rest.responses === 'object' && Array.isArray(rest.responses)) {
-            const updated = rest.responses.map(r =>
-                r.id === rectId ? { ...r, data: { ...r.data, [key]: value } } : r
-            );
-            // If parent provided a setter, use it (assume setResponses is passed as a prop)
-            if (typeof rest.setResponses === 'function') {
-                rest.setResponses(updated);
+        const rect = rest.responses.find(r => r.id === rectId);
+        if (!rect) return;
+        updateTimelineResponse(rectId, {
+            data: {
+                ...rect.data,
+                [key]: value
             }
-        }
+        });
+    };
+    const handleDeleteRect = (rectId: string) => {
+        deleteTimelineResponse(rectId);
     };
 
     return (
@@ -298,6 +299,19 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                             const selectedBandIdx = selectedBands[i] || 0;
                             return (
                                 <React.Fragment key={i}>
+                                    {/* Debug: Track index label */}
+                                    <KonvaText
+                                        x={10}
+                                        y={y + rest.trackHeight / 2 - 18}
+                                        text={`Track ${i}`}
+                                        fontSize={24}
+                                        fontStyle="bold"
+                                        fill="#ffeb3b"
+                                        shadowColor="#000"
+                                        shadowBlur={4}
+                                        shadowOffset={{ x: 2, y: 2 }}
+                                        shadowOpacity={0.5}
+                                    />
                                     <Track
                                         y={y}
                                         width={rest.tracksWidth}
@@ -566,6 +580,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                 onClose={handleMenuClose}
                 menuRef={menuRef}
                 onEditRectData={handleEditRectData}
+                onDeleteRect={handleDeleteRect}
             />
         </>
     );
