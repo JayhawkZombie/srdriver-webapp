@@ -484,18 +484,26 @@ export class WebSRDriverController implements ISRDriverController {
     }
     
     const encoder = new TextEncoder();
-    await this.commandCharacteristic.writeValue(encoder.encode(command));
+    this.commandCharacteristic.writeValue(encoder.encode(command));
     console.log(`Sent command: ${command}`);
   }
 
   async pulseBrightness(targetBrightness: number, durationMs: number): Promise<void> {
     const command = `pulse_brightness:${targetBrightness},${durationMs}`;
-    await this.sendCommand(command);
+    this.sendCommand(command);
+    // await this.sendCommand(command);
+  }
+
+  async fadeBrightness(targetBrightness: number, durationMs: number): Promise<void> {
+    const command = `fade_brightness:${targetBrightness},${durationMs}`;
+    this.sendCommand(command);
+    // await this.sendCommand(command);
   }
 
   async firePattern(patternIndex: number, patternArgument: string): Promise<void> {
     const command = `fire_pattern:${patternIndex}-${patternArgument}`;
-    await this.sendCommand(command);
+    this.sendCommand(command);
+    // await this.sendCommand(command);
   }
 
   get deviceId(): string | undefined {

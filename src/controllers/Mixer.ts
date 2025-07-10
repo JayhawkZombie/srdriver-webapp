@@ -22,7 +22,7 @@ export class Mixer {
   triggerResponse(info: TimelineResponse, deviceControllers: WebSRDriverController[]) {
     console.log("Mixer triggerResponse", info, deviceControllers);
     if (info.data?.type === 'led') {
-      this.ledEngine.triggerResponse(info, deviceControllers);
+      this.ledEngine.triggerResponse(info, deviceControllers.filter(Boolean));
     }
     // Add more types (audio, etc.) as needed
   }

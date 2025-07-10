@@ -1,5 +1,5 @@
 import React from "react";
-import type { RectTemplate } from "../../store/appStore";
+import { useAppStore, type RectTemplate } from "../../store/appStore";
 
 interface KonvaTimelineTemplateSelectorProps {
   rectTemplates: Record<string, RectTemplate>;
@@ -38,20 +38,22 @@ export const KonvaTimelineTemplateSelector: React.FC<KonvaTimelineTemplateSelect
   selectedTemplateKey,
   onSelect,
 }) => {
+  const palettes = useAppStore(state => state.palettes);
   return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 24, margin: "0 0 18px 0" }}>
       {Object.entries(rectTemplates).map(([key, template]) => {
-        const color = template?.defaultData?.color || "#2196f3";
         const selected = selectedTemplateKey === key;
+        const thisRectPalette = palettes[template?.paletteName || "changeSettings"];
+        const thisRectColor = thisRectPalette?.baseColor || "#2196f3";
         return (
-          <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", }}>
             <div
-              style={rectStyle(color, selected)}
+              style={rectStyle(thisRectColor, selected)}
               onClick={() => onSelect(key)}
               title={template?.type || key}
             />
             <div style={labelStyle(selected)}>
-              {template?.type || key}
+              {template?.name || template?.type || key}
             </div>
           </div>
         );
