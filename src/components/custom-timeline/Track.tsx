@@ -22,6 +22,8 @@ export interface TrackProps {
   windowDuration: number;
   playhead?: number;
   // Optionally, pass in the playhead position, etc.
+  onBandSelectorPointerDown?: () => void;
+  onBandSelectorPointerUp?: () => void;
 }
 
 const Track: React.FC<TrackProps> = ({
@@ -40,6 +42,8 @@ const Track: React.FC<TrackProps> = ({
   windowStart,
   windowDuration,
   playhead,
+  onBandSelectorPointerDown,
+  onBandSelectorPointerUp,
 }) => {
   const band = bandResults && bandResults[selectedBandIdx];
   const bandConfig = bandConfigs && bandConfigs[selectedBandIdx];
@@ -83,6 +87,10 @@ const Track: React.FC<TrackProps> = ({
                 e.cancelBubble = true;
                 onSelectBand(trackIndex, bandIdx);
               }}
+              onMouseDown={onBandSelectorPointerDown}
+              onTouchStart={onBandSelectorPointerDown}
+              onMouseUp={onBandSelectorPointerUp}
+              onTouchEnd={onBandSelectorPointerUp}
               perfectDrawEnabled={false}
             />
           ))}

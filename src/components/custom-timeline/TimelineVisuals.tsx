@@ -118,6 +118,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
     const { bandResults } = useDetectionData();
     const { bandConfigs } = useAudioAnalysis();
     const [selectedBands, setSelectedBands] = React.useState<number[]>(() => Array(rest.numTracks).fill(0));
+    const [bandSelectorActive, setBandSelectorActive] = React.useState(false);
     const handleSelectBand = (trackIdx: number, bandIdx: number) => {
         setSelectedBands((bands) => {
             const copy = [...bands];
@@ -193,6 +194,8 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
             }
         },
         onBackgroundClick: rest.onBackgroundClick,
+        isContextMenuOpen: menuOpen,
+        isBandSelectorActive: bandSelectorActive,
     });
 
     // When closing the menu, also reset pointer state
@@ -328,6 +331,9 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                                         windowStart={rest.windowStart}
                                         windowDuration={rest.windowDuration}
                                         playhead={rest.currentTime}
+                                        // Add handlers to set bandSelectorActive
+                                        onBandSelectorPointerDown={() => setBandSelectorActive(true)}
+                                        onBandSelectorPointerUp={() => setBandSelectorActive(false)}
                                     />
                                     {/* Track border bottom (except last) */}
                                     {i < rest.numTracks - 1 && (

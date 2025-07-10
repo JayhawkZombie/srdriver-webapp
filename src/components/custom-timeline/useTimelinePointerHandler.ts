@@ -35,6 +35,8 @@ export function useTimelinePointerHandler({
   onRectResize,
   onContextMenu,
   onBackgroundClick,
+  isContextMenuOpen = false,
+  isBandSelectorActive = false,
 }: {
   windowStart: number;
   windowDuration: number;
@@ -49,6 +51,8 @@ export function useTimelinePointerHandler({
   onRectResize?: (id: string, edge: 'start' | 'end', newTimestamp: number, newDuration: number) => void;
   onContextMenu?: (info: TimelineContextInfo, event: unknown) => void;
   onBackgroundClick?: (info: TimelinePointerInfo, event: unknown) => void;
+  isContextMenuOpen?: boolean;
+  isBandSelectorActive?: boolean;
 }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -57,27 +61,9 @@ export function useTimelinePointerHandler({
   const dragStartRef = useRef<{ x: number; y: number; timestamp: number; trackIndex: number } | null>(null);
   const resizeStartRef = useRef<{ x: number; timestamp: number; duration: number } | null>(null);
 
-  // Context menu state for IMGUI/Blueprint menus
-  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [contextMenuInfo, setContextMenuInfo] = useState<TimelineContextInfo | null>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-
   const [draggingRectPos, setDraggingRectPos] = useState<{ x: number; y: number } | null>(null);
   // Track the last snapped shadow position for DAR
   const lastSnappedShadowRef = useRef<{ timestamp: number; trackIndex: number } | null>(null);
-
-  const openContextMenu = (position: { x: number; y: number }, info: TimelineContextInfo) => {
-    console.log('[TimelinePointerHandler] open ContextMenu', position, info);
-    setContextMenuPosition(position);
-    setContextMenuInfo(info);
-    setIsContextMenuOpen(true);
-  };
-  const closeContextMenu = () => {
-    setIsContextMenuOpen(false);
-    setContextMenuPosition(null);
-    setContextMenuInfo(null);
-  };
 
   // Helper to get rect by id
   const getRectById = (id: string) => responses.find(r => r.id === id);
@@ -93,9 +79,11 @@ export function useTimelinePointerHandler({
   // --- Track area pointer logic (for Stage or background Rect/div) ---
   const getTrackAreaProps = useCallback(() => ({
     onClick: (e: unknown) => {
-      console.log('[TrackArea] onClick', e, { selectedId, hoveredId });
+      console.log('[TrackArea] onClick', e, { selectedId, hoveredId, isContextMenuOpen, isBandSelectorActive });
+      // Block add if context menu or band selector is open/active
+      if (isContextMenuOpen || isBandSelectorActive) return;
       // Only add if not clicking on a rect
-      if (selectedId || hoveredId) return;
+      if (hoveredId) return;
       const evt = (e as any).evt ?? e;
       if (evt && typeof evt.preventDefault === 'function') {
         evt.preventDefault();
@@ -116,12 +104,10 @@ export function useTimelinePointerHandler({
         numTracks,
         totalDuration,
       });
-      // console.log('[TrackArea] onClick info', info);
       if (!info) return;
       if (onBackgroundClick) onBackgroundClick(info, e);
     },
     onContextMenu: (e: unknown) => {
-      // console.log('[TrackArea] onContextMenu', e, { selectedId, hoveredId });
       const evt = (e as any).evt ?? e;
       if (evt && typeof evt.preventDefault === 'function') {
         evt.preventDefault();
@@ -153,15 +139,12 @@ export function useTimelinePointerHandler({
         numTracks,
         totalDuration,
       });
-      // console.log('[TrackArea] onContextMenu info', info);
       if (!info) return;
       if (onContextMenu) {
-        // console.log('[TrackArea] calling onContextMenu with', { type: 'background', time: info.time, trackIndex: info.trackIndex });
-        // Pass the cursor position up for menu placement
         onContextMenu({ type: 'background', time: info.time, trackIndex: info.trackIndex }, { clientX: x, clientY: y });
       }
     },
-  }), [selectedId, hoveredId, onBackgroundClick, onContextMenu, windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks, totalDuration]);
+  }), [hoveredId, onBackgroundClick, onContextMenu, windowStart, windowDuration, tracksWidth, tracksTopOffset, trackHeight, trackGap, numTracks, totalDuration, isContextMenuOpen, isBandSelectorActive]);
 
   // --- Rect logic ---
   const getRectProps = useCallback((id: string) => {
@@ -345,12 +328,6 @@ export function useTimelinePointerHandler({
       resizing,
     },
     draggingRectPos,
-    isContextMenuOpen,
-    contextMenuPosition,
-    contextMenuInfo,
-    openContextMenu,
-    closeContextMenu,
-    contextMenuRef,
     resetPointerState,
   };
 } 
