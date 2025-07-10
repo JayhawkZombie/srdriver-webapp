@@ -1,5 +1,5 @@
 import React from "react";
-import { Menu, MenuItem } from "@blueprintjs/core";
+import { Menu, MenuItem, InputGroup } from "@blueprintjs/core";
 import { createPortal } from "react-dom";
 
 export interface TimelineMenuAction {
@@ -19,6 +19,7 @@ interface TimelineContextMenuProps {
   onClose: () => void;
   menuRef: React.RefObject<HTMLDivElement>;
   actions?: TimelineMenuAction[];
+  onEditRectData?: (rectId: string, key: string, value: any) => void;
 }
 
 function renderMenuActions(actions: TimelineMenuAction[] = [], info: any) {
@@ -37,9 +38,10 @@ function renderMenuActions(actions: TimelineMenuAction[] = [], info: any) {
   );
 }
 
-const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, position, info, onClose, menuRef, actions }) => {
+const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, position, info, onClose, menuRef, actions, onEditRectData }) => {
   if (!isOpen || !position) return null;
-  console.log("TimelineContextMenu", info);
+  // List of keys to skip (disabled fields)
+  const disabledKeys = ["timestamp", "duration", "trackIndex"];
   return createPortal(
     <>
       <div style={{position:'fixed',top:0,left:0,zIndex:10000,background:'#f00',color:'#fff',padding:4,fontSize:12}}>MENU OPEN (debug)</div>
@@ -65,6 +67,21 @@ const TimelineContextMenu: React.FC<TimelineContextMenuProps> = ({ isOpen, posit
               <MenuItem text={`Timestamp: ${info.rect.timestamp !== undefined ? info.rect.timestamp.toFixed(2) : ''}`} disabled />
               <MenuItem text={`Duration: ${info.rect.duration !== undefined ? info.rect.duration.toFixed(2) : ''}`} disabled />
               <MenuItem text={`Track: ${info.rect.trackIndex}`} disabled />
+              {/* Editable fields for rect.data */}
+              {info.rect.data && Object.keys(info.rect.data).filter(key => !disabledKeys.includes(key)).map(key => (
+                <MenuItem key={key} text={
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{minWidth: 80, color: '#aaa'}}>{key}:</span>
+                    <InputGroup
+                      value={String(info.rect.data[key] ?? '')}
+                      onChange={e => onEditRectData && onEditRectData(info.rect.id, key, e.target.value)}
+                      style={{flex:1,minWidth:60}}
+                      fill
+                      small
+                    />
+                  </div>
+                } />
+              ))}
             </>
           ) : info?.type === 'background' ? (
             <>

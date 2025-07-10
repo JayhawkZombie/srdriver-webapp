@@ -245,6 +245,23 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
         return { baseColor: "#2196f3", borderColor: "#fff", states: {} };
     }
 
+    // Handler to update rect data instantly
+    const handleEditRectData = (rectId: string, key: string, value: any) => {
+        // Update the responses array
+        if (!menuInfo || menuInfo.type !== 'rect') return;
+        rest.setSelectedId(rectId); // keep selection
+        rest.setHoveredId(rectId);
+        if (typeof rest.responses === 'object' && Array.isArray(rest.responses)) {
+            const updated = rest.responses.map(r =>
+                r.id === rectId ? { ...r, data: { ...r.data, [key]: value } } : r
+            );
+            // If parent provided a setter, use it (assume setResponses is passed as a prop)
+            if (typeof rest.setResponses === 'function') {
+                rest.setResponses(updated);
+            }
+        }
+    };
+
     return (
         <>
             <div
@@ -548,6 +565,7 @@ export const TimelineVisuals: React.FC<TimelineVisualsProps> = (props) => {
                 actions={props.actions}
                 onClose={handleMenuClose}
                 menuRef={menuRef}
+                onEditRectData={handleEditRectData}
             />
         </>
     );
