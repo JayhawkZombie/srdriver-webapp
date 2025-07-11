@@ -10,13 +10,13 @@ import { AudioAnalysisProvider } from "../src/components/custom-timeline/AudioAn
 import { DetectionDataProvider } from "../src/components/custom-timeline/DetectionDataContext";
 
 export const globalTypes = {
-  showLogDrawer: {
+    showLogDrawer: {
         name: "Log Drawer",
         description: "Show the application log drawer",
-    defaultValue: false,
-    toolbar: {
+        defaultValue: false,
+        toolbar: {
             icon: "sidebar",
-      items: [
+            items: [
                 { value: true, title: "Show Log Drawer" },
                 { value: false, title: "Hide Log Drawer" },
             ],
@@ -31,37 +31,37 @@ export const globalTypes = {
             items: [
                 { value: true, title: "Show App State Drawer" },
                 { value: false, title: "Hide App State Drawer" },
-      ],
+            ],
+        },
     },
-  },
 };
 
 export const decorators = [
-  (Story, context) => {
-    const showLogDrawer = context.globals.showLogDrawer;
+    (Story, context) => {
+        const showLogDrawer = context.globals.showLogDrawer;
         const showDevAppStateDrawer = context.globals.showDevAppStateDrawer;
-    return (
-        <UnifiedThemeProvider>
-            <FakeDeviceControllerProvider>
-                <FakeAppStateStoryProvider mockType="screenshotBar">
-                    <AudioAnalysisProvider>
-                        <DetectionDataProvider>
-                            <PlaybackProvider>
-                                <AppStateLogDrawer
-                                    isOpen={!!showLogDrawer}
-                                    onClose={() => {}}
-                                />
-                                <DevAppStateViewer
-                                    isOpen={!!showDevAppStateDrawer}
-                                    onClose={() => {}}
-                                />
-                                <Story />
-                            </PlaybackProvider>
-                        </DetectionDataProvider>
-                    </AudioAnalysisProvider>
-                </FakeAppStateStoryProvider>
-            </FakeDeviceControllerProvider>
-        </UnifiedThemeProvider>
-    );
-  },
+        return (
+            <UnifiedThemeProvider>
+                <FakeDeviceControllerProvider>
+                    <FakeAppStateStoryProvider mockType="screenshotBar">
+                        <PlaybackProvider>
+                            <AudioAnalysisProvider>
+                                <DetectionDataProvider>
+                                    <AppStateLogDrawer
+                                        isOpen={!!showLogDrawer}
+                                        onClose={() => {}}
+                                    />
+                                    <DevAppStateViewer
+                                        isOpen={!!showDevAppStateDrawer}
+                                        onClose={() => {}}
+                                    />
+                                    <Story />
+                                </DetectionDataProvider>
+                            </AudioAnalysisProvider>
+                        </PlaybackProvider>
+                    </FakeAppStateStoryProvider>
+                </FakeDeviceControllerProvider>
+            </UnifiedThemeProvider>
+        );
+    },
 ];

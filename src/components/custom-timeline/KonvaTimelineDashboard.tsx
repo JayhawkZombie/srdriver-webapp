@@ -201,6 +201,7 @@ const KonvaTimelineDashboardInner: React.FC = () => {
             }
             
             if (
+                isPlaying &&
                 assignedTarget &&
                 isActive &&
                 !rect.triggered &&

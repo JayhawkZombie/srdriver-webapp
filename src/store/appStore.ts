@@ -105,7 +105,7 @@ export function persistWithIndexedDB<T extends object>(key: string, config: Stat
         deviceUserPrefs: state.deviceUserPrefs,
       };
       if (stateToPersist.timeline) {
-        console.log('[Zustand] Persisting timeline:', Array.isArray(stateToPersist.timeline.responses) ? stateToPersist.timeline.responses.length : 0, stateToPersist.timeline.responses?.slice(0, 2));
+        // console.log('[Zustand] Persisting timeline:', Array.isArray(stateToPersist.timeline.responses) ? stateToPersist.timeline.responses.length : 0, stateToPersist.timeline.responses?.slice(0, 2));
       }
       idbSet(key, stateToPersist);
     };
@@ -942,7 +942,7 @@ export const useAppStore = create<AppState & {
             }));
           },
           setAubioResult: (result) => set(state => {
-            console.log('setAubioResult', result);
+            // console.log('setAubioResult', result);
             return {
             audio: safeMerge(state.audio ?? {}, {
               analysis: ensureAudioDataAnalysis({
