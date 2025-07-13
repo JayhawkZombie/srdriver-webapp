@@ -320,7 +320,7 @@ export interface AppState {
   setDevToolsEnabled: (enabled: boolean) => void;
   // --- SD Card (in-memory, not persisted) ---
   sdCard: SdCardState;
-  setSDCardFileTree: (fileTree: FileNode | null) => void;
+  setSDCardFileTree: (fileTree: FileNode | null | ((prev: FileNode | null) => FileNode | null)) => void;
   setSDCardLoading: (loading: boolean) => void;
   setSDCardError: (error: string | null) => void;
   clearSDCardState: () => void;
@@ -485,7 +485,14 @@ export const useAppStore = create<AppState & {
           logs: [],
           maxLogCount: 200,
         sdCard: { fileTree: null, loading: false, error: null },
-        setSDCardFileTree: (fileTree: FileNode | null) => set(state => ({ sdCard: { ...state.sdCard, fileTree } })),
+        setSDCardFileTree: (fileTreeOrUpdater: FileNode | null | ((prev: FileNode | null) => FileNode | null)) =>
+          set(state => {
+            const prev = state.sdCard.fileTree;
+            const nextFileTree = typeof fileTreeOrUpdater === 'function'
+              ? (fileTreeOrUpdater as (prev: FileNode | null) => FileNode | null)(prev)
+              : fileTreeOrUpdater;
+            return { sdCard: { ...state.sdCard, fileTree: nextFileTree } };
+          }),
         setSDCardLoading: (loading: boolean) => set(state => ({ sdCard: { ...state.sdCard, loading } })),
         setSDCardError: (error: string | null) => set(state => ({ sdCard: { ...state.sdCard, error } })),
         clearSDCardState: () => set(() => ({ sdCard: { fileTree: null, loading: false, error: null } })),
@@ -766,7 +773,14 @@ export const useAppStore = create<AppState & {
           logs: [],
           maxLogCount: 200,
         sdCard: { fileTree: null, loading: false, error: null },
-        setSDCardFileTree: (fileTree: FileNode | null) => set(state => ({ sdCard: { ...state.sdCard, fileTree } })),
+        setSDCardFileTree: (fileTreeOrUpdater: FileNode | null | ((prev: FileNode | null) => FileNode | null)) =>
+          set(state => {
+            const prev = state.sdCard.fileTree;
+            const nextFileTree = typeof fileTreeOrUpdater === 'function'
+              ? (fileTreeOrUpdater as (prev: FileNode | null) => FileNode | null)(prev)
+              : fileTreeOrUpdater;
+            return { sdCard: { ...state.sdCard, fileTree: nextFileTree } };
+          }),
         setSDCardLoading: (loading: boolean) => set(state => ({ sdCard: { ...state.sdCard, loading } })),
         setSDCardError: (error: string | null) => set(state => ({ sdCard: { ...state.sdCard, error } })),
         clearSDCardState: () => set(() => ({ sdCard: { fileTree: null, loading: false, error: null } })),

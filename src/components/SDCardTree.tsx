@@ -30,25 +30,36 @@ export interface SDCardTreeProps {
   fileTree: FileNode | null;
   onFileSelect: (fileName: string) => void;
   isLoading?: boolean;
+  expandedIds: Set<string>;
+  onToggleExpand: (nodeId: string, isExpanding: boolean) => void;
 }
 
-export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, isLoading = false }) => {
+export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, isLoading = false, expandedIds, onToggleExpand }) => {
   const [treeNodes, setTreeNodes] = useState<TreeNodeInfo[]>([]);
 
-  // Update tree nodes when fileTree changes
+  // Update tree nodes when fileTree or expandedIds changes
   useEffect(() => {
+    function markExpanded(nodes: TreeNodeInfo[]): TreeNodeInfo[] {
+      return nodes.map(n => {
+        const isExpanded = expandedIds.has(n.id as string);
+        return {
+          ...n,
+          isExpanded,
+          childNodes: n.childNodes ? markExpanded(n.childNodes) : undefined,
+        };
+      });
+    }
     if (fileTree && !fileTree.error) {
-      setTreeNodes(fileNodeToTreeNodes(fileTree));
+      setTreeNodes(markExpanded(fileNodeToTreeNodes(fileTree)));
     } else {
       setTreeNodes([]);
     }
-  }, [fileTree]);
+  }, [fileTree, expandedIds]);
 
   // Custom render for tree node labels
   const renderLabel = (node: TreeNodeInfo) => {
     const fileNode = node.nodeData as FileNode;
     const sizeText = fileNode.type === 'file' && fileNode.size ? ` (${fileNode.size} bytes)` : '';
-    
     return (
       <span
         style={{
@@ -63,22 +74,16 @@ export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, 
     );
   };
 
-  // Handle expand/collapse
+  // Handle expand/collapse and file select
   const handleNodeClick = (node: TreeNodeInfo) => {
-    if (node.childNodes) {
-      setTreeNodes(prev => updateNode(prev, node.id as string, n => ({ ...n, isExpanded: !n.isExpanded })));
-    } else if ((node.nodeData as FileNode)?.type === 'file') {
+    const fileNode = node.nodeData as FileNode;
+    if (fileNode.type === 'directory') {
+      const isExpanding = !expandedIds.has(node.id as string);
+      onToggleExpand(node.id as string, isExpanding);
+    } else if (fileNode.type === 'file') {
       onFileSelect(node.label as string);
     }
   };
-
-  function updateNode(nodes: TreeNodeInfo[], id: string, updater: (n: TreeNodeInfo) => TreeNodeInfo): TreeNodeInfo[] {
-    return nodes.map(n => {
-      if (n.id === id) return updater(n);
-      if (n.childNodes) return { ...n, childNodes: updateNode(n.childNodes, id, updater) };
-      return n;
-    });
-  }
 
   if (isLoading) {
     return (

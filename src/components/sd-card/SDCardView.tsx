@@ -1,12 +1,12 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useDeviceControllerContext } from '../../controllers/DeviceControllerContext';
 import { useActiveDeviceId, useAppStore } from '../../store/appStore';
-import { Box, Typography, Button, CircularProgress, Alert, LinearProgress } from '@mui/material';
-import { useSDCardStream } from './useSDCardStream';
+import { Box, Typography, Button, CircularProgress, Alert, LinearProgress, Stack } from '@mui/material';
 import { SDCardBLEClient } from './SDCardBLEClient';
+import { useSDCardStream } from './useSDCardStream';
+import { SDCardTree } from '../SDCardTree';
 import type { FileNode } from '../SDCardTree';
 
-// Individual selectors for Zustand state/actions
 const useSDCardFileTree = () => useAppStore(state => state.sdCard.fileTree);
 const useSDCardLoading = () => useAppStore(state => state.sdCard.loading);
 const useSDCardError = () => useAppStore(state => state.sdCard.error);
@@ -27,6 +27,23 @@ export const SDCardView: React.FC = () => {
   const clearSDCardState = useClearSDCardState();
   const activeDevice = devices.find(d => d.browserId === activeDeviceId);
   const showSDCard = activeDevice && activeDevice.isConnected && activeDevice.controller?.hasSDCard;
+
+  // Track the current directory (default: '/')
+  const [, setCurrentDir] = useState<string>('/');
+
+  // Track expanded node IDs
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Helper to update children of a node in the file tree (in Zustand)
+  const updateNodeChildren = (tree: FileNode, nodeName: string, children: FileNode[]): FileNode => {
+    if (tree.name === nodeName) {
+      return { ...tree, children };
+    }
+    if (tree.children) {
+      return { ...tree, children: tree.children.map(child => updateNodeChildren(child, nodeName, children)) };
+    }
+    return tree;
+  };
 
   // Manage SDCardBLEClient instances per device
   const clientRefs = useRef<Map<string, SDCardBLEClient>>(new Map());
@@ -59,10 +76,15 @@ export const SDCardView: React.FC = () => {
     } else if (streamingError) {
       setSDCardLoading(false);
       setSDCardError(streamingError);
-    } else if (streamingData) {
+    } else if (streamingData && streamingData.name) {
+      // streamingData is a FileNode for the directory just listed
+      // Update only that node's children in the file tree
       setSDCardLoading(false);
       setSDCardError(null);
-      setSDCardFileTree(streamingData as FileNode);
+      setSDCardFileTree((prevTree: FileNode | null) => {
+        if (!prevTree) return streamingData as FileNode;
+        return updateNodeChildren(prevTree, (streamingData as FileNode).name, (streamingData as FileNode).children || []);
+      });
     }
   }, [streamingLoading, streamingError, streamingData, setSDCardLoading, setSDCardError, setSDCardFileTree]);
 
@@ -80,21 +102,64 @@ export const SDCardView: React.FC = () => {
     state = 'idle';
   }
  
-  // Send LIST command via BLE
-  const onLoadSDCard = () => {
+  // Send LIST command for a directory
+  const listDirectory = (dir: string) => {
     if (!bleClient) {
       setSDCardError('No SD card BLE client available');
       return;
     }
     clearSDCardState();
-    sendCommand('LIST');
+    setCurrentDir(dir);
+    // Only list one directory deep
+    sendCommand('LIST', dir);
+  };
+
+  // Initial load or refresh
+  const onLoadSDCard = () => {
+    listDirectory('/');
+  };
+
+  // Handle directory expand/collapse
+  const handleToggleExpand = (nodeId: string, isExpanding: boolean) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (isExpanding) {
+        next.add(nodeId);
+        // Find the node in the file tree
+        const findNode = (node: FileNode, id: string): FileNode | null => {
+          if (node.name === id) return node;
+          if (node.children) {
+            for (const child of node.children) {
+              const found = findNode(child, id);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        if (fileTree) {
+          const node = findNode(fileTree, nodeId);
+          if (node && node.type === 'directory' && (!node.children || node.children.length === 0)) {
+            // Only list if children are missing
+            sendCommand('LIST', node.name);
+          }
+        }
+      } else {
+        next.delete(nodeId);
+      }
+      return next;
+    });
   };
 
   return (
     <Box sx={{ width: '100%', maxWidth: 900, margin: '0 auto', mt: 2 }}>
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
-        SD Card Browser
-      </Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+          SD Card Browser
+        </Typography>
+        <Button variant="outlined" size="small" onClick={onLoadSDCard} disabled={state === 'loading'}>
+          Refresh
+        </Button>
+      </Stack>
       {state === 'noDevice' && (
         <Typography variant="body1" color="text.secondary">
           No connected devices with SD card support found.
@@ -127,10 +192,13 @@ export const SDCardView: React.FC = () => {
       )}
       {state === 'loaded' && fileTree && (
         <Box sx={{ mt: 2 }}>
-          {/* Minimal: show file tree as JSON for now */}
-          <pre style={{ background: '#222', color: '#fff', padding: 16, borderRadius: 8, fontSize: 14 }}>
-            {JSON.stringify(fileTree, null, 2)}
-          </pre>
+          <SDCardTree 
+            fileTree={fileTree} 
+            onFileSelect={() => {}} 
+            isLoading={false} 
+            expandedIds={expandedIds} 
+            onToggleExpand={handleToggleExpand}
+          />
         </Box>
       )}
       {state === 'error' && (
