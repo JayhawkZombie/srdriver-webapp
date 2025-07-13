@@ -50,14 +50,23 @@ export class SDCardBLEClient {
       const chunkStr = decoder.decode(target.value);
       try {
         const chunk: ChunkEnvelope = JSON.parse(chunkStr);
-        console.log('[SDCardBLEClient] Any chunk received:', chunk);
+        console.log('[SDCardBLEClient] Chunk received:', { 
+          s: chunk.s, 
+          n: chunk.n, 
+          e: chunk.e, 
+          t: chunk.t,
+          pLength: chunk.p?.length || 0 
+        });
+        
         if (this.onChunk) this.onChunk(chunk);
+        
         const full = this.reassembler.addChunk(chunk);
         if (full && this.onComplete) {
+          console.log('[SDCardBLEClient] Reassembly complete, full response length:', full.length);
           this.onComplete(full);
         }
-      } catch {
-        // Optionally handle parse error
+      } catch (parseError) {
+        console.error('[SDCardBLEClient] Failed to parse chunk:', parseError, 'Raw chunk:', chunkStr);
       }
     }
   };
