@@ -2,35 +2,34 @@ import React from "react";
 import {
     Typography,
     Box,
-    Button,
     IconButton,
     Stack,
-    useTheme,
+    useTheme
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import { useDeviceControllerContext } from "../../controllers/DeviceControllerContext";
-import DeviceControls from "./DeviceControls";
-import { useDeviceMetadata, useDeviceConnection, useDeviceState } from '../../store/appStore';
+import { useActiveDeviceId, useAppStore } from '../../store/appStore';
 import ConnectionTools from './ConnectionTools';
+import DeviceControls from './DeviceControls';
 
 const LightsConnectionCard: React.FC = () => {
     const { devices, connectDevice } = useDeviceControllerContext();
+    const activeDeviceId = useActiveDeviceId();
+    const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
     const theme = useTheme();
-    const [selectedDeviceId, setSelectedDeviceId] = React.useState<string | null>(null);
     const [visible, setVisible] = React.useState(true);
 
     // Only show devices that are actually connecting or connected
     const visibleDevices = devices.filter(d => d.isConnecting || d.isConnected);
 
     React.useEffect(() => {
-        if (!selectedDeviceId && visibleDevices.length > 0) {
-            setSelectedDeviceId(visibleDevices[0].browserId);
+        if (!activeDeviceId && visibleDevices.length > 0) {
+            setActiveDeviceId(visibleDevices[0].browserId);
         }
-    }, [visibleDevices, selectedDeviceId]);
-    console.log('devices', visibleDevices);
+    }, [visibleDevices, activeDeviceId, setActiveDeviceId]);
 
-    const selectedDevice = selectedDeviceId ? visibleDevices.find(d => d.browserId === selectedDeviceId) : null;
+    const selectedDevice = activeDeviceId ? visibleDevices.find(d => d.browserId === activeDeviceId) : null;
 
     if (!visible) {
         return (
@@ -61,8 +60,6 @@ const LightsConnectionCard: React.FC = () => {
             </Box>
         );
     }
-
-    console.log("devices", devices);
 
     return (
         <Box sx={{ p: 2, width: '100%', maxWidth: 380 }}>
@@ -104,11 +101,11 @@ const LightsConnectionCard: React.FC = () => {
                         </Typography>
                         <Stack spacing={0.5}>
                             {visibleDevices.map((device) => {
-                                const isSelected = selectedDeviceId === device.browserId;
+                                const isSelected = activeDeviceId === device.browserId;
                                 return (
                                     <Box
                                         key={device.browserId}
-                                        onClick={() => setSelectedDeviceId(device.browserId)}
+                                        onClick={() => setActiveDeviceId(device.browserId)}
                                         sx={{
                                             flex: 1,
                                             justifyContent: "flex-start",

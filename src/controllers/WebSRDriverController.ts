@@ -8,10 +8,11 @@ import {
   LOW_COLOR_CHARACTERISTIC_UUID,
   LEFT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
   RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID,
-  COMMAND_CHARACTERISTIC_UUID
+  COMMAND_CHARACTERISTIC_UUID,
+  SD_CARD_COMMAND_CHARACTERISTIC_UUID,
+  SD_CARD_STREAM_CHARACTERISTIC_UUID,
 } from '../types/srdriver';
 import { useAppStore } from '../store/appStore';
-import { useBenchmarkStore } from '../store/benchmarkStore';
 
 export class WebSRDriverController implements ISRDriverController {
   private device: BluetoothDevice | null = null;
@@ -24,6 +25,9 @@ export class WebSRDriverController implements ISRDriverController {
   private leftSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private rightSeriesCoefficientsCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private sdCardCommandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private sdCardStreamCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private _hasSDCard: boolean = false;
   private _debounceBrightnessTimeout: ReturnType<typeof setTimeout> | null = null;
   private _lastBrightnessValue: number | null = null;
   private _debouncers: Record<string, { timeout: ReturnType<typeof setTimeout> | null; lastValue: unknown }> = {};
@@ -166,6 +170,9 @@ export class WebSRDriverController implements ISRDriverController {
       this.rightSeriesCoefficientsCharacteristic = await this.service.getCharacteristic(RIGHT_SERIES_COEFFICIENTS_CHARACTERISTIC_UUID);
       this.commandCharacteristic = await this.service.getCharacteristic(COMMAND_CHARACTERISTIC_UUID);
 
+      // --- SD Card BLE setup ---
+      await this._setupSDCardBLE();
+
       // --- Setup notifications for all characteristics ---
       // Helper to parse and call the right callback
       const parseAndNotify = (charName: string, value: DataView) => {
@@ -253,10 +260,46 @@ export class WebSRDriverController implements ISRDriverController {
       await setupNotification(this.commandCharacteristic, 'command');
       // Command characteristic does not need notification
 
+      // Optionally: setup SD card notifications if present
+      if (this.sdCardStreamCharacteristic) {
+        try {
+          await this.sdCardStreamCharacteristic.startNotifications();
+          this.sdCardStreamCharacteristic.addEventListener('characteristicvaluechanged', (/* event */) => {
+            // TODO: Handle SD card stream chunk
+            // const target = event.target as BluetoothRemoteGATTCharacteristic;
+            // if (target && target.value) { ... }
+          });
+        } catch (e) {
+          console.warn('Failed to start notifications for SD card stream:', e);
+        }
+      }
+
       return true;
     } catch (error) {
       console.error('Failed to connect to SRDriver:', error);
       throw error;
+    }
+  }
+
+  private async _setupSDCardBLE() {
+    this._hasSDCard = false;
+    this.sdCardCommandCharacteristic = null;
+    this.sdCardStreamCharacteristic = null;
+    if (!this.service) return;
+    try {
+      this.sdCardCommandCharacteristic = await this.service.getCharacteristic(SD_CARD_COMMAND_CHARACTERISTIC_UUID);
+      this.sdCardStreamCharacteristic = await this.service.getCharacteristic(SD_CARD_STREAM_CHARACTERISTIC_UUID);
+      this._hasSDCard = !!(this.sdCardCommandCharacteristic && this.sdCardStreamCharacteristic);
+      if (this._hasSDCard) {
+        console.log('[BLE] SD card characteristics found. SD card features enabled.');
+      } else {
+        console.warn('[BLE] SD card characteristics not found. SD card features disabled.');
+      }
+    } catch {
+      this.sdCardCommandCharacteristic = null;
+      this.sdCardStreamCharacteristic = null;
+      this._hasSDCard = false;
+      console.warn('[BLE] SD card characteristics not found (device may be old firmware). SD card features disabled.');
     }
   }
 
@@ -274,6 +317,9 @@ export class WebSRDriverController implements ISRDriverController {
     this.leftSeriesCoefficientsCharacteristic = null;
     this.rightSeriesCoefficientsCharacteristic = null;
     this.commandCharacteristic = null;
+    this.sdCardCommandCharacteristic = null;
+    this.sdCardStreamCharacteristic = null;
+    this._hasSDCard = false;
     console.log('Disconnected from SRDriver');
   }
 
@@ -516,6 +562,17 @@ export class WebSRDriverController implements ISRDriverController {
 
   public getService(): BluetoothRemoteGATTService | null {
     return this.service;
+  }
+
+  public get hasSDCard(): boolean {
+    return this._hasSDCard;
+  }
+
+  public getSDCardCommandCharacteristic(): BluetoothRemoteGATTCharacteristic | null {
+    return this.sdCardCommandCharacteristic;
+  }
+  public getSDCardStreamCharacteristic(): BluetoothRemoteGATTCharacteristic | null {
+    return this.sdCardStreamCharacteristic;
   }
 
   private debouncedWrite<T>(

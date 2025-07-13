@@ -21,6 +21,8 @@ import {
 } from "./custom-timeline/DetectionDataContext";
 import KonvaTimelineDashboard from './custom-timeline/KonvaTimelineDashboard';
 import PlaybackProvider from './custom-timeline/PlaybackContext';
+import TabPanelContainer from './TabPanelContainer';
+import { SDCardView } from './sd-card/SDCardView';
 
 interface DashboardProps {
   mode: 'light' | 'dark';
@@ -37,6 +39,11 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
   const [profilingCompact, setProfilingCompact] = useState(true);
   const devToolsEnabled = useDevToolsEnabled();
   const toggleDevAppStateDrawer = () => setDevAppStateDrawerOpen(open => !open);
+
+  // --- SD Card state from Zustand ---
+  // (You may want to wire this up to BLE later)
+  // import { useAppStore } from '../store/appStore';
+  // const { fileTree, loading, error } = useAppStore(state => state.sdCard);
 
   return (
       <Box
@@ -81,7 +88,27 @@ const Dashboard: React.FC<DashboardProps> = ({ mode, onToggleMode }) => {
                               onOpenLogDrawer={() => setLogDrawerOpen(true)}
                               onOpenDevAppStateDrawer={toggleDevAppStateDrawer}
                           />
-                          <KonvaTimelineDashboard />
+                          {/* --- Dashboard Tabs --- */}
+                          <div style={{ flex: 1, width: '100%', maxWidth: 1800, margin: '0 auto', padding: 0 }}>
+                            <TabPanelContainer
+                              tabs={[
+                                { label: 'Timeline', content: <KonvaTimelineDashboard /> },
+                                { label: 'SD Card', content: <SDCardView fileTree={null} loading={false} error={null} /> },
+                              ]}
+                              tabsSx={{
+                                background: mode === 'dark' ? 'var(--bp5-dark-gray1)' : '#f5f8fa',
+                                borderRadius: 12,
+                                px: 2,
+                                pt: 2,
+                                mb: 2,
+                              }}
+                              tabSx={{
+                                color: mode === 'dark' ? 'var(--bp5-text-color)' : '#1a1a1a',
+                                fontWeight: 600,
+                                fontSize: 18,
+                              }}
+                            />
+                          </div>
                           {devToolsEnabled && (
                               <Card
                                   elevation={4}

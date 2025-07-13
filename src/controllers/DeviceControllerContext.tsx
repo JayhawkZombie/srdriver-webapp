@@ -16,6 +16,7 @@ export type DeviceControllerContextType = {
   updateDevice: (deviceId: string, update: Partial<Device>) => void;
   onHeartbeatChange: (deviceId: string, cb: (isAlive: boolean) => void) => () => void;
   onHeartbeat: (deviceId: string, cb: () => void) => () => void;
+  requestAndConnectNewDevice: () => Promise<void>;
 };
 
 const DeviceControllerContext = createContext<DeviceControllerContextType | undefined>(undefined);
@@ -262,10 +263,49 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
     };
   }, []);
 
+  // Add a method to request and connect a new device
+  const requestAndConnectNewDevice = useCallback(async () => {
+    try {
+      // Prompt user to select a BLE device (filter for SRDriver devices as needed)
+      const bleDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'SRDriver' }],
+        optionalServices: ['generic_access', 'generic_attribute'], // Add your custom service UUIDs if needed
+      });
+      // Use the device's id as browserId
+      const browserId = bleDevice.id;
+      // If already known, just connect
+      if (devices.some(d => d.browserId === browserId)) {
+        await connectDevice(browserId);
+        return;
+      }
+      // Otherwise, create a new controller and connect
+      let controller = controllerMapRef.current[browserId];
+      if (!controller) {
+        controller = new WebSRDriverController(bleDevice);
+      }
+      await controller.connect();
+      controllerMapRef.current[browserId] = controller;
+      const metadata: DeviceMetadata = {
+        browserId,
+        name: bleDevice.name || 'SRDriver',
+        nickname: bleDevice.name || 'SRDriver',
+        group: null,
+        tags: [],
+        typeInfo: { model: '', firmwareVersion: '', numLEDs: 0, ledLayout: 'strip', capabilities: [] },
+      };
+      useAppStore.getState().addDevice(metadata);
+      addDevice(metadata);
+      controller.pingForRTT();
+    } catch (err) {
+      // User cancelled or error
+      // Optionally handle/log error
+    }
+  }, [devices, connectDevice, addDevice]);
+
   return (
     <HeartbeatProvider>
       <DeviceControllerMapContext.Provider value={{ getController: (id) => controllerMapRef.current[id] }}>
-        <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice, onHeartbeatChange, onHeartbeat }}>
+        <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice, onHeartbeatChange, onHeartbeat, requestAndConnectNewDevice }}>
           <HeartbeatManager />
           {children}
         </DeviceControllerContext.Provider>
