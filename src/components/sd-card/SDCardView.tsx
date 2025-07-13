@@ -4,9 +4,11 @@ import { useActiveDeviceId, useAppStore } from '../../store/appStore';
 import { Box, Typography, Button, CircularProgress, Alert, LinearProgress, Stack } from '@mui/material';
 import { SDCardBLEClient } from './SDCardBLEClient';
 import { useSDCardStream } from './useSDCardStream';
-import { SDCardTree } from '../SDCardTree';
+import { SDCardFileTree } from './SDCardFileTree';
 import type { FileNode } from '../SDCardTree';
 import { findNodeByPath, updateNodeChildren, ensureEmptyChildrenForDirs, addPathsToFileTree } from './SDUtils';
+import { SDCardContextMenuPortal } from './SDCardContextMenuPortal';
+import type { SDCardContextMenuAction } from './SDCardContextMenuAction';
 
 const useSDCardFileTree = () => useAppStore(state => state.sdCard.fileTree);
 const useSDCardLoading = () => useAppStore(state => state.sdCard.loading);
@@ -156,8 +158,64 @@ export const SDCardView: React.FC = () => {
     });
   };
 
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+    node: FileNode;
+    actions: SDCardContextMenuAction[];
+  } | null>(null);
+
+  // Context menu actions (customize as needed)
+  const getContextMenuActions = (path: string, node: FileNode): SDCardContextMenuAction[] => [
+    { label: 'Open', onClick: () => alert(`Open ${path}`) },
+    { label: 'Delete', onClick: () => alert(`Delete ${path}`), intent: 'danger' },
+  ];
+
+  const handleContextMenu = (path: string, node: FileNode, e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      path,
+      node,
+      actions: getContextMenuActions(path, node),
+    });
+  };
+
+  // SDCardFileViewer: Streams and displays the contents of a file from the SD card
+  const SDCardFileViewer: React.FC<{ bleClient: SDCardBLEClient | null; filePath: string | null }> = ({ bleClient, filePath }) => {
+    const [content, setContent] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    React.useEffect(() => {
+      if (!bleClient || !filePath) return;
+      setLoading(true);
+      setError(null);
+      setContent(null);
+      bleClient.reset();
+      bleClient.setOnComplete((json) => {
+        try {
+          setContent(json);
+          setLoading(false);
+        } catch (e) {
+          setError('Failed to parse file content');
+          setLoading(false);
+        }
+      });
+      bleClient.sendCommand(`PRINT ${filePath}`);
+    }, [bleClient, filePath]);
+
+    if (!filePath) return null;
+    if (loading) return <Box sx={{ p: 2 }}><CircularProgress size={20} /> Loading file…</Box>;
+    if (error) return <Box sx={{ p: 2, color: 'red' }}>{error}</Box>;
+    return <Box sx={{ p: 2, whiteSpace: 'pre', fontFamily: 'monospace', background: '#181c20', color: '#fff', borderRadius: 2 }}>{content}</Box>;
+  };
+  // (You can later add a state to SDCardView to show SDCardFileViewer when a file is selected)
+
   return (
-    <Box sx={{ width: '100%', maxWidth: 900, margin: '0 auto', mt: 2 }}>
+    <Box sx={{ width: '100%', maxWidth: 900, margin: '0 auto', mt: 2, position: 'relative' }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
           SD Card Browser
@@ -197,15 +255,32 @@ export const SDCardView: React.FC = () => {
         </Box>
       )}
       {state === 'loaded' && fileTree && (
-        <Box sx={{ mt: 2 }}>
-          <SDCardTree 
-            fileTree={fileTree} 
+        <Box sx={{ mt: 2, position: 'relative' }}>
+          {/* <SDCardTree
+            fileTree={fileTree}
             onFileSelect={() => {}} 
             isLoading={false} 
             expandedIds={expandedIds} 
             onToggleExpand={handleToggleExpand}
             loadingDirId={loadingDirId}
+          /> */}
+          <SDCardFileTree
+            fileTree={fileTree}
+            expandedIds={expandedIds}
+            loadingDirId={loadingDirId}
+            onExpand={path => handleToggleExpand(path, true)}
+            onCollapse={path => handleToggleExpand(path, false)}
+            onFileSelect={() => {}}
+            onContextMenu={handleContextMenu}
           />
+          {contextMenu && (
+            <SDCardContextMenuPortal
+              x={contextMenu.x}
+              y={contextMenu.y}
+              actions={contextMenu.actions}
+              onClose={() => setContextMenu(null)}
+            />
+          )}
         </Box>
       )}
       {state === 'error' && (

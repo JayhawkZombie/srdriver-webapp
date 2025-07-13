@@ -84,6 +84,7 @@ export const SDCardFileTree: React.FC<SDCardFileTreeProps> = ({
           fontSize: 16,
           letterSpacing: 0.2,
         }}
+        onContextMenu={e => handleContextMenu(node, e)}
       >
         {node.label}
         {sizeText}
@@ -113,6 +114,7 @@ export const SDCardFileTree: React.FC<SDCardFileTreeProps> = ({
   const handleContextMenu = (node: TreeNodeInfo, e: React.MouseEvent) => {
     e.preventDefault();
     const fileNode = node.nodeData as FileNode;
+    console.log('[SDCardFileTree] Right-clicked node:', fileNode.path || fileNode.name, fileNode);
     if (onContextMenu) {
       onContextMenu(fileNode.path || fileNode.name, fileNode, e);
     }
