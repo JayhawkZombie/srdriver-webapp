@@ -9,6 +9,7 @@ import type { FileNode } from '../SDCardTree';
 import { findNodeByPath, updateNodeChildren, ensureEmptyChildrenForDirs, addPathsToFileTree } from './SDUtils';
 import { SDCardContextMenuPortal } from './SDCardContextMenuPortal';
 import type { SDCardContextMenuAction } from './SDCardContextMenuAction';
+import { SDCardFileViewer } from './SDCardFileViewer';
 
 const useSDCardFileTree = () => useAppStore(state => state.sdCard.fileTree);
 const useSDCardLoading = () => useAppStore(state => state.sdCard.loading);
@@ -38,6 +39,7 @@ export const SDCardView: React.FC = () => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   // Track which directory is currently loading
   const [loadingDirId, setLoadingDirId] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
   // Manage SDCardBLEClient instances per device
   const clientRefs = useRef<Map<string, SDCardBLEClient>>(new Map());
@@ -183,36 +185,10 @@ export const SDCardView: React.FC = () => {
     });
   };
 
-  // SDCardFileViewer: Streams and displays the contents of a file from the SD card
-  const SDCardFileViewer: React.FC<{ bleClient: SDCardBLEClient | null; filePath: string | null }> = ({ bleClient, filePath }) => {
-    const [content, setContent] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    React.useEffect(() => {
-      if (!bleClient || !filePath) return;
-      setLoading(true);
-      setError(null);
-      setContent(null);
-      bleClient.reset();
-      bleClient.setOnComplete((json) => {
-        try {
-          setContent(json);
-          setLoading(false);
-        } catch (e) {
-          setError('Failed to parse file content');
-          setLoading(false);
-        }
-      });
-      bleClient.sendCommand(`PRINT ${filePath}`);
-    }, [bleClient, filePath]);
-
-    if (!filePath) return null;
-    if (loading) return <Box sx={{ p: 2 }}><CircularProgress size={20} /> Loading file…</Box>;
-    if (error) return <Box sx={{ p: 2, color: 'red' }}>{error}</Box>;
-    return <Box sx={{ p: 2, whiteSpace: 'pre', fontFamily: 'monospace', background: '#181c20', color: '#fff', borderRadius: 2 }}>{content}</Box>;
+  // Update file select handler to set selectedFilePath
+  const handleFileSelect = (path: string) => {
+    setSelectedFilePath(path);
   };
-  // (You can later add a state to SDCardView to show SDCardFileViewer when a file is selected)
 
   return (
     <Box sx={{ width: '100%', maxWidth: 900, margin: '0 auto', mt: 2, position: 'relative' }}>
@@ -256,21 +232,13 @@ export const SDCardView: React.FC = () => {
       )}
       {state === 'loaded' && fileTree && (
         <Box sx={{ mt: 2, position: 'relative' }}>
-          {/* <SDCardTree
-            fileTree={fileTree}
-            onFileSelect={() => {}} 
-            isLoading={false} 
-            expandedIds={expandedIds} 
-            onToggleExpand={handleToggleExpand}
-            loadingDirId={loadingDirId}
-          /> */}
           <SDCardFileTree
             fileTree={fileTree}
             expandedIds={expandedIds}
             loadingDirId={loadingDirId}
             onExpand={path => handleToggleExpand(path, true)}
             onCollapse={path => handleToggleExpand(path, false)}
-            onFileSelect={() => {}}
+            onFileSelect={handleFileSelect}
             onContextMenu={handleContextMenu}
           />
           {contextMenu && (
@@ -280,6 +248,13 @@ export const SDCardView: React.FC = () => {
               actions={contextMenu.actions}
               onClose={() => setContextMenu(null)}
             />
+          )}
+          {/* File viewer below the tree */}
+          {selectedFilePath && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle1" sx={{ color: '#fff', mb: 1 }}>File Preview: {selectedFilePath}</Typography>
+              <SDCardFileViewer bleClient={bleClient} filePath={selectedFilePath} />
+            </Box>
           )}
         </Box>
       )}
