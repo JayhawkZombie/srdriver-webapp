@@ -440,564 +440,564 @@ export const useAppStore = create<AppState & {
 }>(
   isStorybook
     ? (set, get) => ({
-        audio: {
-          data: initialAudioData,
-          analysis: initialAudioAnalysis,
-        },
-        playback: initialPlayback,
-        ui: initialUI,
-        timeline: initialTimeline,
-        tracks: initialTracks,
-        devices: [],
-        deviceMetadata: initialDeviceMetadata,
-        deviceState: initialDeviceState,
-        deviceConnection: initialDeviceConnection,
-        deviceData: initialDeviceData,
-        deviceUserPrefs: initialDeviceUserPrefs,
-        hydrated: true,
-        palettes: { ...responseRectPalettes },
-        rectTemplates: {
-          'led-beat': {
-            id: 'led-beat',
-            name: 'LED Beat',
-            type: 'led',
-            defaultDuration: 1,
-            defaultData: { pattern: 'beat', color: '#00ff00' },
-            paletteName: 'lightPulse',
+          audio: {
+            data: initialAudioData,
+            analysis: initialAudioAnalysis,
           },
-          'led-wave': {
-            id: 'led-wave',
-            name: 'LED Wave',
-            type: 'led',
-            defaultDuration: 2,
-            defaultData: { pattern: 'wave', color: '#0000ff' },
-            paletteName: 'singleFirePattern',
+          playback: initialPlayback,
+          ui: initialUI,
+          timeline: initialTimeline,
+          tracks: initialTracks,
+          devices: [],
+          deviceMetadata: initialDeviceMetadata,
+          deviceState: initialDeviceState,
+          deviceConnection: initialDeviceConnection,
+          deviceData: initialDeviceData,
+          deviceUserPrefs: initialDeviceUserPrefs,
+          hydrated: true,
+          palettes: { ...responseRectPalettes },
+          rectTemplates: {
+            'led-beat': {
+              id: 'led-beat',
+              name: 'LED Beat',
+              type: 'led',
+              defaultDuration: 1,
+              defaultData: { pattern: 'beat', color: '#00ff00' },
+              paletteName: 'lightPulse',
+            },
+            'led-wave': {
+              id: 'led-wave',
+              name: 'LED Wave',
+              type: 'led',
+              defaultDuration: 2,
+              defaultData: { pattern: 'wave', color: '#0000ff' },
+              paletteName: 'singleFirePattern',
+            },
           },
-        },
-        templateTypes: [
-          { value: 'pulse', label: 'Pulse' },
-          { value: 'pattern', label: 'Pattern' },
-          { value: 'cue', label: 'Cue' },
-          { value: 'settings', label: 'Settings Change' },
-          { value: 'led', label: 'LED' },
-        ],
-        waveformProgress: null,
-        logs: [],
-        maxLogCount: 200,
+          templateTypes: [
+            { value: 'pulse', label: 'Pulse' },
+            { value: 'pattern', label: 'Pattern' },
+            { value: 'cue', label: 'Cue' },
+            { value: 'settings', label: 'Settings Change' },
+            { value: 'led', label: 'LED' },
+          ],
+          waveformProgress: null,
+          logs: [],
+          maxLogCount: 200,
         sdCard: { fileTree: null, loading: false, error: null },
         setSDCardFileTree: (fileTree: FileNode | null) => set(state => ({ sdCard: { ...state.sdCard, fileTree } })),
         setSDCardLoading: (loading: boolean) => set(state => ({ sdCard: { ...state.sdCard, loading } })),
         setSDCardError: (error: string | null) => set(state => ({ sdCard: { ...state.sdCard, error } })),
         clearSDCardState: () => set(() => ({ sdCard: { fileTree: null, loading: false, error: null } })),
         setAudioData: ({ waveform, duration }: { waveform: number[]; duration: number }) => set(state => ({
-          audio: safeMerge(state.audio ?? {}, {
-            analysis: ensureAudioDataAnalysis({
-              ...state.audio?.analysis,
-              waveform,
-              duration,
-            })
-          }),
-          playback: {
-            ...state.playback,
-            totalDuration: duration,
-          },
-        })),
+            audio: safeMerge(state.audio ?? {}, {
+              analysis: ensureAudioDataAnalysis({
+                ...state.audio?.analysis,
+                waveform,
+                duration,
+              })
+            }),
+            playback: {
+              ...state.playback,
+              totalDuration: duration,
+            },
+          })),
         setWaveformProgress: (progress: { processed: number; total: number; jobId?: string } | null) => set(() => ({ waveformProgress: progress })),
         addTimelineResponse: (resp: TimelineResponse) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses: [...(state.timeline?.responses ?? []), resp],
-          },
-        })),
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses: [...(state.timeline?.responses ?? []), resp],
+            },
+          })),
         updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
-          },
-        })),
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
+            },
+          })),
         deleteTimelineResponse: (id: string) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
-          },
-        })),
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
+            },
+          })),
         setTimelineResponses: (responses: TimelineResponse[]) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses,
-          },
-        })),
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses,
+            },
+          })),
         addDevice: (metadata: DeviceMetadata) => set(state => {
-          const prev = state.deviceMetadata[metadata.browserId] || {};
-          return {
-            devices: state.devices.includes(metadata.browserId)
-              ? state.devices
-              : [...state.devices, metadata.browserId],
+            const prev = state.deviceMetadata[metadata.browserId] || {};
+            return {
+              devices: state.devices.includes(metadata.browserId)
+                ? state.devices
+                : [...state.devices, metadata.browserId],
+              deviceMetadata: {
+                ...state.deviceMetadata,
+                [metadata.browserId]: {
+                  ...prev,
+                  ...metadata,
+                  nickname: metadata.nickname || prev.nickname || '',
+                  group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
+                  tags: metadata.tags || prev.tags || [],
+                  typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
+                },
+              },
+            };
+          }),
+        removeDevice: (id: string) => set(state => {
+            const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
+            const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
+            const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
+            const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
+            const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
+            return {
+              devices: state.devices.filter(did => did !== id),
+              deviceMetadata: restMeta,
+              deviceState: restState,
+              deviceConnection: restConn,
+              deviceData: restData,
+              deviceUserPrefs: restPrefs,
+            };
+          }),
+        setDeviceMetadata: (browserId: string, metadata: DeviceMetadata) => set(state => ({
+            deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
+          })),
+        setDeviceNickname: (browserId: string, nickname: string) => set(state => ({
             deviceMetadata: {
               ...state.deviceMetadata,
-              [metadata.browserId]: {
-                ...prev,
-                ...metadata,
-                nickname: metadata.nickname || prev.nickname || '',
-                group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
-                tags: metadata.tags || prev.tags || [],
-                typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
+              [browserId]: {
+                ...state.deviceMetadata[browserId],
+                nickname,
               },
             },
-          };
-        }),
-        removeDevice: (id: string) => set(state => {
-          const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
-          const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
-          const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
-          const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
-          const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
-          return {
-            devices: state.devices.filter(did => did !== id),
-            deviceMetadata: restMeta,
-            deviceState: restState,
-            deviceConnection: restConn,
-            deviceData: restData,
-            deviceUserPrefs: restPrefs,
-          };
-        }),
-        setDeviceMetadata: (browserId: string, metadata: DeviceMetadata) => set(state => ({
-          deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
-        })),
-        setDeviceNickname: (browserId: string, nickname: string) => set(state => ({
-          deviceMetadata: {
-            ...state.deviceMetadata,
-            [browserId]: {
-              ...state.deviceMetadata[browserId],
-              nickname,
-            },
-          },
-        })),
+          })),
         setDeviceState: (browserId: string, update: Partial<DeviceUIState>) => set(state => ({
-          deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
-        })),
+            deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
+          })),
         setDeviceConnection: (browserId: string, update: Partial<DeviceConnectionStatus>) => set(state => ({
-          deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
-        })),
+            deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
+          })),
         setDeviceData: (browserId: string, data: DeviceDataBlob) => set(state => ({
-          deviceData: { ...state.deviceData, [browserId]: data },
-        })),
+            deviceData: { ...state.deviceData, [browserId]: data },
+          })),
         updateDeviceTypeInfo: (browserId: string, typeInfo: Partial<DeviceTypeInfo>) => set(state => ({
-          deviceMetadata: {
-            ...state.deviceMetadata,
-            [browserId]: {
-              ...state.deviceMetadata[browserId],
-              typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
+            deviceMetadata: {
+              ...state.deviceMetadata,
+              [browserId]: {
+                ...state.deviceMetadata[browserId],
+                typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
+              },
             },
-          },
-        })),
+          })),
         setDeviceGroup: (browserId: string, group: string | null) => set(state => ({
-          deviceMetadata: {
-            ...state.deviceMetadata,
-            [browserId]: {
-              ...state.deviceMetadata[browserId],
-              group,
+            deviceMetadata: {
+              ...state.deviceMetadata,
+              [browserId]: {
+                ...state.deviceMetadata[browserId],
+                group,
+              },
             },
-          },
-        })),
+          })),
         setDeviceUserPrefs: (browserId: string, prefs: Partial<DeviceUserPrefs[string]>) => set(state => ({
-          deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
-        })),
+            deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
+          })),
         setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => set(state => ({
-          tracks: {
-            ...state.tracks,
-            mapping: { ...state.tracks.mapping, [trackIndex]: target },
-          },
-        })),
+            tracks: {
+              ...state.tracks,
+              mapping: { ...state.tracks.mapping, [trackIndex]: target },
+            },
+          })),
         setPalette: (name: string, palette: ResponseRectPalette) => set(state => ({
-          palettes: { ...state.palettes, [name]: palette },
-        })),
+            palettes: { ...state.palettes, [name]: palette },
+          })),
         removePalette: (name: string) => set(state => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { [name]: __, ...rest } = state.palettes;
-          return { palettes: rest };
-        }),
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [name]: __, ...rest } = state.palettes;
+            return { palettes: rest };
+          }),
         getPalette: (name?: string) => {
-          const palettes = get().palettes;
-          if (!name) return palettes['led'] || Object.values(palettes)[0];
-          return palettes[name] || palettes['led'] || Object.values(palettes)[0];
-        },
+            const palettes = get().palettes;
+            if (!name) return palettes['led'] || Object.values(palettes)[0];
+            return palettes[name] || palettes['led'] || Object.values(palettes)[0];
+          },
         addLog: (level: string, category: string, message: string, data?: unknown) => set(state => {
-          const max = state.maxLogCount || 200;
-          const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
-          const logs = [...state.logs, newLog];
-          // Cap logs at maxLogCount
-          const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
-          return { logs: cappedLogs };
-        }),
-        clearLogs: () => set(() => ({ logs: [] })),
+            const max = state.maxLogCount || 200;
+            const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
+            const logs = [...state.logs, newLog];
+            // Cap logs at maxLogCount
+            const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
+            return { logs: cappedLogs };
+          }),
+          clearLogs: () => set(() => ({ logs: [] })),
         getLogsByCategory: (category: string) => get().logs.filter(log => log.category === category),
         getLogsByLevel: (level: string) => get().logs.filter(log => log.level === level),
         addRectTemplate: (template: RectTemplate) => set(state => ({
-          rectTemplates: {
-            ...state.rectTemplates,
-            [template.id]: {
-              ...template,
-              defaultData: migrateDefaultData(template.defaultData),
+            rectTemplates: {
+              ...state.rectTemplates,
+              [template.id]: {
+                ...template,
+                defaultData: migrateDefaultData(template.defaultData),
+              },
             },
-          },
-        })),
+          })),
         updateRectTemplate: (id: string, update: Partial<RectTemplate>) => set(state => ({
-          rectTemplates: {
-            ...state.rectTemplates,
-            [id]: {
-              ...state.rectTemplates[id],
-              ...update,
-              defaultData: update.defaultData
-                ? migrateDefaultData(update.defaultData)
-                : state.rectTemplates[id].defaultData,
+            rectTemplates: {
+              ...state.rectTemplates,
+              [id]: {
+                ...state.rectTemplates[id],
+                ...update,
+                defaultData: update.defaultData
+                  ? migrateDefaultData(update.defaultData)
+                  : state.rectTemplates[id].defaultData,
+              },
             },
-          },
-        })),
+          })),
         deleteRectTemplate: (id: string) => set(state => {
-          const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
-          return { rectTemplates: rest };
-        }),
+            const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
+            return { rectTemplates: rest };
+          }),
         getRectTemplate: (id: string) => get().rectTemplates[id],
-        getRectTemplates: () => Object.values(get().rectTemplates),
+          getRectTemplates: () => Object.values(get().rectTemplates),
         addTemplateType: (type: TemplateType) => set(state => ({
-          templateTypes: [...state.templateTypes, type],
-        })),
+            templateTypes: [...state.templateTypes, type],
+          })),
         removeTemplateType: (value: string) => set(state => ({
-          templateTypes: state.templateTypes.filter(t => t.value !== value),
-        })),
+            templateTypes: state.templateTypes.filter(t => t.value !== value),
+          })),
         updateTemplateType: (value: string, update: Partial<TemplateType>) => set(state => ({
-          templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
-        })),
-        fftProgress: null,
-        aubioProgress: null,
+            templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+          })),
+          fftProgress: null,
+          aubioProgress: null,
         setFftProgress: (progress: { processed: number; total: number; jobId?: string } | null) => set(() => ({ fftProgress: progress })),
         setAubioProgress: (progress: { processed: number; total: number; jobId?: string } | null) => set(() => ({ aubioProgress: progress })),
         setFftResult: (result: { normalizedFftSequence?: number[][]; summary?: Record<string, unknown> }) => {
-          set(state => ({
-            audio: safeMerge(state.audio ?? {}, {
-              analysis: ensureAudioDataAnalysis({
-                ...state.audio?.analysis,
-                normalizedFftSequence: result.normalizedFftSequence,
-                summary: result.summary ?? state.audio?.analysis?.summary,
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  normalizedFftSequence: result.normalizedFftSequence,
+                  summary: result.summary ?? state.audio?.analysis?.summary,
+                })
               })
-            })
-          }));
-        },
+            }));
+          },
         setAubioResult: (result: { detectionFunction: number[]; times: number[]; events: DetectionEvent[]; error?: string }) => set(state => ({
-          audio: safeMerge(state.audio ?? {}, {
-            analysis: ensureAudioDataAnalysis({
-              ...state.audio?.analysis,
-              detectionFunction: result.detectionFunction,
-              detectionTimes: result.times,
-              aubioEvents: result.events,
-              aubioError: result.error,
-            })
-          })
-        })),
-        setBandDataArr: (bandDataArr: BandData[]) => {
-          if (Array.isArray(bandDataArr) && bandDataArr.length > 10000) {
-            if (!window.confirm(`You are about to store a very large bandDataArr (${bandDataArr.length} bands) in the app store. This may freeze your browser. Continue?`)) {
-              return;
-            }
-          }
-          set(state => ({
             audio: safeMerge(state.audio ?? {}, {
               analysis: ensureAudioDataAnalysis({
                 ...state.audio?.analysis,
-                bandDataArr
+                detectionFunction: result.detectionFunction,
+                detectionTimes: result.times,
+                aubioEvents: result.events,
+                aubioError: result.error,
               })
             })
-          }));
-        },
+          })),
+        setBandDataArr: (bandDataArr: BandData[]) => {
+            if (Array.isArray(bandDataArr) && bandDataArr.length > 10000) {
+              if (!window.confirm(`You are about to store a very large bandDataArr (${bandDataArr.length} bands) in the app store. This may freeze your browser. Continue?`)) {
+                return;
+              }
+            }
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  bandDataArr
+                })
+              })
+            }));
+          },
         setDevToolsEnabled: (enabled: boolean) => set(state => ({
-          ui: { ...state.ui, devToolsEnabled: enabled },
-        })),
+            ui: { ...state.ui, devToolsEnabled: enabled },
+          })),
         activeDeviceId: null,
         setActiveDeviceId: (id: string | null) => set({ activeDeviceId: id }),
       })
     : persistWithIndexedDB('app-state', (set, get) => ({
-        audio: {
-          data: initialAudioData,
-          analysis: initialAudioAnalysis,
-        },
-        playback: initialPlayback,
-        ui: initialUI,
-        timeline: initialTimeline,
-        tracks: initialTracks,
-        devices: [],
-        deviceMetadata: initialDeviceMetadata,
-        deviceState: initialDeviceState,
-        deviceConnection: initialDeviceConnection,
-        deviceData: initialDeviceData,
-        deviceUserPrefs: initialDeviceUserPrefs,
-        hydrated: false,
-        palettes: { ...responseRectPalettes },
-        rectTemplates: {
-          'led-beat': {
-            id: 'led-beat',
-            name: 'LED Beat',
-            type: 'led',
-            defaultDuration: 1,
-            defaultData: { pattern: 'beat', color: '#00ff00' },
-            paletteName: 'lightPulse',
+    audio: {
+      data: initialAudioData,
+      analysis: initialAudioAnalysis,
+    },
+    playback: initialPlayback,
+    ui: initialUI,
+    timeline: initialTimeline,
+          tracks: initialTracks,
+    devices: [],
+    deviceMetadata: initialDeviceMetadata,
+    deviceState: initialDeviceState,
+    deviceConnection: initialDeviceConnection,
+    deviceData: initialDeviceData,
+    deviceUserPrefs: initialDeviceUserPrefs,
+    hydrated: false,
+          palettes: { ...responseRectPalettes },
+          rectTemplates: {
+            'led-beat': {
+              id: 'led-beat',
+              name: 'LED Beat',
+              type: 'led',
+              defaultDuration: 1,
+              defaultData: { pattern: 'beat', color: '#00ff00' },
+              paletteName: 'lightPulse',
+            },
+            'led-wave': {
+              id: 'led-wave',
+              name: 'LED Wave',
+              type: 'led',
+              defaultDuration: 2,
+              defaultData: { pattern: 'wave', color: '#0000ff' },
+              paletteName: 'singleFirePattern',
+            },
           },
-          'led-wave': {
-            id: 'led-wave',
-            name: 'LED Wave',
-            type: 'led',
-            defaultDuration: 2,
-            defaultData: { pattern: 'wave', color: '#0000ff' },
-            paletteName: 'singleFirePattern',
-          },
-        },
-        templateTypes: [
-          { value: 'pulse', label: 'Pulse' },
-          { value: 'pattern', label: 'Pattern' },
-          { value: 'cue', label: 'Cue' },
-          { value: 'settings', label: 'Settings Change' },
-          { value: 'led', label: 'LED' },
-        ],
-        waveformProgress: null,
-        logs: [],
-        maxLogCount: 200,
+          templateTypes: [
+            { value: 'pulse', label: 'Pulse' },
+            { value: 'pattern', label: 'Pattern' },
+            { value: 'cue', label: 'Cue' },
+            { value: 'settings', label: 'Settings Change' },
+            { value: 'led', label: 'LED' },
+          ],
+          waveformProgress: null,
+          logs: [],
+          maxLogCount: 200,
         sdCard: { fileTree: null, loading: false, error: null },
         setSDCardFileTree: (fileTree: FileNode | null) => set(state => ({ sdCard: { ...state.sdCard, fileTree } })),
         setSDCardLoading: (loading: boolean) => set(state => ({ sdCard: { ...state.sdCard, loading } })),
         setSDCardError: (error: string | null) => set(state => ({ sdCard: { ...state.sdCard, error } })),
         clearSDCardState: () => set(() => ({ sdCard: { fileTree: null, loading: false, error: null } })),
         setAudioData: ({ waveform, duration }: { waveform: number[]; duration: number }) => set(state => ({
-          audio: safeMerge(state.audio ?? {}, {
-            analysis: ensureAudioDataAnalysis({
-              ...state.audio?.analysis,
-              waveform,
-              duration,
-            })
-          }),
-          playback: {
-            ...state.playback,
-            totalDuration: duration,
-          },
-        })),
+        audio: safeMerge(state.audio ?? {}, {
+          analysis: ensureAudioDataAnalysis({
+            ...state.audio?.analysis,
+            waveform,
+            duration,
+          })
+        }),
+        playback: {
+          ...state.playback,
+          totalDuration: duration,
+        },
+          })),
         setWaveformProgress: (progress: { processed: number; total: number; jobId?: string } | null) => set(() => ({ waveformProgress: progress })),
         addTimelineResponse: (resp: TimelineResponse) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses: [...(state.timeline?.responses ?? []), resp],
-          },
-        })),
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses: [...(state.timeline?.responses ?? []), resp],
+      },
+    })),
         updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
-          },
-        })),
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
+      },
+    })),
         deleteTimelineResponse: (id: string) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
-          },
-        })),
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
+      },
+    })),
         setTimelineResponses: (responses: TimelineResponse[]) => set(state => ({
-          ...state,
-          timeline: {
-            ...state.timeline,
-            responses,
-          },
-        })),
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses,
+      },
+    })),
         addDevice: (metadata: DeviceMetadata) => set(state => {
-          const prev = state.deviceMetadata[metadata.browserId] || {};
-          return {
-            devices: state.devices.includes(metadata.browserId)
-              ? state.devices
-              : [...state.devices, metadata.browserId],
-            deviceMetadata: {
-              ...state.deviceMetadata,
-              [metadata.browserId]: {
-                ...prev,
-                ...metadata,
-                nickname: metadata.nickname || prev.nickname || '',
-                group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
-                tags: metadata.tags || prev.tags || [],
-                typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
-              },
-            },
-          };
-        }),
-        removeDevice: (id: string) => set(state => {
-          const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
-          const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
-          const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
-          const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
-          const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
-          return {
-            devices: state.devices.filter(did => did !== id),
-            deviceMetadata: restMeta,
-            deviceState: restState,
-            deviceConnection: restConn,
-            deviceData: restData,
-            deviceUserPrefs: restPrefs,
-          };
-        }),
-        setDeviceMetadata: (browserId: string, metadata: DeviceMetadata) => set(state => ({
-          deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
-        })),
-        setDeviceNickname: (browserId: string, nickname: string) => set(state => ({
-          deviceMetadata: {
-            ...state.deviceMetadata,
-            [browserId]: {
-              ...state.deviceMetadata[browserId],
-              nickname,
-            },
+      const prev = state.deviceMetadata[metadata.browserId] || {};
+      return {
+        devices: state.devices.includes(metadata.browserId)
+          ? state.devices
+          : [...state.devices, metadata.browserId],
+        deviceMetadata: {
+          ...state.deviceMetadata,
+          [metadata.browserId]: {
+            ...prev,
+            ...metadata,
+            nickname: metadata.nickname || prev.nickname || '',
+            group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
+            tags: metadata.tags || prev.tags || [],
+            typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
           },
-        })),
-        setDeviceState: (browserId: string, update: Partial<DeviceUIState>) => set(state => ({
-          deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
-        })),
-        setDeviceConnection: (browserId: string, update: Partial<DeviceConnectionStatus>) => set(state => ({
-          deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
-        })),
-        setDeviceData: (browserId: string, data: DeviceDataBlob) => set(state => ({
-          deviceData: { ...state.deviceData, [browserId]: data },
-        })),
-        updateDeviceTypeInfo: (browserId: string, typeInfo: Partial<DeviceTypeInfo>) => set(state => ({
-          deviceMetadata: {
-            ...state.deviceMetadata,
-            [browserId]: {
-              ...state.deviceMetadata[browserId],
-              typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
-            },
-          },
-        })),
-        setDeviceGroup: (browserId: string, group: string | null) => set(state => ({
-          deviceMetadata: {
-            ...state.deviceMetadata,
-            [browserId]: {
-              ...state.deviceMetadata[browserId],
-              group,
-            },
-          },
-        })),
-        setDeviceUserPrefs: (browserId: string, prefs: Partial<DeviceUserPrefs[string]>) => set(state => ({
-          deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
-        })),
-        setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => set(state => ({
-          tracks: {
-            ...state.tracks,
-            mapping: { ...state.tracks.mapping, [trackIndex]: target },
-          },
-        })),
-        setPalette: (name: string, palette: ResponseRectPalette) => set(state => ({
-          palettes: { ...state.palettes, [name]: palette },
-        })),
-        removePalette: (name: string) => set(state => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { [name]: __, ...rest } = state.palettes;
-          return { palettes: rest };
-        }),
-        getPalette: (name?: string) => {
-          const palettes = get().palettes;
-          if (!name) return palettes['led'] || Object.values(palettes)[0];
-          return palettes[name] || palettes['led'] || Object.values(palettes)[0];
         },
+      };
+    }),
+        removeDevice: (id: string) => set(state => {
+      const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
+      const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
+      const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
+      const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
+      const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
+      return {
+        devices: state.devices.filter(did => did !== id),
+        deviceMetadata: restMeta,
+        deviceState: restState,
+        deviceConnection: restConn,
+        deviceData: restData,
+        deviceUserPrefs: restPrefs,
+      };
+    }),
+        setDeviceMetadata: (browserId: string, metadata: DeviceMetadata) => set(state => ({
+      deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
+    })),
+        setDeviceNickname: (browserId: string, nickname: string) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          nickname,
+        },
+      },
+    })),
+        setDeviceState: (browserId: string, update: Partial<DeviceUIState>) => set(state => ({
+      deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
+    })),
+        setDeviceConnection: (browserId: string, update: Partial<DeviceConnectionStatus>) => set(state => ({
+      deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
+    })),
+        setDeviceData: (browserId: string, data: DeviceDataBlob) => set(state => ({
+      deviceData: { ...state.deviceData, [browserId]: data },
+    })),
+        updateDeviceTypeInfo: (browserId: string, typeInfo: Partial<DeviceTypeInfo>) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
+        },
+      },
+    })),
+        setDeviceGroup: (browserId: string, group: string | null) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          group,
+        },
+      },
+    })),
+        setDeviceUserPrefs: (browserId: string, prefs: Partial<DeviceUserPrefs[string]>) => set(state => ({
+      deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
+    })),
+        setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => set(state => ({
+            tracks: {
+              ...state.tracks,
+              mapping: { ...state.tracks.mapping, [trackIndex]: target },
+            },
+          })),
+        setPalette: (name: string, palette: ResponseRectPalette) => set(state => ({
+            palettes: { ...state.palettes, [name]: palette },
+          })),
+        removePalette: (name: string) => set(state => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [name]: __, ...rest } = state.palettes;
+            return { palettes: rest };
+          }),
+        getPalette: (name?: string) => {
+            const palettes = get().palettes;
+            if (!name) return palettes['led'] || Object.values(palettes)[0];
+            return palettes[name] || palettes['led'] || Object.values(palettes)[0];
+          },
         addLog: (level: string, category: string, message: string, data?: unknown) => set(state => {
-          const max = state.maxLogCount || 200;
-          const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
-          const logs = [...state.logs, newLog];
-          // Cap logs at maxLogCount
-          const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
-          return { logs: cappedLogs };
-        }),
-        clearLogs: () => set(() => ({ logs: [] })),
+            const max = state.maxLogCount || 200;
+            const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
+            const logs = [...state.logs, newLog];
+            // Cap logs at maxLogCount
+            const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
+            return { logs: cappedLogs };
+          }),
+          clearLogs: () => set(() => ({ logs: [] })),
         getLogsByCategory: (category: string) => get().logs.filter(log => log.category === category),
         getLogsByLevel: (level: string) => get().logs.filter(log => log.level === level),
         addRectTemplate: (template: RectTemplate) => set(state => ({
-          rectTemplates: {
-            ...state.rectTemplates,
-            [template.id]: {
-              ...template,
-              defaultData: migrateDefaultData(template.defaultData),
+            rectTemplates: {
+              ...state.rectTemplates,
+              [template.id]: {
+                ...template,
+                defaultData: migrateDefaultData(template.defaultData),
+              },
             },
-          },
-        })),
+          })),
         updateRectTemplate: (id: string, update: Partial<RectTemplate>) => set(state => ({
-          rectTemplates: {
-            ...state.rectTemplates,
-            [id]: {
-              ...state.rectTemplates[id],
-              ...update,
-              defaultData: update.defaultData
-                ? migrateDefaultData(update.defaultData)
-                : state.rectTemplates[id].defaultData,
+            rectTemplates: {
+              ...state.rectTemplates,
+              [id]: {
+                ...state.rectTemplates[id],
+                ...update,
+                defaultData: update.defaultData
+                  ? migrateDefaultData(update.defaultData)
+                  : state.rectTemplates[id].defaultData,
+              },
             },
-          },
-        })),
+          })),
         deleteRectTemplate: (id: string) => set(state => {
-          const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
-          return { rectTemplates: rest };
-        }),
+            const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
+            return { rectTemplates: rest };
+          }),
         getRectTemplate: (id: string) => get().rectTemplates[id],
-        getRectTemplates: () => Object.values(get().rectTemplates),
+          getRectTemplates: () => Object.values(get().rectTemplates),
         addTemplateType: (type: TemplateType) => set(state => ({
-          templateTypes: [...state.templateTypes, type],
-        })),
+            templateTypes: [...state.templateTypes, type],
+          })),
         removeTemplateType: (value: string) => set(state => ({
-          templateTypes: state.templateTypes.filter(t => t.value !== value),
-        })),
+            templateTypes: state.templateTypes.filter(t => t.value !== value),
+          })),
         updateTemplateType: (value: string, update: Partial<TemplateType>) => set(state => ({
-          templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
-        })),
-        fftProgress: null,
-        aubioProgress: null,
+            templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+          })),
+          fftProgress: null,
+          aubioProgress: null,
         setFftProgress: (progress: { processed: number; total: number; jobId?: string } | null) => set(() => ({ fftProgress: progress })),
         setAubioProgress: (progress: { processed: number; total: number; jobId?: string } | null) => set(() => ({ aubioProgress: progress })),
         setFftResult: (result: { normalizedFftSequence?: number[][]; summary?: Record<string, unknown> }) => {
-          set(state => ({
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  normalizedFftSequence: result.normalizedFftSequence,
+                  summary: result.summary ?? state.audio?.analysis?.summary,
+                })
+              })
+            }));
+          },
+        setAubioResult: (result: { detectionFunction: number[]; times: number[]; events: DetectionEvent[]; error?: string }) => set(state => ({
             audio: safeMerge(state.audio ?? {}, {
               analysis: ensureAudioDataAnalysis({
                 ...state.audio?.analysis,
-                normalizedFftSequence: result.normalizedFftSequence,
-                summary: result.summary ?? state.audio?.analysis?.summary,
+                detectionFunction: result.detectionFunction,
+                detectionTimes: result.times,
+                aubioEvents: result.events,
+                aubioError: result.error,
               })
             })
-          }));
-        },
-        setAubioResult: (result: { detectionFunction: number[]; times: number[]; events: DetectionEvent[]; error?: string }) => set(state => ({
-          audio: safeMerge(state.audio ?? {}, {
-            analysis: ensureAudioDataAnalysis({
-              ...state.audio?.analysis,
-              detectionFunction: result.detectionFunction,
-              detectionTimes: result.times,
-              aubioEvents: result.events,
-              aubioError: result.error,
-            })
-          })
         })),
         setBandDataArr: (bandDataArr: BandData[]) => {
-          if (Array.isArray(bandDataArr) && bandDataArr.length > 10000) {
-            if (!window.confirm(`You are about to store a very large bandDataArr (${bandDataArr.length} bands) in the app store. This may freeze your browser. Continue?`)) {
-              return;
+            if (Array.isArray(bandDataArr) && bandDataArr.length > 10000) {
+              if (!window.confirm(`You are about to store a very large bandDataArr (${bandDataArr.length} bands) in the app store. This may freeze your browser. Continue?`)) {
+                return;
+              }
             }
-          }
-          set(state => ({
-            audio: safeMerge(state.audio ?? {}, {
-              analysis: ensureAudioDataAnalysis({
-                ...state.audio?.analysis,
-                bandDataArr
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  bandDataArr
+                })
               })
-            })
-          }));
-        },
+            }));
+          },
         setDevToolsEnabled: (enabled: boolean) => set(state => ({
-          ui: { ...state.ui, devToolsEnabled: enabled },
-        })),
+            ui: { ...state.ui, devToolsEnabled: enabled },
+          })),
         activeDeviceId: null,
         setActiveDeviceId: (id: string | null) => set({ activeDeviceId: id }),
       }))

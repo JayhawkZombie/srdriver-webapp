@@ -1,10 +1,12 @@
 import type { WebSRDriverController } from '../../controllers/WebSRDriverController';
 import type { ChunkEnvelope } from './ChunkReassembler';
+import { ChunkReassembler } from './ChunkReassembler';
 
 export class SDCardBLEClient {
   private controller: WebSRDriverController;
   private onChunk: ((chunk: ChunkEnvelope) => void) | null = null;
   private onComplete: ((fullJson: string) => void) | null = null;
+  private reassembler = new ChunkReassembler();
 
   constructor(controller: WebSRDriverController) {
     this.controller = controller;
@@ -35,14 +37,27 @@ export class SDCardBLEClient {
     this.onComplete = cb;
   }
 
+  // Reset the reassembler state
+  reset() {
+    this.reassembler.reset();
+  }
+
   // Internal: handle incoming BLE chunks
   private handleChunk = (event: Event) => {
     const target = event.target as BluetoothRemoteGATTCharacteristic;
     if (target && target.value) {
-      // TODO: Parse chunk string and handle chunk logic here
-      // const decoder = new TextDecoder();
-      // const chunkStr = decoder.decode(target.value);
-      // Parse as ChunkEnvelope, call onChunk, buffer/reassemble, call onComplete if done
+      const decoder = new TextDecoder();
+      const chunkStr = decoder.decode(target.value);
+      try {
+        const chunk: ChunkEnvelope = JSON.parse(chunkStr);
+        if (this.onChunk) this.onChunk(chunk);
+        const full = this.reassembler.addChunk(chunk);
+        if (full && this.onComplete) {
+          this.onComplete(full);
+        }
+      } catch {
+        // Optionally handle parse error
+      }
     }
   };
 } 
