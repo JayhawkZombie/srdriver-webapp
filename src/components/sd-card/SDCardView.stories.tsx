@@ -14,9 +14,9 @@ import {
   Refresh, 
   Upload
 } from '@blueprintjs/icons';
-import { UnifiedThemeProvider } from '../context/UnifiedThemeProvider';
-import { UnifiedThemeContext } from '../context/UnifiedThemeContext';
-import { SDCardTree, type FileNode } from '../components/SDCardTree';
+import { UnifiedThemeProvider } from '../../context/UnifiedThemeProvider';
+import { UnifiedThemeContext } from '../../context/UnifiedThemeContext';
+import { SDCardTree, type FileNode } from '../SDCardTree';
 
 // Sample JSON response from the embedded device
 const sampleJsonResponse: FileNode = {
