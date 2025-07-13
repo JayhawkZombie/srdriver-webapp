@@ -1,40 +1,93 @@
-import React from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useDeviceControllerContext } from '../../controllers/DeviceControllerContext';
 import { useActiveDeviceId, useAppStore } from '../../store/appStore';
-import { Box, Typography, Button, CircularProgress, Alert } from '@mui/material';
-import type { AppState } from '../../store/appStore';
+import { Box, Typography, Button, CircularProgress, Alert, LinearProgress } from '@mui/material';
+import { useSDCardStream } from './useSDCardStream';
+import { SDCardBLEClient } from './SDCardBLEClient';
+import type { FileNode } from '../SDCardTree';
 
-const selectSDCardState = (state: AppState) => ({
-  fileTree: state.sdCard.fileTree,
-  loading: state.sdCard.loading,
-  error: state.sdCard.error,
-});
+// Individual selectors for Zustand state/actions
+const useSDCardFileTree = () => useAppStore(state => state.sdCard.fileTree);
+const useSDCardLoading = () => useAppStore(state => state.sdCard.loading);
+const useSDCardError = () => useAppStore(state => state.sdCard.error);
+const useSetSDCardFileTree = () => useAppStore(state => state.setSDCardFileTree);
+const useSetSDCardLoading = () => useAppStore(state => state.setSDCardLoading);
+const useSetSDCardError = () => useAppStore(state => state.setSDCardError);
+const useClearSDCardState = () => useAppStore(state => state.clearSDCardState);
 
 export const SDCardView: React.FC = () => {
   const { devices } = useDeviceControllerContext();
   const activeDeviceId = useActiveDeviceId();
-  const { fileTree, loading, error } = useAppStore(selectSDCardState);
+  const fileTree = useSDCardFileTree();
+  const loading = useSDCardLoading();
+  const error = useSDCardError();
+  const setSDCardFileTree = useSetSDCardFileTree();
+  const setSDCardLoading = useSetSDCardLoading();
+  const setSDCardError = useSetSDCardError();
+  const clearSDCardState = useClearSDCardState();
   const activeDevice = devices.find(d => d.browserId === activeDeviceId);
   const showSDCard = activeDevice && activeDevice.isConnected && activeDevice.controller?.hasSDCard;
+
+  // Manage SDCardBLEClient instances per device
+  const clientRefs = useRef<Map<string, SDCardBLEClient>>(new Map());
+  
+  // Get or create client for active device
+  const bleClient = useMemo(() => {
+    if (!activeDevice?.controller) return null;
+    
+    const deviceId = activeDevice.browserId;
+    if (!clientRefs.current.has(deviceId)) {
+      try {
+        const client = new SDCardBLEClient(activeDevice.controller);
+        clientRefs.current.set(deviceId, client);
+      } catch (err) {
+        console.error('Failed to create SD card BLE client:', err);
+        return null;
+      }
+    }
+    return clientRefs.current.get(deviceId) || null;
+  }, [activeDevice]);
+
+  // Use the streaming hook
+  const { loading: streamingLoading, error: streamingError, data: streamingData, progress, sendCommand } = useSDCardStream(bleClient);
+
+  // Sync streaming state with Zustand state
+  React.useEffect(() => {
+    if (streamingLoading) {
+      setSDCardLoading(true);
+      setSDCardError(null);
+    } else if (streamingError) {
+      setSDCardLoading(false);
+      setSDCardError(streamingError);
+    } else if (streamingData) {
+      setSDCardLoading(false);
+      setSDCardError(null);
+      setSDCardFileTree(streamingData as FileNode);
+    }
+  }, [streamingLoading, streamingError, streamingData, setSDCardLoading, setSDCardError, setSDCardFileTree]);
 
   // State detection
   let state: 'noDevice' | 'idle' | 'loading' | 'loaded' | 'error';
   if (!showSDCard) {
     state = 'noDevice';
-  } else if (loading) {
+  } else if (loading || streamingLoading) {
     state = 'loading';
-  } else if (error) {
+  } else if (error || streamingError) {
     state = 'error';
   } else if (fileTree) {
     state = 'loaded';
   } else {
     state = 'idle';
   }
-
-  // Placeholder for sending LIST command (to be wired up to BLE logic)
+ 
+  // Send LIST command via BLE
   const onLoadSDCard = () => {
-    // TODO: Wire up BLE LIST command logic here
-    alert('Send LIST command to device (not yet implemented)');
+    if (!bleClient) {
+      setSDCardError('No SD card BLE client available');
+      return;
+    }
+    clearSDCardState();
+    sendCommand('LIST');
   };
 
   return (
@@ -53,9 +106,23 @@ export const SDCardView: React.FC = () => {
         </Button>
       )}
       {state === 'loading' && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          <CircularProgress size={24} />
-          <Typography>Loading SD card file tree…</Typography>
+        <Box sx={{ mt: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <CircularProgress size={24} />
+            <Typography>Loading SD card file tree…</Typography>
+          </Box>
+          {progress.total && (
+            <Box sx={{ width: '100%', mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Receiving chunks: {progress.received}/{progress.total}
+              </Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={(progress.received / progress.total) * 100} 
+                sx={{ height: 8, borderRadius: 4 }}
+              />
+            </Box>
+          )}
         </Box>
       )}
       {state === 'loaded' && fileTree && (
@@ -68,7 +135,7 @@ export const SDCardView: React.FC = () => {
       )}
       {state === 'error' && (
         <Box sx={{ mt: 2 }}>
-          <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+          <Alert severity="error" sx={{ mb: 2 }}>{error || streamingError}</Alert>
           <Button variant="contained" color="error" onClick={onLoadSDCard}>
             Retry
           </Button>
