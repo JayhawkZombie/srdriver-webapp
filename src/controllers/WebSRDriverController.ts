@@ -11,6 +11,7 @@ import {
   COMMAND_CHARACTERISTIC_UUID
 } from '../types/srdriver';
 import { useAppStore } from '../store/appStore';
+import { useBenchmarkStore } from '../store/benchmarkStore';
 
 export class WebSRDriverController implements ISRDriverController {
   private device: BluetoothDevice | null = null;
@@ -28,11 +29,8 @@ export class WebSRDriverController implements ISRDriverController {
   private _debouncers: Record<string, { timeout: ReturnType<typeof setTimeout> | null; lastValue: unknown }> = {};
   private _onPong?: (rtt: number) => void;
   private _pendingPingTimestamp?: number;
-  public deviceId: string;
 
-  constructor(deviceId: string) {
-    this.deviceId = deviceId;
-  }
+  constructor() {}
 
   // Callbacks
   onBrightnessChange?: (value: number) => void;
@@ -141,6 +139,7 @@ export class WebSRDriverController implements ISRDriverController {
         throw new Error("No device selected");
       }
       this.device = device;
+      console.log("Connecting to device", this.device);
       const server = await this.device.gatt?.connect();
       if (!server) {
         throw new Error("Failed to connect to GATT server");
@@ -209,9 +208,13 @@ export class WebSRDriverController implements ISRDriverController {
               const pongTimestamp = parseInt(str.split(":")[1], 10);
               if (this._pendingPingTimestamp && pongTimestamp === this._pendingPingTimestamp) {
                 const rtt = Date.now() - pongTimestamp;
+                if (!this.deviceId) {
+                  console.error('Attempted to update RTT for undefined deviceId');
+                  return;
+                }
                 console.log(`[BLE RTT] Pong received for device ${this.deviceId}: RTT = ${rtt} ms (pongTimestamp: ${pongTimestamp}, now: ${Date.now()})`);
                 // Update Zustand store with RTT for this device
-                useAppStore.getState().setDeviceState(this.deviceId, { bleRTT: rtt });
+                useAppStore.getState().setDeviceConnection(this.deviceId, { bleRTT: rtt });
                 console.log(`[BLE RTT] Updated Zustand for device ${this.deviceId} with RTT: ${rtt} ms`);
                 this._onPong?.(rtt);
                 this._pendingPingTimestamp = undefined;
@@ -342,21 +345,50 @@ export class WebSRDriverController implements ISRDriverController {
 
   // Public debounced methods
   setBrightness(value: number, delay: number = 100): void {
-    this.debouncedWrite('brightness', value, (v) => this._setBrightnessImmediate(v), delay);
+    this.debouncedWrite('brightness', value, async (v) => {
+      await this._setBrightnessImmediate(v);
+      if (!this.deviceId) {
+        console.error('Attempted to update brightness for undefined deviceId');
+        return;
+      }
+      useAppStore.getState().setDeviceState(this.deviceId, { brightness: v });
+    }, delay);
   }
   setSpeed(value: number, delay: number = 100): void {
-    this.debouncedWrite('speed', value, (v) => this._setSpeedImmediate(v), delay);
+    this.debouncedWrite('speed', value, async (v) => {
+      await this._setSpeedImmediate(v);
+      if (!this.deviceId) {
+        console.error('Attempted to update speed for undefined deviceId');
+        return;
+      }
+      useAppStore.getState().setDeviceState(this.deviceId, { speed: v });
+    }, delay);
   }
   setPattern(index: number, delay: number = 100): void {
-    this.debouncedWrite('pattern', index, (v) => this._setPatternImmediate(v), delay);
+    this.debouncedWrite('pattern', index, async (v) => {
+      await this._setPatternImmediate(v);
+      if (!this.deviceId) {
+        console.error('Attempted to update pattern for undefined deviceId');
+        return;
+      }
+      useAppStore.getState().setDeviceState(this.deviceId, { patternIndex: v });
+    }, delay);
   }
 
   // Public debounced setter methods
   setHighColor(color: RGBColor, delay: number = 100): void {
-    this.debouncedWrite('highColor', color, (v) => this._setHighColorImmediate(v), delay);
+    this.debouncedWrite('highColor', color, async (v) => {
+      await this._setHighColorImmediate(v);
+      // Optionally: update Device object in context for optimistic UI
+      // (skip Zustand deviceState update for highColor)
+    }, delay);
   }
   setLowColor(color: RGBColor, delay: number = 100): void {
-    this.debouncedWrite('lowColor', color, (v) => this._setLowColorImmediate(v), delay);
+    this.debouncedWrite('lowColor', color, async (v) => {
+      await this._setLowColorImmediate(v);
+      // Optionally: update Device object in context for optimistic UI
+      // (skip Zustand deviceState update for lowColor)
+    }, delay);
   }
   setLeftSeriesCoefficients(coeffs: [number, number, number], delay: number = 100): void {
     this.debouncedWrite('leftSeriesCoefficients', coeffs, (v) => this._setLeftSeriesCoefficientsImmediate(v), delay);
@@ -452,21 +484,33 @@ export class WebSRDriverController implements ISRDriverController {
     }
     
     const encoder = new TextEncoder();
-    await this.commandCharacteristic.writeValue(encoder.encode(command));
+    this.commandCharacteristic.writeValue(encoder.encode(command));
     console.log(`Sent command: ${command}`);
   }
 
   async pulseBrightness(targetBrightness: number, durationMs: number): Promise<void> {
     const command = `pulse_brightness:${targetBrightness},${durationMs}`;
-    await this.sendCommand(command);
+    this.sendCommand(command);
+    // await this.sendCommand(command);
+  }
+
+  async fadeBrightness(targetBrightness: number, durationMs: number): Promise<void> {
+    const command = `fade_brightness:${targetBrightness},${durationMs}`;
+    this.sendCommand(command);
+    // await this.sendCommand(command);
   }
 
   async firePattern(patternIndex: number, patternArgument: string): Promise<void> {
     const command = `fire_pattern:${patternIndex}-${patternArgument}`;
-    await this.sendCommand(command);
+    this.sendCommand(command);
+    // await this.sendCommand(command);
   }
 
-  public getDeviceId(): string | undefined {
+  get deviceId(): string | undefined {
+    return this.device?.id;
+  }
+
+  getDeviceId(): string | undefined {
     return this.device?.id;
   }
 
@@ -500,5 +544,9 @@ export class WebSRDriverController implements ISRDriverController {
     const timestamp = Date.now();
     this._pendingPingTimestamp = timestamp;
     await this.sendCommand(`ping:${timestamp}`);
+  }
+
+  public getDeviceName(): string {
+    return this.device?.name || '';
   }
 } 

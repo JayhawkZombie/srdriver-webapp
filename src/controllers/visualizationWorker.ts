@@ -46,8 +46,27 @@ interface VisualizationResult {
 }
 
 globalThis.onmessage = (e: MessageEvent) => {
+  try {
+    console.log('[visualizationWorker] Received message:', e.data);
   const data = e.data as VisualizationRequest;
   const { fftSequence, bands, sampleRate } = data;
+    if (!Array.isArray(fftSequence) || fftSequence.length === 0) {
+      console.error('[visualizationWorker] fftSequence is empty or not an array:', fftSequence);
+      globalThis.postMessage({ error: 'fftSequence is empty or not an array' });
+      return;
+    }
+    // Log shape and check for NaNs in input
+    let nanCount = 0;
+    for (let i = 0; i < fftSequence.length; i++) {
+      for (let j = 0; j < fftSequence[i].length; j++) {
+        if (isNaN(fftSequence[i][j])) nanCount++;
+      }
+    }
+    if (nanCount > 0) {
+      console.warn(`[visualizationWorker] WARNING: Found ${nanCount} NaNs in fftSequence input!`);
+    } else {
+      console.log('[visualizationWorker] fftSequence shape:', fftSequence.length, 'frames x', fftSequence[0].length, 'bins');
+    }
   const impulseWindowSize = Math.max(1, data.impulseWindowSize || 1);
   const impulseSmoothing = Math.max(1, data.impulseSmoothing || 1);
   const impulseDetectionMode = data.impulseDetectionMode || 'spectral-flux';
@@ -191,6 +210,10 @@ globalThis.onmessage = (e: MessageEvent) => {
       // Compute mean and std for normalization (move this up before use)
       const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
       const std = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / impulseStrengths.length) || 1;
+        const detectionFunction = procMagnitudes.map((v, i, a) => i === 0 ? 0 : Math.max(0, v - a[i - 1]));
+        const detectionTimes = procMagnitudes.map((_, i) => i * (data.hopSize || 512) / sampleRate);
+        const threshold = thresholdArr;
+        const sustainedImpulsesComputed = sustainedImpulses;
       return {
         band,
         bandIdx,
@@ -200,16 +223,18 @@ globalThis.onmessage = (e: MessageEvent) => {
         secondDerivatives,
         impulseStrengths,
         normalizedImpulseStrengths: impulseStrengths.map(v => (v - mean) / std),
-        detectionFunction: procMagnitudes.map((v, i, a) => i === 0 ? 0 : Math.max(0, v - a[i - 1])),
-        detectionTimes: procMagnitudes.map((_, i) => i * (data.hopSize || 512) / sampleRate),
-        threshold: thresholdArr,
-        sustainedImpulses,
+          detectionFunction,
+          threshold,
+          sustainedImpulses: sustainedImpulsesComputed,
+          detectionTimes,
       };
     } else if (impulseDetectionMode === 'second-derivative') {
       impulseStrengths = secondDerivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
       const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
       const std = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / impulseStrengths.length) || 1;
       const normalizedImpulseStrengths = impulseStrengths.map(v => (v - mean) / std);
+        const detectionFunction = secondDerivatives;
+        const detectionTimes = secondDerivatives.map((_, i) => i * (data.hopSize || 512) / sampleRate);
       return {
         band,
         bandIdx,
@@ -219,14 +244,18 @@ globalThis.onmessage = (e: MessageEvent) => {
         secondDerivatives,
         impulseStrengths,
         normalizedImpulseStrengths,
-        detectionFunction: secondDerivatives,
-        detectionTimes: secondDerivatives.map((_, i) => i * (data.hopSize || 512) / sampleRate),
+          detectionFunction,
+          threshold: undefined, // No threshold for second derivative
+          sustainedImpulses: undefined, // No sustained impulses for second derivative
+          detectionTimes,
       };
     } else if (impulseDetectionMode === 'first-derivative') {
       impulseStrengths = derivatives.map((v, i) => mask[i] ? Math.abs(v) : 0);
       const mean = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
       const std = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / impulseStrengths.length) || 1;
       const normalizedImpulseStrengths = impulseStrengths.map(v => (v - mean) / std);
+        const detectionFunction = derivatives;
+        const detectionTimes = derivatives.map((_, i) => i * (data.hopSize || 512) / sampleRate);
       return {
         band,
         bandIdx,
@@ -236,8 +265,10 @@ globalThis.onmessage = (e: MessageEvent) => {
         secondDerivatives,
         impulseStrengths,
         normalizedImpulseStrengths,
-        detectionFunction: derivatives,
-        detectionTimes: derivatives.map((_, i) => i * (data.hopSize || 512) / sampleRate),
+          detectionFunction,
+          threshold: undefined, // No threshold for first derivative
+          sustainedImpulses: undefined, // No sustained impulses for first derivative
+          detectionTimes,
       };
     } else if (impulseDetectionMode === 'z-score') {
       // Z-score of first derivative
@@ -248,6 +279,8 @@ globalThis.onmessage = (e: MessageEvent) => {
       const meanZ = impulseStrengths.reduce((a, b) => a + b, 0) / impulseStrengths.length;
       const stdZ = Math.sqrt(impulseStrengths.reduce((a, b) => a + Math.pow(b - meanZ, 2), 0) / impulseStrengths.length) || 1;
       const normalizedImpulseStrengths = impulseStrengths.map(v => (v - meanZ) / stdZ);
+        const detectionFunction = zScores;
+        const detectionTimes = zScores.map((_, i) => i * (data.hopSize || 512) / sampleRate);
       return {
         band,
         bandIdx,
@@ -257,8 +290,10 @@ globalThis.onmessage = (e: MessageEvent) => {
         secondDerivatives,
         impulseStrengths,
         normalizedImpulseStrengths,
-        detectionFunction: zScores,
-        detectionTimes: zScores.map((_, i) => i * (data.hopSize || 512) / sampleRate),
+          detectionFunction,
+          threshold: undefined, // No threshold for z-score
+          sustainedImpulses: undefined, // No sustained impulses for z-score
+          detectionTimes,
       };
     }
     // Normalization for UI thresholding
@@ -284,9 +319,18 @@ globalThis.onmessage = (e: MessageEvent) => {
       secondDerivatives,
       impulseStrengths,
       normalizedImpulseStrengths,
+        detectionFunction: undefined, // No detection function for default mode
+        threshold: undefined, // No threshold for default mode
+        sustainedImpulses: undefined, // No sustained impulses for default mode
+        detectionTimes: undefined, // No detection times for default mode
     };
   });
+    console.log('[visualizationWorker] Computed bandDataArr:', bandDataArr);
   globalThis.postMessage({ bandDataArr } as VisualizationResult);
+  } catch (err) {
+    console.error('[visualizationWorker] ERROR:', err);
+    globalThis.postMessage({ error: String(err) });
+  }
 };
 
 // Helper: moving average smoothing

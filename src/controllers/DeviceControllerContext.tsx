@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { WebSRDriverController } from './WebSRDriverController';
-import { Device } from '../types/Device';
+import type { Device } from '../types/Device';
+import type { DeviceMetadata } from '../store/appStore';
 import { Box, Button, Typography, Stack } from '@mui/material';
 import { useAppStore } from '../store/appStore';
 import AnimatedStatusChip from '../components/AnimatedStatusChip';
@@ -8,7 +9,7 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 
 export type DeviceControllerContextType = {
   devices: Device[];
-  addDevice: () => void;
+  addDevice: (metadata: DeviceMetadata) => void;
   removeDevice: (deviceId: string) => void;
   connectDevice: (deviceId: string) => Promise<void>;
   disconnectDevice: (deviceId: string) => Promise<void>;
@@ -22,7 +23,7 @@ const DeviceControllerContext = createContext<DeviceControllerContextType | unde
 const HEARTBEAT_UUID = 'f6f7b0f1-c4ab-4c75-9ca7-b43972152f16';
 
 // WeakMap to track heartbeat event handlers for each characteristic
-const heartbeatHandlerMap: WeakMap<BluetoothRemoteGATTCharacteristic, (event: any) => void> = new WeakMap();
+const heartbeatHandlerMap: WeakMap<BluetoothRemoteGATTCharacteristic, (event: Event) => void> = new WeakMap();
 // Ref to track which device IDs have active listeners
 const activeHeartbeatListeners = new Set<string>();
 
@@ -56,10 +57,10 @@ const HeartbeatManager: React.FC = () => {
   React.useEffect(() => {
     const connectedDevices = devices.filter(d => d.isConnected && d.controller && typeof d.controller.getService === 'function');
     connectedDevices.forEach(device => {
-      if (activeHeartbeatListeners.has(device.id)) return;
+      if (activeHeartbeatListeners.has(device.browserId)) return;
       let char: BluetoothRemoteGATTCharacteristic | null = null;
-      let handler: ((event: any) => void) | null = null;
-      let cancelled = false;
+      let handler: ((event: Event) => void) | null = null;
+      const cancelled = false;
       (async () => {
         try {
           const service = device.controller.getService();
@@ -70,13 +71,13 @@ const HeartbeatManager: React.FC = () => {
           if (prevHandler) {
             char.removeEventListener('characteristicvaluechanged', prevHandler);
           }
-          handler = (event: any) => {
+          handler = (_event: Event) => {
             if (cancelled) return;
             const now = Date.now();
             setHeartbeat(prev => {
               const newState = {
                 ...prev,
-                [device.id]: {
+                [device.browserId]: {
                   last: now,
                   isAlive: true,
                   pulse: now,
@@ -85,15 +86,15 @@ const HeartbeatManager: React.FC = () => {
               return newState;
             });
             // Fire all onHeartbeat callbacks for this device
-            if (heartbeatEventCallbacks.current[device.id]) {
-              heartbeatEventCallbacks.current[device.id].forEach(cb => cb());
+            if (heartbeatEventCallbacks.current[device.browserId]) {
+              heartbeatEventCallbacks.current[device.browserId].forEach(cb => cb());
             }
             setTimeout(() => {
               setHeartbeat(prev => {
-                if (!prev[device.id]) return prev;
+                if (!prev[device.browserId]) return prev;
                 const newState = {
                   ...prev,
-                  [device.id]: { ...prev[device.id], pulse: null }
+                  [device.browserId]: { ...prev[device.browserId], pulse: null }
                 };
                 return newState;
               });
@@ -101,18 +102,16 @@ const HeartbeatManager: React.FC = () => {
           };
           char.addEventListener('characteristicvaluechanged', handler);
           heartbeatHandlerMap.set(char, handler);
-          activeHeartbeatListeners.add(device.id);
-        } catch (e) {
-          if (e && typeof e === 'object' && (e as any).name === 'NotFoundError') {
-          } else {
-          }
+          activeHeartbeatListeners.add(device.browserId);
+        } catch (_err) {
+          // ignore
         }
       })();
     });
     Array.from(activeHeartbeatListeners).forEach(deviceId => {
-      const stillConnected = connectedDevices.some(d => d.id === deviceId);
+      const stillConnected = connectedDevices.some(d => d.browserId === deviceId);
       if (!stillConnected) {
-        const device = devices.find(d => d.id === deviceId);
+        const device = devices.find(d => d.browserId === deviceId);
         if (device && device.controller && typeof device.controller.getService === 'function') {
           (async () => {
             try {
@@ -124,7 +123,7 @@ const HeartbeatManager: React.FC = () => {
                 char.removeEventListener('characteristicvaluechanged', handler);
                 heartbeatHandlerMap.delete(char);
               }
-            } catch (e) {
+            } catch (_err) {
               // ignore
             }
           })();
@@ -141,18 +140,23 @@ const heartbeatCallbacks: React.MutableRefObject<{ [deviceId: string]: ((isAlive
 // Heartbeat event callbacks (fires on every heartbeat)
 const heartbeatEventCallbacks: React.MutableRefObject<{ [deviceId: string]: (() => void)[] }> = { current: {} };
 
+// Controller map context for deviceId -> WebSRDriverController
+const DeviceControllerMapContext = React.createContext<{ getController: (id: string) => WebSRDriverController | undefined }>({ getController: () => undefined });
+
 export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [devices, setDevices] = useState<Device[]>([]);
-  const devicesMetadata = useAppStore(state => state.devicesMetadata);
-  const setDeviceNickname = useAppStore(state => state.setDeviceNickname);
+  const controllerMapRef = React.useRef<{ [id: string]: WebSRDriverController }>({});
 
-  const addDevice = useCallback(() => {
-    const uniqueId = `device-${Date.now()}`;
+  // Add device to context after successful connection, using DeviceMetadata
+  const addDevice = useCallback((metadata: DeviceMetadata) => {
+    if (!metadata.browserId) {
+      console.error('Attempted to add device with undefined browserId:', metadata);
+      return;
+    }
     const newDevice: Device = {
-      id: uniqueId,
-      name: `SRDriver ${devices.length + 1}`,
-      controller: new WebSRDriverController(),
-      isConnected: false,
+      name: metadata.name,
+      controller: controllerMapRef.current[metadata.browserId],
+      isConnected: true,
       isConnecting: false,
       error: null,
       brightness: 128,
@@ -166,70 +170,73 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
       rightSeriesCoefficients: [0.0, 0.0, 0.0],
       savedLeftSeriesCoefficients: [0.0, 0.0, 0.0],
       savedRightSeriesCoefficients: [0.0, 0.0, 0.0],
-      macOrId: uniqueId,
+      browserId: metadata.browserId,
     };
     setDevices(prev => [...prev, newDevice]);
-  }, [devices.length]);
-
-  const removeDevice = useCallback((deviceId: string) => {
-    setDevices(prev => prev.filter(d => d.id !== deviceId));
   }, []);
 
+  const removeDevice = useCallback((deviceId: string) => {
+    delete controllerMapRef.current[deviceId];
+    setDevices(prev => prev.filter(d => d.browserId !== deviceId));
+  }, []);
+
+  // Only add device after successful connection
   const connectDevice = useCallback(async (deviceId: string) => {
     setDevices(prev => prev.map(device =>
-      device.id === deviceId ? { ...device, isConnecting: true, error: null } : device
+      device.browserId === deviceId ? { ...device, isConnecting: true, error: null } : device
     ));
+    useAppStore.getState().setDeviceConnection(deviceId, { isConnecting: true, error: null });
     try {
-      setDevices(prev => prev.map(device => {
-        if (device.id === deviceId) {
-          return { ...device, isConnecting: true, error: null };
-        }
-        return device;
-      }));
-      const device = devices.find(d => d.id === deviceId);
-      if (!device) throw new Error('Device not found');
-      await device.controller.connect();
-      const realId = device.controller.getDeviceId();
-      if (realId && device.macOrId !== realId) {
-        const oldNickname = devicesMetadata[device.macOrId]?.nickname;
-        if (oldNickname) {
-          setDeviceNickname(realId, oldNickname);
-        }
-        setDevices(prev => prev.map(d =>
-          d.id === deviceId ? { ...d, macOrId: realId } : d
-        ));
-        device.controller.deviceId = realId;
+      let controller = controllerMapRef.current[deviceId];
+      if (!controller) {
+        controller = new WebSRDriverController();
       }
+      await controller.connect();
+      const browserId = controller.getDeviceId();
+      if (!browserId) {
+        console.error('controller.deviceId is undefined after connect! Device not added.');
+        setDevices(prev => prev.map(d =>
+          d.browserId === deviceId ? { ...d, isConnected: false, isConnecting: false, error: 'Failed to get device ID' } : d
+        ));
+        useAppStore.getState().setDeviceConnection(deviceId, { isConnected: false, isConnecting: false, error: 'Failed to get device ID' });
+        return;
+      }
+      controllerMapRef.current[browserId] = controller; // Only add after connect
+      const existingMeta = useAppStore.getState().deviceMetadata[browserId];
+      const metadata: DeviceMetadata = {
+        browserId,
+        name: controller.getDeviceName() || 'SRDriver',
+        nickname: existingMeta?.nickname ?? '',
+        group: existingMeta?.group ?? null,
+        tags: existingMeta?.tags ?? [],
+        typeInfo: existingMeta?.typeInfo ?? { model: '', firmwareVersion: '', numLEDs: 0, ledLayout: 'strip', capabilities: [] },
+      };
+      useAppStore.getState().addDevice(metadata);
+      addDevice(metadata);
+      controller.pingForRTT();
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error('Failed to connect');
       setDevices(prev => prev.map(d =>
-        d.id === deviceId ? { ...d, isConnected: true, isConnecting: false, error: null } : d
+        d.browserId === deviceId ? { ...d, isConnected: false, isConnecting: false, error: error.message || 'Failed to connect' } : d
       ));
-      // Fire-and-forget BLE RTT measurement after connection
-      device.controller.pingForRTT?.();
-    } catch (e: any) {
-      setDevices(prev => prev.map(d =>
-        d.id === deviceId ? { ...d, isConnected: false, isConnecting: false, error: e.message || 'Failed to connect' } : d
-      ));
+      useAppStore.getState().setDeviceConnection(deviceId, { isConnected: false, isConnecting: false, error: error.message || 'Failed to connect' });
     }
-  }, [devices, devicesMetadata, setDeviceNickname]);
+  }, [addDevice]);
 
   const disconnectDevice = useCallback(async (deviceId: string) => {
-    const device = devices.find(d => d.id === deviceId);
-    if (!device) return;
-    try {
-      await device.controller.disconnect();
-      setDevices(prev => prev.map(d =>
-        d.id === deviceId ? { ...d, isConnected: false, isConnecting: false } : d
-      ));
-    } catch (e: any) {
-      setDevices(prev => prev.map(d =>
-        d.id === deviceId ? { ...d, error: e.message || 'Failed to disconnect' } : d
-      ));
-    }
-  }, [devices]);
+    const controller = controllerMapRef.current[deviceId];
+    if (!controller) return;
+    // Fire & forget disconnect
+    controller.disconnect();
+    setDevices(prev => prev.map(d =>
+      d.browserId === deviceId ? { ...d, isConnected: false, isConnecting: false } : d
+    ));
+    useAppStore.getState().setDeviceConnection(deviceId, { isConnected: false, isConnecting: false });
+  }, []);
 
   const updateDevice = useCallback((deviceId: string, update: Partial<Device>) => {
     setDevices(prev => prev.map(d =>
-      d.id === deviceId ? { ...d, ...update } : d
+      d.browserId === deviceId ? { ...d, ...update } : d
     ));
   }, []);
 
@@ -257,10 +264,12 @@ export const DeviceControllerProvider: React.FC<{ children: React.ReactNode }> =
 
   return (
     <HeartbeatProvider>
-      <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice, onHeartbeatChange, onHeartbeat }}>
-        <HeartbeatManager />
-        {children}
-      </DeviceControllerContext.Provider>
+      <DeviceControllerMapContext.Provider value={{ getController: (id) => controllerMapRef.current[id] }}>
+        <DeviceControllerContext.Provider value={{ devices, addDevice, removeDevice, connectDevice, disconnectDevice, updateDevice, onHeartbeatChange, onHeartbeat }}>
+          <HeartbeatManager />
+          {children}
+        </DeviceControllerContext.Provider>
+      </DeviceControllerMapContext.Provider>
     </HeartbeatProvider>
   );
 };
@@ -271,24 +280,26 @@ export function useDeviceControllerContext() {
   return ctx;
 }
 
+export function useDeviceControllerMap() {
+  return React.useContext(DeviceControllerMapContext);
+}
+
 // DeviceConnectionPanel UI for connecting/disconnecting devices
 export const DeviceConnectionPanel: React.FC = () => {
-  const { devices, connectDevice, disconnectDevice, addDevice } = useDeviceControllerContext();
+  const { devices, connectDevice, disconnectDevice } = useDeviceControllerContext();
 
   // Use a stable callback to avoid runaway subscriptions
   const heartbeatLogger = React.useCallback(() => {
   }, []);
-  useHeartbeat(devices[0]?.id, heartbeatLogger);
+  useHeartbeat(devices[0]?.browserId, heartbeatLogger);
 
   return (
     <Box>
       <Typography variant="subtitle1" gutterBottom>Device Connection</Typography>
       <Stack spacing={2}>
-        {devices.length === 0 ? (
-          <Button variant="contained" onClick={addDevice}>Add Device</Button>
-        ) : (
+        {devices.length === 0 ? null : (
           devices.map(device => (
-            <Box key={device.id} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box key={device.browserId} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography variant="body1">{device.name}</Typography>
               <AnimatedStatusChip
                 key={device.heartbeat?.pulse ? 'pulse-on' : 'pulse-off'}
@@ -300,11 +311,11 @@ export const DeviceConnectionPanel: React.FC = () => {
                 icon={<FavoriteIcon fontSize="small" color={device.heartbeat?.isAlive ? 'error' : 'disabled'} />}
               />
               {device.isConnected ? (
-                <Button size="small" variant="outlined" color="secondary" onClick={() => disconnectDevice(device.id)} disabled={device.isConnecting}>
+                <Button size="small" variant="outlined" color="secondary" onClick={() => disconnectDevice(device.browserId)} disabled={device.isConnecting}>
                   Disconnect
                 </Button>
               ) : (
-                <Button size="small" variant="contained" color="primary" onClick={() => connectDevice(device.id)} disabled={device.isConnecting}>
+                <Button size="small" variant="contained" color="primary" onClick={() => connectDevice(device.browserId)} disabled={device.isConnecting}>
                   {device.isConnecting ? 'Connecting...' : 'Connect'}
                 </Button>
               )}
@@ -328,7 +339,7 @@ export function useSingleDevice() {
 // Selector hook: get a device by id, memoized
 export function useDeviceById(deviceId: string) {
   const { devices } = useDeviceControllerContext();
-  return React.useMemo(() => devices.find(d => d.id === deviceId), [devices, deviceId]);
+  return React.useMemo(() => devices.find(d => d.browserId === deviceId), [devices, deviceId]);
 }
 
 /**

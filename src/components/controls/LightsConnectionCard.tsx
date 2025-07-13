@@ -11,35 +11,26 @@ import AddIcon from "@mui/icons-material/Add";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 import { useDeviceControllerContext } from "../../controllers/DeviceControllerContext";
 import DeviceControls from "./DeviceControls";
-import { useAppStore } from "../../store/appStore";
+import { useDeviceMetadata, useDeviceConnection, useDeviceState } from '../../store/appStore';
 import ConnectionTools from './ConnectionTools';
 
 const LightsConnectionCard: React.FC = () => {
-    const {
-        devices,
-        addDevice,
-        updateDevice,
-    } = useDeviceControllerContext();
+    const { devices, connectDevice } = useDeviceControllerContext();
     const theme = useTheme();
-    const activeDeviceId = useAppStore(state => state.activeDeviceId);
-    const setActiveDeviceId = useAppStore(state => state.setActiveDeviceId);
-    const activeDevice = devices.find((d) => d.id === activeDeviceId);
+    const [selectedDeviceId, setSelectedDeviceId] = React.useState<string | null>(null);
     const [visible, setVisible] = React.useState(true);
 
-    // Auto-select the first connected device
-    React.useEffect(() => {
-        if (!activeDeviceId) {
-            const firstConnected = devices.find(d => d.isConnected);
-            if (firstConnected) {
-                setActiveDeviceId(firstConnected.id);
-            }
-        }
-        // Only run when devices change
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [devices]);
+    // Only show devices that are actually connecting or connected
+    const visibleDevices = devices.filter(d => d.isConnecting || d.isConnected);
 
-    // Debug: log current activeDeviceId and selected device
-    console.log('[LightsConnectionCard] activeDeviceId:', activeDeviceId, 'activeDevice:', activeDevice);
+    React.useEffect(() => {
+        if (!selectedDeviceId && visibleDevices.length > 0) {
+            setSelectedDeviceId(visibleDevices[0].browserId);
+        }
+    }, [visibleDevices, selectedDeviceId]);
+    console.log('devices', visibleDevices);
+
+    const selectedDevice = selectedDeviceId ? visibleDevices.find(d => d.browserId === selectedDeviceId) : null;
 
     if (!visible) {
         return (
@@ -71,6 +62,8 @@ const LightsConnectionCard: React.FC = () => {
         );
     }
 
+    console.log("devices", devices);
+
     return (
         <Box sx={{ p: 2, width: '100%', maxWidth: 380 }}>
             <Typography
@@ -79,99 +72,80 @@ const LightsConnectionCard: React.FC = () => {
             >
                 Visualizer → Lights Connection
             </Typography>
-            {devices.length === 0 ? (
-                <Button
-                    variant="contained"
-                    fullWidth
-                    onClick={addDevice}
-                    sx={{ mb: 1 }}
-                >
-                    Add Device
-                </Button>
-            ) : (
-                <IconButton
-                    size="small"
-                    color="primary"
-                    onClick={addDevice}
-                    sx={{ position: "absolute", top: 8, right: 8 }}
-                    aria-label="Add Device"
-                >
-                    <AddIcon fontSize="small" />
-                </IconButton>
-            )}
-            {devices.length === 0 ? (
+            <IconButton
+                size="small"
+                color="primary"
+                onClick={() => connectDevice()}
+                sx={{ position: "absolute", top: 8, right: 8 }}
+                aria-label="Add Device"
+            >
+                <AddIcon fontSize="small" />
+            </IconButton>
+            {visibleDevices.length === 0 ? (
                 <Typography
                     variant="body2"
                     color="text.secondary"
                     sx={{ mt: 1, mb: 1 }}
                 >
-                    No devices added.
+                    No devices connected.
                 </Typography>
             ) : (
-                <>
-                    <Box
-                        sx={{
-                            width: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                        }}
-                    >
-                        <Box sx={{ flex: 1 }}>
-                            <Typography variant="body2" sx={{ mb: 0.5 }}>
-                                Devices:
-                            </Typography>
-                            <Stack spacing={0.5}>
-                                {devices.map((device) => {
-                                    const isSelected = activeDeviceId === device.id && device.isConnected;
-                                    return (
-                                        <Box
-                                            key={device.id}
-                                            onClick={() => {
-                                                if (device.isConnected) {
-                                                    console.log('[LightsConnectionCard] setActiveDeviceId:', device.id);
-                                                    setActiveDeviceId(device.id);
-                                                }
-                                            }}
-                                            sx={{
-                                                flex: 1,
-                                                justifyContent: "flex-start",
-                                                textTransform: "none",
-                                                minWidth: 0,
-                                                px: 1,
-                                                py: 0.5,
-                                                fontSize: 14,
-                                                cursor: device.isConnected ? 'pointer' : 'default',
-                                                opacity: device.isConnected ? 1 : 0.6,
-                                                border: isSelected ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
-                                                borderRadius: 1,
-                                                background: isSelected ? theme.palette.action.selected : 'transparent',
-                                                color: theme.palette.text.primary,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 1,
-                                                width: '100%',
-                                            }}
-                                            tabIndex={0}
-                                            role="button"
-                                            aria-disabled={!device.isConnected}
-                                        >
-                                            <ConnectionTools deviceId={device.id} />
-                                        </Box>
-                                    );
-                                })}
-                            </Stack>
-                        </Box>
-                        {activeDevice && activeDevice.isConnected && (
-                            <Box sx={{ mt: 1, mb: 1 }}>
-                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
-                                    Device Controls
-                                </Typography>
-                                <DeviceControls deviceId={activeDevice.id} onUpdate={update => updateDevice(activeDevice.id, update)} />
-                            </Box>
-                        )}
+                <Box
+                    sx={{
+                        width: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                    }}
+                >
+                    <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                            Devices:
+                        </Typography>
+                        <Stack spacing={0.5}>
+                            {visibleDevices.map((device) => {
+                                const isSelected = selectedDeviceId === device.browserId;
+                                return (
+                                    <Box
+                                        key={device.browserId}
+                                        onClick={() => setSelectedDeviceId(device.browserId)}
+                                        sx={{
+                                            flex: 1,
+                                            justifyContent: "flex-start",
+                                            textTransform: "none",
+                                            minWidth: 0,
+                                            px: 1,
+                                            py: 0.5,
+                                            fontSize: 14,
+                                            cursor: 'pointer',
+                                            opacity: 1,
+                                            border: isSelected ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
+                                            borderRadius: 1,
+                                            background: isSelected ? theme.palette.action.selected : 'transparent',
+                                            color: theme.palette.text.primary,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            width: '100%',
+                                        }}
+                                        tabIndex={0}
+                                        role="button"
+                                    >
+                                        <ConnectionTools deviceId={device.browserId} />
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
                     </Box>
-                </>
+                    {selectedDevice && (
+                        <Box sx={{ mt: 1, mb: 1 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 500 }}>
+                                Device Controls
+                            </Typography>
+                            <DeviceControls deviceId={selectedDevice.browserId} />
+                        </Box>
+                    )}
+                </Box>
             )}
         </Box>
     );

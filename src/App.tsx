@@ -1,47 +1,38 @@
-import React, { useState } from "react";
-import { ThemeProvider, createTheme, CssBaseline } from "@mui/material";
+import React, { useEffect, useContext } from "react";
 import Dashboard from "./components/Dashboard";
 import { DeviceControllerProvider } from "./controllers/DeviceControllerContext";
 import { ToastProvider } from "./controllers/ToastContext";
 import GlobalToast from "./components/GlobalToast";
-import { ImpulseEventProvider } from "./context/ImpulseEventContext";
+import { UnifiedThemeProvider } from "./context/UnifiedThemeProvider";
+import { UnifiedThemeContext } from "./context/UnifiedThemeContext";
+// @ts-expect-error - no types for blueprintjs direct css imports
+import "@blueprintjs/core/lib/css/blueprint.css";
 
-function App() {
-    const getInitialMode = () => {
-        const saved = localStorage.getItem("colorMode");
-        if (saved === "light" || saved === "dark") return saved;
-        return window.matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light";
-    };
-    const [mode, setMode] = useState<"light" | "dark">(getInitialMode());
-    const theme = createTheme({ palette: { mode } });
-    const handleToggle = () => {
-        setMode((prev) => {
-            const next = prev === "light" ? "dark" : "light";
-            localStorage.setItem("colorMode", next);
-            return next;
-        });
-    };
-
+const App = () => {
+    const theme = useContext(UnifiedThemeContext);
+    useEffect(() => {
+        if (theme?.mode === 'dark') {
+            document.body.classList.add('bp5-dark');
+        } else {
+            document.body.classList.remove('bp5-dark');
+        }
+    }, [theme?.mode]);
     return (
-        <>
-            <ThemeProvider theme={theme}>
-                <CssBaseline />
-                <ImpulseEventProvider>
+        <UnifiedThemeProvider>
                     <DeviceControllerProvider>
                         <ToastProvider>
                             <GlobalToast />
-                            <Dashboard
-                                mode={mode}
-                                onToggleMode={handleToggle}
-                            />
+                    <UnifiedThemeContext.Consumer>
+                        {(value) => {
+                            if (!value) return null;
+                            const { mode, toggleMode } = value;
+                            return <Dashboard mode={mode} onToggleMode={toggleMode} />;
+                        }}
+                    </UnifiedThemeContext.Consumer>
                         </ToastProvider>
                     </DeviceControllerProvider>
-                </ImpulseEventProvider>
-            </ThemeProvider>
-        </>
+        </UnifiedThemeProvider>
     );
-}
+};
 
 export default App;

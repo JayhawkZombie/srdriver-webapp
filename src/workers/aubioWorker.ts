@@ -1,28 +1,73 @@
 /* eslint-disable */
 // Pluggable audio worker for onset/impulse detection (Vite-compatible, ES module)
 import { detectionEngines } from './detectionEngines';
-import type { DetectionEvent } from '../components/upgrade/types';
+import type { DetectionResult } from './detectionEngines';
+type DetectionEvent = { time: number; strength?: number };
 
 globalThis.onmessage = async (e: MessageEvent) => {
-  const { audioBuffer, sampleRate, params = {}, engine = 'spectral-flux' } = e.data as {
-    audioBuffer: Float32Array | { getChannelData: (ch: number) => Float32Array };
-    sampleRate: number;
-    params?: any;
-    engine?: string;
-  };
+  const { audioBuffer, sampleRate, params = {}, engine = 'spectral-flux', jobId, pcmBuffer, pcmLength, bands } = e.data as any;
   let events: DetectionEvent[] = [];
   let detectionFunction: number[] = [];
   let times: number[] = [];
   let error: string | null = null;
 
   try {
+    console.log('aubioWorker', { audioBuffer, sampleRate, params, engine, pcmBuffer, pcmLength, bands });
     const selectedEngine = detectionEngines[engine];
     if (!selectedEngine) throw new Error('Unknown engine: ' + engine);
-    const result = selectedEngine.detect(audioBuffer, sampleRate, params);
-    const resolved = result instanceof Promise ? await result : result;
-    events = resolved.events;
-    detectionFunction = resolved.detectionFunction;
-    times = resolved.times;
+    let lastReported = 0;
+    const onProgress = (processed: number, total: number) => {
+      if (processed - lastReported >= 500 || processed === total) {
+        lastReported = processed;
+        globalThis.postMessage({ type: 'progress', processed, total, jobId });
+      }
+    };
+    // Multi-band detection
+    if (Array.isArray(bands) && bands.length > 0) {
+      // Main PCM detection (if pcmBuffer provided)
+      let mainResult: DetectionResult = { events: [], detectionFunction: [], times: [] };
+      if (pcmBuffer && pcmLength) {
+        const mainPcm = new Float32Array(pcmBuffer, 0, pcmLength);
+        mainResult = await selectedEngine.detect(mainPcm, sampleRate, params, onProgress);
+      }
+      // Each band
+      const bandResults: DetectionResult[] = await Promise.all(bands.map(async (band: any) => {
+        if (band.pcmBuffer && band.pcmLength) {
+          const bandPcm = new Float32Array(band.pcmBuffer, 0, band.pcmLength);
+          return await selectedEngine.detect(bandPcm, sampleRate, params, onProgress) as DetectionResult;
+        } else {
+          return { events: [], detectionFunction: [], times: [] } as DetectionResult;
+        }
+      }));
+      // Collect all buffers to transfer (ensure Float32Array)
+      function toBuffer(arr: number[] | Float32Array) {
+        return (arr instanceof Float32Array ? arr : new Float32Array(arr)).buffer;
+      }
+      const transferList: Transferable[] = [
+        ...(mainResult.detectionFunction ? [toBuffer(mainResult.detectionFunction)] : []),
+        ...(mainResult.times ? [toBuffer(mainResult.times)] : []),
+        ...bandResults.flatMap(b => [toBuffer(b.detectionFunction), toBuffer(b.times)])
+      ];
+      // Worker globalThis.postMessage: (message: any, transfer: Transferable[]) => void
+      (globalThis as any).postMessage({ type: 'done', main: mainResult, bands: bandResults, jobId }, transferList);
+      return;
+    }
+    // Single PCM detection (legacy)
+    let inputPcm: Float32Array | undefined = undefined;
+    if (pcmBuffer && pcmLength) {
+      inputPcm = new Float32Array(pcmBuffer, 0, pcmLength);
+    } else if (audioBuffer instanceof Float32Array) {
+      inputPcm = audioBuffer;
+    } else if (audioBuffer && typeof audioBuffer.getChannelData === 'function') {
+      inputPcm = audioBuffer.getChannelData(0);
+    }
+    if (!inputPcm) throw new Error('No PCM data provided');
+    const result = selectedEngine.detect.length >= 4
+      ? await (selectedEngine.detect as any)(inputPcm, sampleRate, params, onProgress)
+      : await selectedEngine.detect(inputPcm, sampleRate, params);
+    events = result.events;
+    detectionFunction = result.detectionFunction;
+    times = result.times;
   } catch (err: unknown) {
     if (err instanceof Error) {
       error = err.message;
@@ -31,5 +76,5 @@ globalThis.onmessage = async (e: MessageEvent) => {
     }
   }
 
-  globalThis.postMessage({ events, detectionFunction, times, error });
+  globalThis.postMessage({ type: 'done', events, detectionFunction, times, error, jobId });
 }; 

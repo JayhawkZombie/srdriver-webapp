@@ -1,0 +1,19 @@
+.sliderControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  min-width: 50px;
+}
+.slider {
+  flex: 1;
+  min-width: 50px;
+  margin: 0 4px;
+  height: 18px;
+}
+.label {
+  font-size: 13px;
+  color: #bbb;
+  margin-right: 4px;
+  white-space: nowrap;
+} 

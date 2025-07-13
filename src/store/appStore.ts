@@ -1,58 +1,146 @@
 import { create } from 'zustand';
 import type { StateCreator } from 'zustand';
 import { set as idbSet, get as idbGet } from 'idb-keyval';
+import type { ResponseRectPalette } from '../types/ResponseRectPalette';
+import { responseRectPalettes } from '../constants/responseRectPalettes';
+import type { BandData } from '../components/visuals/bandPlotUtils';
+
+// --- Storybook detection ---
+const isStorybook = Boolean(((window as unknown) as Record<string, unknown>).__STORYBOOK_ADDONS_CHANNEL__);
+
+// --- Utility: Safe deep merge for nested Zustand updates ---
+function safeMerge<T>(base: T, update: Partial<T>): T {
+  if (typeof base !== 'object' || base === null) return update as T;
+  const result = { ...base } as Record<string, unknown>;
+  for (const key in update) {
+    if (
+      Object.prototype.hasOwnProperty.call(update, key) &&
+      typeof update[key] === 'object' &&
+      update[key] !== null &&
+      typeof (base as Record<string, unknown>)[key] === 'object' &&
+      (base as Record<string, unknown>)[key] !== null
+    ) {
+      // Type-safe recursive call for nested objects
+      type Value = typeof base extends Record<string, unknown> ? typeof base[typeof key] : unknown;
+      result[key] = safeMerge(
+        (base as Record<string, unknown>)[key] as Value,
+        update[key] as Partial<Value>
+      );
+    } else {
+      result[key] = update[key];
+    }
+  }
+  return result as T;
+}
 
 // --- Generic IndexedDB middleware ---
 export function persistWithIndexedDB<T extends object>(key: string, config: StateCreator<T>): StateCreator<T> {
   return (set, _get, api) => {
-    // Only hydrate if store is at initial state
+    console.log('[Zustand] Hydration starting...');
     idbGet(key).then((stored: unknown) => {
-      // Only hydrate if store is at initial state
       if (stored && typeof stored === 'object' && stored !== null) {
         const s = stored as Partial<AppState>;
-        if (s.audioData) {
-          set((state: T) => ({ ...state, audioData: s.audioData } as T));
+        if (s.timeline) {
+          console.log('[Zustand] Hydrating timeline from storage:', Array.isArray(s.timeline.responses) ? s.timeline.responses.length : 0, s.timeline.responses?.slice(0, 2));
         }
-        if (s.devicesMetadata) {
-          set((state: T) => ({ ...state, devicesMetadata: s.devicesMetadata } as T));
+        if (s.audio) {
+          set((state: T) => ({ ...state, audio: s.audio } as T));
         }
+        if (s.ui) {
+          set((state: T) => ({ ...state, ui: s.ui } as T));
+        }
+        if (s.playback) {
+          set((state: T) => ({ ...state, playback: s.playback } as T));
+        }
+        if (s.deviceMetadata) {
+          set((state: T) => ({ ...state, deviceMetadata: s.deviceMetadata } as T));
+        }
+        if (s.devices) {
+          set((state: T) => ({ ...state, devices: s.devices } as T));
+        }
+        if (s.rectTemplates) set((state: T) => ({ ...state, rectTemplates: s.rectTemplates } as T));
+        if (s.palettes) set((state: T) => ({ ...state, palettes: s.palettes } as T));
+        if (s.templateTypes) set((state: T) => ({ ...state, templateTypes: s.templateTypes } as T));
+        if (s.timeline) set((state: T) => ({ ...state, timeline: s.timeline } as T));
+        if (s.tracks) set((state: T) => ({ ...state, tracks: s.tracks } as T));
+        if (s.deviceUserPrefs) set((state: T) => ({ ...state, deviceUserPrefs: s.deviceUserPrefs } as T));
+      }
+      set((state: T) => ({ ...state, hydrated: true } as T));
+      const current = _get();
+      if (
+        typeof current === 'object' &&
+        current !== null &&
+        'deviceMetadata' in current &&
+        typeof (current as { deviceMetadata?: unknown }).deviceMetadata === 'object'
+      ) {
+        console.log('[Zustand] Hydration complete. deviceMetadata:', (current as { deviceMetadata: unknown }).deviceMetadata);
+      } else {
+        console.log('[Zustand] Hydration complete.');
       }
     });
-    // Wrap set to persist to IndexedDB
-    const setAndPersist: typeof set = (fnOrObj) => {
-      set(fnOrObj);
-      // Use type assertion to AppState for persisted fields
+    const setAndPersist: typeof set = (fnOrObj: unknown) => {
+      set(fnOrObj as T);
       const state = _get() as unknown as AppState;
-      // Only persist serializable, minimal state
+      // Deep clone and remove audioBuffer before persisting
       const stateToPersist = {
-        audioData: {
-          metadata: state.audioData?.metadata ?? null,
-          analysis: state.audioData?.analysis && state.audioData.analysis.summary
-            ? { summary: state.audioData.analysis.summary }
-            : null
+        audio: {
+          ...state.audio,
+          analysis: {
+            ...state.audio.analysis,
+            audioBuffer: null, // Do not persist AudioBuffer
+          },
         },
-        devicesMetadata: state.devicesMetadata ?? {},
+        playback: state.playback,
+        ui: state.ui,
+        deviceMetadata: state.deviceMetadata,
+        devices: state.devices,
+        rectTemplates: state.rectTemplates,
+        templateTypes: state.templateTypes,
+        palettes: state.palettes,
+        timeline: state.timeline,
+        tracks: state.tracks,
+        // TODO: Think about whether to persist deviceData
+        // deviceState: state.deviceState,
+        // deviceData: state.deviceData,
+        deviceUserPrefs: state.deviceUserPrefs,
       };
+      if (stateToPersist.timeline) {
+        // console.log('[Zustand] Persisting timeline:', Array.isArray(stateToPersist.timeline.responses) ? stateToPersist.timeline.responses.length : 0, stateToPersist.timeline.responses?.slice(0, 2));
+      }
       idbSet(key, stateToPersist);
     };
     return config(setAndPersist, _get, api);
   };
 }
 
-// --- Application-level Zustand store ---
+// --- Timeline types ---
+export interface TimelineResponse {
+  id: string;
+  timestamp: number;
+  duration: number;
+  trackIndex: number;
+  data: Record<string, unknown>;
+  triggered: boolean;
+  intent?: string; // e.g., 'primary', 'error', 'success', etc.
+}
+
+// --- Grouped Zustand store ---
 export interface AudioDataMetadata {
   fileName: string;
   lastModified: number;
 }
 
 export interface AudioDataAnalysis {
-  fftSequence: (Float32Array | number[])[];
+  // Only summary/downsampled/visualization fields should be here
+  normalizedFftSequence?: number[][]; // Downsampled for visualization
   summary: Record<string, unknown> | null;
-  audioBuffer: AudioBuffer | null;
-  bandDataArr?: Array<Record<string, unknown>>;
-  impulseStrengths?: number[][];
+  bandDataArr?: BandData[];
   detectionFunction?: number[];
   detectionTimes?: number[];
+  waveform?: number[];
+  duration?: number;
+  aubioEvents?: DetectionEvent[];
+  aubioError?: string;
 }
 
 export interface AudioDataState {
@@ -60,257 +148,920 @@ export interface AudioDataState {
   analysis: AudioDataAnalysis | null;
 }
 
-export interface DeviceUIState {
+export interface PlaybackState {
+  currentTime: number;
+  isPlaying: boolean;
+  totalDuration: number;
+}
+
+export interface UIState {
+  windowSec: number;
+  showFirstDerivative: boolean;
+  showSecondDerivative: boolean;
+  showImpulses: boolean;
+  showSustainedImpulses: boolean;
+  onlySustained: boolean;
+  showDetectionFunction: boolean;
+  devToolsEnabled: boolean;
+  // Add more UI controls as needed
+}
+
+// --- Device types ---
+export type DeviceTypeInfo = {
+  model: string;
+  firmwareVersion: string;
+  numLEDs: number;
+  ledLayout: 'strip' | 'matrix' | 'custom';
+  capabilities: string[];
+};
+
+export type DeviceMetadata = {
+  browserId: string;
+  nickname: string;
+  name: string;
+  group: string | null;
+  tags: string[];
+  typeInfo: DeviceTypeInfo;
+};
+
+export type DeviceUIState = {
   brightness: number;
   speed: number;
   patternIndex: number;
-  bleRTT?: number; // BLE round-trip time in ms
+};
+
+export type DeviceConnectionStatus = {
+  isConnected: boolean;
+  isConnecting: boolean;
+  lastHeartbeat: number | null;
+  bleRTT: number | null;
+  error: string | null;
+  lastSeen: number | null;
+  autoReconnect: boolean;
+};
+
+export type DeviceDataBlob = {
+  [key: string]: unknown;
+};
+
+export type DeviceUserPrefs = {
+  [id: string]: {
+    autoReconnect?: boolean;
+    preferredGroup?: string;
+    // Extend as needed
+  };
+};
+
+// --- AppState ---
+export interface TrackTarget {
+  type: 'device' | 'group' | 'other';
+  id: string;
 }
+
+export interface TracksState {
+  mapping: { [trackIndex: number]: TrackTarget | undefined };
+  // Add more per-track config here as needed
+}
+
+export interface TemplateType {
+  value: string;
+  label: string;
+}
+
+export interface TemplateDataField {
+  key: string;
+  value: unknown;
+  lockKey?: boolean;
+  lockValue?: boolean;
+}
+
+export interface RectTemplate {
+  id: string;
+  name: string;
+  type: string;
+  defaultDuration: number;
+  defaultData: Record<string, unknown>;
+  paletteName: string;
+}
+
+export type DetectionEvent = { time: number; strength?: number };
 
 export interface AppState {
-  audioData: AudioDataState;
-  setAudioData: (data: Partial<AudioDataState>) => void;
-  devicesMetadata: { [macOrId: string]: { nickname: string } };
-  setDeviceNickname: (macOrId: string, nickname: string) => void;
-  devices: { [id: string]: DeviceUIState };
-  setDeviceState: (id: string, update: Partial<DeviceUIState>) => void;
-  // UI controls and toggles
-  selectedBand: string;
-  setSelectedBand: (band: string) => void;
-  windowSec: number;
-  setWindowSec: (sec: number) => void;
-  showFirstDerivative: boolean;
-  setShowFirstDerivative: (show: boolean) => void;
-  showSecondDerivative: boolean;
-  setShowSecondDerivative: (show: boolean) => void;
-  showImpulses: boolean;
-  setShowImpulses: (show: boolean) => void;
-  showSustainedImpulses: boolean;
-  setShowSustainedImpulses: (show: boolean) => void;
-  onlySustained: boolean;
-  setOnlySustained: (show: boolean) => void;
-  showDetectionFunction: boolean;
-  setShowDetectionFunction: (show: boolean) => void;
-  // New: UI and control state
-  windowSize: number;
-  setWindowSize: (n: number) => void;
-  hopSize: number;
-  setHopSize: (n: number) => void;
-  followCursor: boolean;
-  setFollowCursor: (b: boolean) => void;
-  snapToWindow: boolean;
-  setSnapToWindow: (b: boolean) => void;
-  selectedEngine: string;
-  setSelectedEngine: (s: string) => void;
-  file: File | null;
-  setFile: (f: File | null) => void;
-  audioUrl: string | undefined;
-  setAudioUrl: (u: string | undefined) => void;
-  isPlaying: boolean;
-  setIsPlaying: (b: boolean) => void;
-  playbackTime: number;
-  setPlaybackTime: (n: number) => void;
-  loading: boolean;
-  setLoading: (b: boolean) => void;
-  processingProgress: { processed: number; total: number } | null;
-  setProcessingProgress: (p: { processed: number; total: number } | null) => void;
-  hasProcessedOnce: boolean;
-  setHasProcessedOnce: (b: boolean) => void;
-  isProcessingStale: boolean;
-  setIsProcessingStale: (b: boolean) => void;
-  // Impulse controls (per band)
-  impulseThresholds: number[];
-  setImpulseThresholds: (thresholds: number[] | { index: number, value: number }) => void;
-  // Global normalized impulse threshold (in standard deviations)
-  normalizedImpulseThreshold: number;
-  setNormalizedImpulseThreshold: (value: number) => void;
-  // Impulse/FFT processing controls
-  impulseWindowSize: number; // How many frames apart for derivative (1 = current - prev)
-  setImpulseWindowSize: (n: number) => void;
-  impulseSmoothing: number; // Smoothing window for magnitude/derivative
-  setImpulseSmoothing: (n: number) => void;
-  impulseDetectionMode: 'second-derivative' | 'first-derivative' | 'z-score' | 'spectral-flux';
-  setImpulseDetectionMode: (mode: 'second-derivative' | 'first-derivative' | 'z-score' | 'spectral-flux') => void;
-  derivativeMode: 'forward' | 'centered' | 'moving-average';
-  setDerivativeMode: (mode: 'forward' | 'centered' | 'moving-average') => void;
-  spectralFluxWindow: number;
-  setSpectralFluxWindow: (n: number) => void;
-  spectralFluxK: number;
-  setSpectralFluxK: (n: number) => void;
-  spectralFluxMinSeparation: number;
-  setSpectralFluxMinSeparation: (n: number) => void;
-  // New: dB and dB delta thresholds for impulse detection
-  minDb: number;
-  setMinDb: (n: number) => void;
-  minDbDelta: number;
-  setMinDbDelta: (n: number) => void;
-  // Pattern response
-  patternResponseIndex: number;
-  setPatternResponseIndex: (idx: number) => void;
-  // Global selected device
-  activeDeviceId: string | null;
-  setActiveDeviceId: (id: string | null) => void;
-  bleLookaheadMs: number;
-  setBleLookaheadMs: (ms: number) => void;
-  // New: Impulse Response
-  impulseResponseAction: string;
-  setImpulseResponseAction: (action: string) => void;
-  impulseResponseArgs: string;
-  setImpulseResponseArgs: (args: string) => void;
-  minMagnitudeThreshold: number;
-  setMinMagnitudeThreshold: (n: number) => void;
+  audio: {
+    data: AudioDataState;
+    analysis: AudioDataAnalysis;
+  };
+  playback: PlaybackState;
+  ui: UIState;
+  timeline: {
+    responses: TimelineResponse[];
+  };
+  tracks: TracksState;
+  devices: string[];
+  deviceMetadata: { [browserId: string]: DeviceMetadata };
+  deviceState: { [browserId: string]: DeviceUIState };
+  deviceConnection: { [browserId: string]: DeviceConnectionStatus };
+  deviceData: { [browserId: string]: DeviceDataBlob };
+  deviceUserPrefs: { [browserId: string]: DeviceUserPrefs[string] };
+  hydrated: boolean;
+  palettes: Record<string, ResponseRectPalette>;
+  rectTemplates: Record<string, RectTemplate>;
+  templateTypes: TemplateType[];
+  waveformProgress: { processed: number; total: number; jobId?: string } | null;
+  logs: LogEntry[];
+  maxLogCount: number;
+  setAudioData: (data: { waveform: number[]; duration: number }) => void;
+  addTimelineResponse: (resp: TimelineResponse) => void;
+  updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => void;
+  deleteTimelineResponse: (id: string) => void;
+  setTimelineResponses: (responses: TimelineResponse[]) => void;
+  addDevice: (metadata: DeviceMetadata) => void;
+  removeDevice: (id: string) => void;
+  setDeviceMetadata: (id: string, metadata: DeviceMetadata) => void;
+  setDeviceNickname: (id: string, nickname: string) => void;
+  setDeviceState: (id: string, state: Partial<DeviceUIState>) => void;
+  setDeviceConnection: (id: string, status: Partial<DeviceConnectionStatus>) => void;
+  setDeviceData: (id: string, data: DeviceDataBlob) => void;
+  updateDeviceTypeInfo: (id: string, typeInfo: Partial<DeviceTypeInfo>) => void;
+  setDeviceGroup: (id: string, group: string | null) => void;
+  setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
+  setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => void;
+  setPalette: (name: string, palette: ResponseRectPalette) => void;
+  removePalette: (name: string) => void;
+  getPalette: (name?: string) => ResponseRectPalette;
+  addLog: (level: string, category: string, message: string, data?: unknown) => void;
+  clearLogs: () => void;
+  getLogsByCategory: (category: string) => LogEntry[];
+  getLogsByLevel: (level: string) => LogEntry[];
+  addRectTemplate: (template: RectTemplate) => void;
+  updateRectTemplate: (id: string, update: Partial<RectTemplate>) => void;
+  deleteRectTemplate: (id: string) => void;
+  getRectTemplate: (id: string) => RectTemplate | undefined;
+  getRectTemplates: () => RectTemplate[];
+  addTemplateType: (type: TemplateType) => void;
+  removeTemplateType: (value: string) => void;
+  updateTemplateType: (value: string, update: Partial<TemplateType>) => void;
+  setWaveformProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  fftProgress: { processed: number; total: number; jobId?: string } | null;
+  aubioProgress: { processed: number; total: number; jobId?: string } | null;
+  setFftProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  setAubioProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  setFftResult: (result: { normalizedFftSequence?: number[][]; summary?: Record<string, unknown> }) => void;
+  setAubioResult: (result: { detectionFunction: number[]; times: number[]; events: DetectionEvent[]; error?: string }) => void;
+  setBandDataArr: (bandDataArr: BandData[]) => void;
+  setDevToolsEnabled: (enabled: boolean) => void;
 }
 
+// --- Initial state ---
 const initialAudioData: AudioDataState = {
   metadata: null,
   analysis: null,
 };
+const initialAudioAnalysis: AudioDataAnalysis = {
+  summary: null,
+};
+const initialPlayback: PlaybackState = {
+  currentTime: 0,
+  isPlaying: false,
+  totalDuration: 0,
+};
+const initialUI: UIState = {
+  windowSec: 4,
+  showFirstDerivative: false,
+  showSecondDerivative: false,
+  showImpulses: true,
+  showSustainedImpulses: false,
+  onlySustained: false,
+  showDetectionFunction: false,
+  devToolsEnabled: false,
+};
+const initialTimeline = {
+  responses: [],
+};
+const initialDeviceMetadata: { [id: string]: DeviceMetadata } = {
+  'mock-device-1': {
+    browserId: 'mock-device-1',
+    name: 'Demo Device 1',
+    nickname: 'Demo Device 1',
+    group: '',
+    tags: [],
+    typeInfo: {
+      model: 'MockModel',
+      firmwareVersion: '1.0.0',
+      numLEDs: 60,
+      ledLayout: 'strip',
+      capabilities: ['led', 'pattern'],
+    },
+  },
+};
+const initialDeviceState: { [id: string]: DeviceUIState } = {};
+const initialDeviceConnection: { [id: string]: DeviceConnectionStatus } = {};
+const initialDeviceData: { [id: string]: DeviceDataBlob } = {};
+const initialDeviceUserPrefs: DeviceUserPrefs = {};
+const initialTracks: TracksState = {
+  mapping: {
+    0: { type: 'device', id: 'mock-device-1' },
+    1: undefined,
+    2: undefined,
+  },
+};
 
-const initialDevicesMetadata: { [macOrId: string]: { nickname: string } } = {};
-const initialDevices: { [id: string]: DeviceUIState } = {};
+export type LogEntry = {
+  id: string;
+  timestamp: number;
+  level: string;
+  category: string;
+  message: string;
+  data?: unknown;
+};
 
-// Private helper for safe device state updates
-function safeUpdateDeviceState(prev: DeviceUIState, update: Partial<DeviceUIState>): DeviceUIState {
-  return {
-    ...prev,
-    ...Object.fromEntries(Object.entries(update).filter(([, v]) => v !== undefined)),
-  };
-}
-
-// Private helper for safe device metadata updates
-function safeUpdateDeviceMetadata(prev: { nickname: string } = { nickname: '' }, update: Partial<{ nickname: string }>): { nickname: string } {
-  return {
-    ...prev,
-    ...Object.fromEntries(Object.entries(update).filter(([, v]) => v !== undefined)),
-  };
-}
-
-// Helper to update a single device by ID
-function updateDeviceById(devices: { [id: string]: DeviceUIState }, id: string, update: Partial<DeviceUIState>): { [id: string]: DeviceUIState } {
-  return {
-    ...devices,
-    [id]: safeUpdateDeviceState(devices[id], update),
-  };
-}
-
-// Helper to update a single device's metadata by ID
-function updateDeviceMetadataById(devicesMetadata: { [id: string]: { nickname: string } }, id: string, update: Partial<{ nickname: string }>): { [id: string]: { nickname: string } } {
-  return {
-    ...devicesMetadata,
-    [id]: safeUpdateDeviceMetadata(devicesMetadata[id], update),
-  };
-}
-
-export const useAppStore = create<AppState>(
-  persistWithIndexedDB<AppState>('app-state', (set, get) => ({
-    audioData: initialAudioData,
-    setAudioData: (data: Partial<AudioDataState>) => set((state: AppState) => ({
-      audioData: {
-        ...state.audioData,
-        ...Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)),
+export const useAppStore = create<AppState & {
+  setAudioData: (data: { waveform: number[]; duration: number }) => void;
+  setWaveformProgress: (progress: { processed: number; total: number; jobId?: string } | null) => void;
+  waveformProgress: { processed: number; total: number; jobId?: string } | null;
+  addTimelineResponse: (resp: TimelineResponse) => void;
+  updateTimelineResponse: (id: string, update: Partial<TimelineResponse>) => void;
+  deleteTimelineResponse: (id: string) => void;
+  setTimelineResponses: (responses: TimelineResponse[]) => void;
+  addDevice: (metadata: DeviceMetadata) => void;
+  removeDevice: (id: string) => void;
+  setDeviceMetadata: (id: string, metadata: DeviceMetadata) => void;
+  setDeviceNickname: (id: string, nickname: string) => void;
+  setDeviceState: (id: string, state: Partial<DeviceUIState>) => void;
+  setDeviceConnection: (id: string, status: Partial<DeviceConnectionStatus>) => void;
+  setDeviceData: (id: string, data: DeviceDataBlob) => void;
+  updateDeviceTypeInfo: (id: string, typeInfo: Partial<DeviceTypeInfo>) => void;
+  setDeviceGroup: (id: string, group: string | null) => void;
+  setDeviceUserPrefs: (id: string, prefs: Partial<DeviceUserPrefs[string]>) => void;
+  setTrackTarget: (trackIndex: number, target: TrackTarget | undefined) => void;
+  hydrated: boolean;
+  setPalette: (name: string, palette: ResponseRectPalette) => void;
+  removePalette: (name: string) => void;
+  getPalette: (name?: string) => ResponseRectPalette;
+  logs: LogEntry[];
+  addLog: (level: string, category: string, message: string, data?: unknown) => void;
+  clearLogs: () => void;
+  getLogsByCategory: (category: string) => LogEntry[];
+  getLogsByLevel: (level: string) => LogEntry[];
+  maxLogCount: number;
+  rectTemplates: Record<string, RectTemplate>;
+  addRectTemplate: (template: RectTemplate) => void;
+  updateRectTemplate: (id: string, update: Partial<RectTemplate>) => void;
+  deleteRectTemplate: (id: string) => void;
+  getRectTemplate: (id: string) => RectTemplate | undefined;
+  getRectTemplates: () => RectTemplate[];
+  addTemplateType: (type: TemplateType) => void;
+  removeTemplateType: (value: string) => void;
+  updateTemplateType: (value: string, update: Partial<TemplateType>) => void;
+  setDevToolsEnabled: (enabled: boolean) => void;
+}>(
+  isStorybook
+    ? ((set, get) => {
+        // Use set(state => ...) pattern for all state updates
+        return {
+          audio: {
+            data: initialAudioData,
+            analysis: initialAudioAnalysis,
+          },
+          playback: initialPlayback,
+          ui: initialUI,
+          timeline: initialTimeline,
+          tracks: initialTracks,
+          devices: [],
+          deviceMetadata: initialDeviceMetadata,
+          deviceState: initialDeviceState,
+          deviceConnection: initialDeviceConnection,
+          deviceData: initialDeviceData,
+          deviceUserPrefs: initialDeviceUserPrefs,
+          hydrated: true,
+          palettes: { ...responseRectPalettes },
+          rectTemplates: {
+            'led-beat': {
+              id: 'led-beat',
+              name: 'LED Beat',
+              type: 'led',
+              defaultDuration: 1,
+              defaultData: { pattern: 'beat', color: '#00ff00' },
+              paletteName: 'lightPulse',
+            },
+            'led-wave': {
+              id: 'led-wave',
+              name: 'LED Wave',
+              type: 'led',
+              defaultDuration: 2,
+              defaultData: { pattern: 'wave', color: '#0000ff' },
+              paletteName: 'singleFirePattern',
+            },
+          },
+          templateTypes: [
+            { value: 'pulse', label: 'Pulse' },
+            { value: 'pattern', label: 'Pattern' },
+            { value: 'cue', label: 'Cue' },
+            { value: 'settings', label: 'Settings Change' },
+            { value: 'led', label: 'LED' },
+          ],
+          waveformProgress: null,
+          logs: [],
+          maxLogCount: 200,
+          setAudioData: ({ waveform, duration }) => set(state => ({
+            audio: safeMerge(state.audio ?? {}, {
+              analysis: ensureAudioDataAnalysis({
+                ...state.audio?.analysis,
+                waveform,
+                duration,
+              })
+            }),
+            playback: {
+              ...state.playback,
+              totalDuration: duration,
+            },
+          })),
+          setWaveformProgress: (progress) => set(() => ({ waveformProgress: progress })),
+          addTimelineResponse: (resp) => set(state => ({
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses: [...(state.timeline?.responses ?? []), resp],
+            },
+          })),
+          updateTimelineResponse: (id, update) => set(state => ({
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
+            },
+          })),
+          deleteTimelineResponse: (id) => set(state => ({
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
+            },
+          })),
+          setTimelineResponses: (responses) => set(state => ({
+            ...state,
+            timeline: {
+              ...state.timeline,
+              responses,
+            },
+          })),
+          addDevice: (metadata) => set(state => {
+            const prev = state.deviceMetadata[metadata.browserId] || {};
+            return {
+              devices: state.devices.includes(metadata.browserId)
+                ? state.devices
+                : [...state.devices, metadata.browserId],
+              deviceMetadata: {
+                ...state.deviceMetadata,
+                [metadata.browserId]: {
+                  ...prev,
+                  ...metadata,
+                  nickname: metadata.nickname || prev.nickname || '',
+                  group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
+                  tags: metadata.tags || prev.tags || [],
+                  typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
+                },
+              },
+            };
+          }),
+          removeDevice: (id) => set(state => {
+            const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
+            const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
+            const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
+            const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
+            const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
+            return {
+              devices: state.devices.filter(did => did !== id),
+              deviceMetadata: restMeta,
+              deviceState: restState,
+              deviceConnection: restConn,
+              deviceData: restData,
+              deviceUserPrefs: restPrefs,
+            };
+          }),
+          setDeviceMetadata: (browserId, metadata) => set(state => ({
+            deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
+          })),
+          setDeviceNickname: (browserId, nickname) => set(state => ({
+            deviceMetadata: {
+              ...state.deviceMetadata,
+              [browserId]: {
+                ...state.deviceMetadata[browserId],
+                nickname,
+              },
+            },
+          })),
+          setDeviceState: (browserId, update) => set(state => ({
+            deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
+          })),
+          setDeviceConnection: (browserId, update) => set(state => ({
+            deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
+          })),
+          setDeviceData: (browserId, data) => set(state => ({
+            deviceData: { ...state.deviceData, [browserId]: data },
+          })),
+          updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
+            deviceMetadata: {
+              ...state.deviceMetadata,
+              [browserId]: {
+                ...state.deviceMetadata[browserId],
+                typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
+              },
+            },
+          })),
+          setDeviceGroup: (browserId, group) => set(state => ({
+            deviceMetadata: {
+              ...state.deviceMetadata,
+              [browserId]: {
+                ...state.deviceMetadata[browserId],
+                group,
+              },
+            },
+          })),
+          setDeviceUserPrefs: (browserId, prefs) => set(state => ({
+            deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
+          })),
+          setTrackTarget: (trackIndex, target) => set(state => ({
+            tracks: {
+              ...state.tracks,
+              mapping: { ...state.tracks.mapping, [trackIndex]: target },
+            },
+          })),
+          setPalette: (name, palette) => set(state => ({
+            palettes: { ...state.palettes, [name]: palette },
+          })),
+          removePalette: (name) => set(state => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [name]: __, ...rest } = state.palettes;
+            return { palettes: rest };
+          }),
+          getPalette: (name) => {
+            const palettes = get().palettes;
+            if (!name) return palettes['led'] || Object.values(palettes)[0];
+            return palettes[name] || palettes['led'] || Object.values(palettes)[0];
+          },
+          addLog: (level, category, message, data) => set(state => {
+            const max = state.maxLogCount || 200;
+            const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
+            const logs = [...state.logs, newLog];
+            // Cap logs at maxLogCount
+            const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
+            return { logs: cappedLogs };
+          }),
+          clearLogs: () => set(() => ({ logs: [] })),
+          getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
+          getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
+          addRectTemplate: (template) => set(state => ({
+            rectTemplates: {
+              ...state.rectTemplates,
+              [template.id]: {
+                ...template,
+                defaultData: migrateDefaultData(template.defaultData),
+              },
+            },
+          })),
+          updateRectTemplate: (id, update) => set(state => ({
+            rectTemplates: {
+              ...state.rectTemplates,
+              [id]: {
+                ...state.rectTemplates[id],
+                ...update,
+                defaultData: update.defaultData
+                  ? migrateDefaultData(update.defaultData)
+                  : state.rectTemplates[id].defaultData,
+              },
+            },
+          })),
+          deleteRectTemplate: (id) => set(state => {
+            const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
+            return { rectTemplates: rest };
+          }),
+          getRectTemplate: (id) => get().rectTemplates[id],
+          getRectTemplates: () => Object.values(get().rectTemplates),
+          addTemplateType: (type) => set(state => ({
+            templateTypes: [...state.templateTypes, type],
+          })),
+          removeTemplateType: (value) => set(state => ({
+            templateTypes: state.templateTypes.filter(t => t.value !== value),
+          })),
+          updateTemplateType: (value, update) => set(state => ({
+            templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+          })),
+          fftProgress: null,
+          aubioProgress: null,
+          setFftProgress: (progress) => set(() => ({ fftProgress: progress })),
+          setAubioProgress: (progress) => set(() => ({ aubioProgress: progress })),
+          setFftResult: (result) => {
+            // Only store downsampled/summary data in Zustand
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  normalizedFftSequence: result.normalizedFftSequence,
+                  summary: result.summary ?? state.audio?.analysis?.summary,
+                })
+              })
+            }));
+          },
+          setAubioResult: (result) => set(state => ({
+            audio: safeMerge(state.audio ?? {}, {
+              analysis: ensureAudioDataAnalysis({
+                ...state.audio?.analysis,
+                detectionFunction: result.detectionFunction,
+                detectionTimes: result.times,
+                aubioEvents: result.events,
+                aubioError: result.error,
+              })
+            })
+          })),
+          setBandDataArr: (bandDataArr) => {
+            if (Array.isArray(bandDataArr) && bandDataArr.length > 10000) {
+              if (!window.confirm(`You are about to store a very large bandDataArr (${bandDataArr.length} bands) in the app store. This may freeze your browser. Continue?`)) {
+                return;
+              }
+            }
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  bandDataArr
+                })
+              })
+            }));
+          },
+          setDevToolsEnabled: (enabled) => set(state => ({
+            ui: { ...state.ui, devToolsEnabled: enabled },
+          })),
+        };
+      })
+    : persistWithIndexedDB('app-state', (set, get) => {
+        // Use set(state => ...) pattern for all state updates
+        return {
+    audio: {
+      data: initialAudioData,
+      analysis: initialAudioAnalysis,
+    },
+    playback: initialPlayback,
+    ui: initialUI,
+    timeline: initialTimeline,
+          tracks: initialTracks,
+    devices: [],
+    deviceMetadata: initialDeviceMetadata,
+    deviceState: initialDeviceState,
+    deviceConnection: initialDeviceConnection,
+    deviceData: initialDeviceData,
+    deviceUserPrefs: initialDeviceUserPrefs,
+    hydrated: false,
+          palettes: { ...responseRectPalettes },
+          rectTemplates: {
+            'led-beat': {
+              id: 'led-beat',
+              name: 'LED Beat',
+              type: 'led',
+              defaultDuration: 1,
+              defaultData: { pattern: 'beat', color: '#00ff00' },
+              paletteName: 'lightPulse',
+            },
+            'led-wave': {
+              id: 'led-wave',
+              name: 'LED Wave',
+              type: 'led',
+              defaultDuration: 2,
+              defaultData: { pattern: 'wave', color: '#0000ff' },
+              paletteName: 'singleFirePattern',
+            },
+          },
+          templateTypes: [
+            { value: 'pulse', label: 'Pulse' },
+            { value: 'pattern', label: 'Pattern' },
+            { value: 'cue', label: 'Cue' },
+            { value: 'settings', label: 'Settings Change' },
+            { value: 'led', label: 'LED' },
+          ],
+          waveformProgress: null,
+          logs: [],
+          maxLogCount: 200,
+          setAudioData: ({ waveform, duration }) => set(state => ({
+        audio: safeMerge(state.audio ?? {}, {
+          analysis: ensureAudioDataAnalysis({
+            ...state.audio?.analysis,
+            waveform,
+            duration,
+          })
+        }),
+        playback: {
+          ...state.playback,
+          totalDuration: duration,
+        },
+          })),
+    addTimelineResponse: (resp) => set(state => ({
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses: [...(state.timeline?.responses ?? []), resp],
       },
     })),
-    devicesMetadata: initialDevicesMetadata,
-    setDeviceNickname: (macOrId: string, nickname: string) => set((state: AppState) => ({
-      devicesMetadata: updateDeviceMetadataById(state.devicesMetadata, macOrId, { nickname }),
+    updateTimelineResponse: (id, update) => set(state => ({
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses: (state.timeline?.responses ?? []).map(r => r.id === id ? { ...r, ...update } : r),
+      },
     })),
-    devices: initialDevices,
-    setDeviceState: (id: string, update: Partial<DeviceUIState>) => set((state: AppState) => ({
-      devices: updateDeviceById(state.devices, id, update),
+    deleteTimelineResponse: (id) => set(state => ({
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses: (state.timeline?.responses ?? []).filter(r => r.id !== id),
+      },
     })),
-    // UI controls and toggles
-    selectedBand: 'Bass',
-    setSelectedBand: (band) => set({ selectedBand: band }),
-    windowSec: 4,
-    setWindowSec: (sec) => set({ windowSec: sec }),
-    showFirstDerivative: false,
-    setShowFirstDerivative: (show) => set({ showFirstDerivative: show }),
-    showSecondDerivative: false,
-    setShowSecondDerivative: (show) => set({ showSecondDerivative: show }),
-    showImpulses: true,
-    setShowImpulses: (show) => set({ showImpulses: show }),
-    showSustainedImpulses: false,
-    setShowSustainedImpulses: (show) => set({ showSustainedImpulses: show }),
-    onlySustained: false,
-    setOnlySustained: (show) => set({ onlySustained: show }),
-    showDetectionFunction: false,
-    setShowDetectionFunction: (show) => set({ showDetectionFunction: show }),
-    // New: UI and control state
-    windowSize: 1024,
-    setWindowSize: (n) => set({ windowSize: n }),
-    hopSize: 512,
-    setHopSize: (n) => set({ hopSize: n }),
-    followCursor: true,
-    setFollowCursor: (b) => set({ followCursor: b }),
-    snapToWindow: true,
-    setSnapToWindow: (b) => set({ snapToWindow: b }),
-    selectedEngine: 'spectral-flux',
-    setSelectedEngine: (s) => set({ selectedEngine: s }),
-    file: null,
-    setFile: (f) => set({ file: f }),
-    audioUrl: undefined,
-    setAudioUrl: (u) => set({ audioUrl: u }),
-    isPlaying: false,
-    setIsPlaying: (b) => set({ isPlaying: b }),
-    playbackTime: 0,
-    setPlaybackTime: (n) => set({ playbackTime: n }),
-    loading: false,
-    setLoading: (b) => set({ loading: b }),
-    processingProgress: null,
-    setProcessingProgress: (p) => set({ processingProgress: p }),
-    hasProcessedOnce: false,
-    setHasProcessedOnce: (b) => set({ hasProcessedOnce: b }),
-    isProcessingStale: false,
-    setIsProcessingStale: (b) => set({ isProcessingStale: b }),
-    // Impulse controls (per band, default 5 bands)
-    impulseThresholds: [50, 50, 50, 50, 50],
-    setImpulseThresholds: (payload) => set(state => {
-      if (Array.isArray(payload)) {
-        return { impulseThresholds: payload };
-      } else if (typeof payload === 'object' && payload.index !== undefined) {
-        const arr: number[] = [...state.impulseThresholds];
-        arr[payload.index] = payload.value;
-        return { impulseThresholds: arr };
-      }
-      return {};
+    setTimelineResponses: (responses) => set(state => ({
+      ...state,
+      timeline: {
+        ...state.timeline,
+        responses,
+      },
+    })),
+    addDevice: (metadata) => set(state => {
+      const prev = state.deviceMetadata[metadata.browserId] || {};
+      return {
+        devices: state.devices.includes(metadata.browserId)
+          ? state.devices
+          : [...state.devices, metadata.browserId],
+        deviceMetadata: {
+          ...state.deviceMetadata,
+          [metadata.browserId]: {
+            ...prev,
+            ...metadata,
+            nickname: metadata.nickname || prev.nickname || '',
+            group: metadata.group !== undefined ? metadata.group : prev.group ?? null,
+            tags: metadata.tags || prev.tags || [],
+            typeInfo: { ...prev.typeInfo, ...metadata.typeInfo },
+          },
+        },
+      };
     }),
-    // Global normalized impulse threshold (in standard deviations)
-    normalizedImpulseThreshold: 2.0,
-    setNormalizedImpulseThreshold: (value: number) => set({ normalizedImpulseThreshold: value }),
-    // Impulse/FFT processing controls
-    impulseWindowSize: 1,
-    setImpulseWindowSize: (n) => set({ impulseWindowSize: n }),
-    impulseSmoothing: 1,
-    setImpulseSmoothing: (n) => set({ impulseSmoothing: n }),
-    impulseDetectionMode: 'spectral-flux',
-    setImpulseDetectionMode: (mode) => set({ impulseDetectionMode: mode }),
-    derivativeMode: 'centered',
-    setDerivativeMode: (mode) => set({ derivativeMode: mode }),
-    spectralFluxWindow: 21,
-    setSpectralFluxWindow: (n) => set({ spectralFluxWindow: n }),
-    spectralFluxK: 2,
-    setSpectralFluxK: (n) => set({ spectralFluxK: n }),
-    spectralFluxMinSeparation: 3,
-    setSpectralFluxMinSeparation: (n) => set({ spectralFluxMinSeparation: n }),
-    // dB and dB delta thresholds for impulse detection
-    minDb: -60,
-    setMinDb: (n) => set({ minDb: n }),
-    minDbDelta: 3,
-    setMinDbDelta: (n) => set({ minDbDelta: n }),
-    // Pattern response
-    patternResponseIndex: 0,
-    setPatternResponseIndex: (idx: number) => set({ patternResponseIndex: idx }),
-    // Global selected device
-    activeDeviceId: null,
-    setActiveDeviceId: (id) => set({ activeDeviceId: id }),
-    bleLookaheadMs: 150,
-    setBleLookaheadMs: (ms: number) => set({ bleLookaheadMs: ms }),
-    // New: Impulse Response
-    impulseResponseAction: 'fire_pattern',
-    setImpulseResponseAction: (action) => set({ impulseResponseAction: action }),
-    impulseResponseArgs: '17-(255,255,255)-(0,0,0)',
-    setImpulseResponseArgs: (args) => set({ impulseResponseArgs: args }),
-    minMagnitudeThreshold: 1e-6,
-    setMinMagnitudeThreshold: (n) => set({ minMagnitudeThreshold: n }),
-  }))
-); 
+    removeDevice: (id) => set(state => {
+      const restMeta = Object.fromEntries(Object.entries(state.deviceMetadata).filter(([key]) => key !== id));
+      const restState = Object.fromEntries(Object.entries(state.deviceState).filter(([key]) => key !== id));
+      const restConn = Object.fromEntries(Object.entries(state.deviceConnection).filter(([key]) => key !== id));
+      const restData = Object.fromEntries(Object.entries(state.deviceData).filter(([key]) => key !== id));
+      const restPrefs = Object.fromEntries(Object.entries(state.deviceUserPrefs).filter(([key]) => key !== id));
+      return {
+        devices: state.devices.filter(did => did !== id),
+        deviceMetadata: restMeta,
+        deviceState: restState,
+        deviceConnection: restConn,
+        deviceData: restData,
+        deviceUserPrefs: restPrefs,
+      };
+    }),
+    setDeviceMetadata: (browserId, metadata) => set(state => ({
+      deviceMetadata: { ...state.deviceMetadata, [browserId]: metadata },
+    })),
+    setDeviceNickname: (browserId, nickname) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          nickname,
+        },
+      },
+    })),
+    setDeviceState: (browserId, update) => set(state => ({
+      deviceState: { ...state.deviceState, [browserId]: { ...state.deviceState[browserId], ...update } },
+    })),
+    setDeviceConnection: (browserId, update) => set(state => ({
+      deviceConnection: { ...state.deviceConnection, [browserId]: { ...state.deviceConnection[browserId], ...update } },
+    })),
+    setDeviceData: (browserId, data) => set(state => ({
+      deviceData: { ...state.deviceData, [browserId]: data },
+    })),
+    updateDeviceTypeInfo: (browserId, typeInfo) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          typeInfo: { ...state.deviceMetadata[browserId].typeInfo, ...typeInfo },
+        },
+      },
+    })),
+    setDeviceGroup: (browserId, group) => set(state => ({
+      deviceMetadata: {
+        ...state.deviceMetadata,
+        [browserId]: {
+          ...state.deviceMetadata[browserId],
+          group,
+        },
+      },
+    })),
+    setDeviceUserPrefs: (browserId, prefs) => set(state => ({
+      deviceUserPrefs: { ...state.deviceUserPrefs, [browserId]: { ...state.deviceUserPrefs[browserId], ...prefs } },
+    })),
+          setTrackTarget: (trackIndex, target) => set(state => ({
+            tracks: {
+              ...state.tracks,
+              mapping: { ...state.tracks.mapping, [trackIndex]: target },
+            },
+          })),
+          setPalette: (name, palette) => set(state => ({
+            palettes: { ...state.palettes, [name]: palette },
+          })),
+          removePalette: (name) => set(state => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { [name]: __, ...rest } = state.palettes;
+            return { palettes: rest };
+          }),
+          getPalette: (name) => {
+            const palettes = get().palettes;
+            if (!name) return palettes['led'] || Object.values(palettes)[0];
+            return palettes[name] || palettes['led'] || Object.values(palettes)[0];
+          },
+          addLog: (level, category, message, data) => set(state => {
+            const max = state.maxLogCount || 200;
+            const newLog = { id: crypto.randomUUID(), timestamp: Date.now(), level, category, message, data };
+            const logs = [...state.logs, newLog];
+            // Cap logs at maxLogCount
+            const cappedLogs = logs.length > max ? logs.slice(logs.length - max) : logs;
+            return { logs: cappedLogs };
+          }),
+          clearLogs: () => set(() => ({ logs: [] })),
+          getLogsByCategory: (category) => get().logs.filter(log => log.category === category),
+          getLogsByLevel: (level) => get().logs.filter(log => log.level === level),
+          addRectTemplate: (template) => set(state => ({
+            rectTemplates: {
+              ...state.rectTemplates,
+              [template.id]: {
+                ...template,
+                defaultData: migrateDefaultData(template.defaultData),
+              },
+            },
+          })),
+          updateRectTemplate: (id, update) => set(state => ({
+            rectTemplates: {
+              ...state.rectTemplates,
+              [id]: {
+                ...state.rectTemplates[id],
+                ...update,
+                defaultData: update.defaultData
+                  ? migrateDefaultData(update.defaultData)
+                  : state.rectTemplates[id].defaultData,
+              },
+            },
+          })),
+          deleteRectTemplate: (id) => set(state => {
+            const rest = Object.fromEntries(Object.entries(state.rectTemplates).filter(([key]) => key !== id));
+            return { rectTemplates: rest };
+          }),
+          getRectTemplate: (id) => get().rectTemplates[id],
+          getRectTemplates: () => Object.values(get().rectTemplates),
+          addTemplateType: (type) => set(state => ({
+            templateTypes: [...state.templateTypes, type],
+          })),
+          removeTemplateType: (value) => set(state => ({
+            templateTypes: state.templateTypes.filter(t => t.value !== value),
+          })),
+          updateTemplateType: (value, update) => set(state => ({
+            templateTypes: state.templateTypes.map(t => t.value === value ? { ...t, ...update } : t),
+          })),
+          setWaveformProgress: (progress) => set(() => ({ waveformProgress: progress })),
+          fftProgress: null,
+          aubioProgress: null,
+          setFftProgress: (progress) => set(() => ({ fftProgress: progress })),
+          setAubioProgress: (progress) => set(() => ({ aubioProgress: progress })),
+          setFftResult: (result) => {
+            // Only store downsampled/summary data in Zustand
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  normalizedFftSequence: result.normalizedFftSequence,
+                  summary: result.summary ?? state.audio?.analysis?.summary,
+                })
+              })
+            }));
+          },
+          setAubioResult: (result) => set(state => {
+            // console.log('setAubioResult', result);
+            return {
+            audio: safeMerge(state.audio ?? {}, {
+              analysis: ensureAudioDataAnalysis({
+                ...state.audio?.analysis,
+                detectionFunction: result.detectionFunction,
+                detectionTimes: result.times,
+                aubioEvents: result.events,
+                aubioError: result.error,
+              })
+            })
+          }}),
+          setBandDataArr: (bandDataArr) => {
+            if (Array.isArray(bandDataArr) && bandDataArr.length > 10000) {
+              if (!window.confirm(`You are about to store a very large bandDataArr (${bandDataArr.length} bands) in the app store. This may freeze your browser. Continue?`)) {
+                return;
+              }
+            }
+            set(state => ({
+              audio: safeMerge(state.audio ?? {}, {
+                analysis: ensureAudioDataAnalysis({
+                  ...state.audio?.analysis,
+                  bandDataArr
+                })
+              })
+            }));
+          },
+          setDevToolsEnabled: (enabled) => set(state => ({
+            ui: { ...state.ui, devToolsEnabled: enabled },
+          })),
+        };
+      })
+); // --- Timeline selectors/hooks ---
+export const useTimelineResponses = () => useAppStore(state => state.timeline.responses);
+export const useAddTimelineResponse = () => useAppStore(state => state.addTimelineResponse);
+export const useUpdateTimelineResponse = () => useAppStore(state => state.updateTimelineResponse);
+export const useDeleteTimelineResponse = () => useAppStore(state => state.deleteTimelineResponse);
+export const useSetTimelineResponses = () => useAppStore(state => state.setTimelineResponses);
+
+export const useTrackTargets = () => useAppStore(state => state.tracks.mapping);
+export const useSetTrackTarget = () => useAppStore(state => state.setTrackTarget);
+
+// Selector to get the target for a specific track index
+export const useTrackTarget = (trackIndex: number) => useAppStore(state => state.tracks.mapping[trackIndex]);
+
+// Helper to clear a track's target
+export const useClearTrackTarget = () => {
+  const setTrackTarget = useSetTrackTarget();
+  return (trackIndex: number) => setTrackTarget(trackIndex, undefined);
+};
+
+// Helper to set multiple track targets at once
+export const useSetTrackTargets = () => {
+  return (mapping: { [trackIndex: number]: import('./appStore').TrackTarget }) =>
+    useAppStore.setState(state => ({
+      tracks: {
+        ...state.tracks,
+        mapping: { ...state.tracks.mapping, ...mapping },
+      },
+    }));
+};
+
+// Selector to get all track indices with assigned targets
+export const useAssignedTrackIndices = () =>
+  useAppStore(state => Object.keys(state.tracks.mapping).map(Number));
+
+export const useDeviceMetadata = (browserId: string) =>
+  useAppStore(state => state.deviceMetadata[browserId]);
+export const useDeviceState = (browserId: string) =>
+  useAppStore(state => state.deviceState[browserId]);
+export const useDeviceConnection = (browserId: string) =>
+  useAppStore(state => state.deviceConnection[browserId]);
+export const useDeviceUserPrefs = (browserId: string) =>
+  useAppStore(state => state.deviceUserPrefs[browserId]);
+
+export const useHydrated = () => useAppStore(state => state.hydrated); 
+
+export const useAddTemplateType = () => useAppStore(state => state.addTemplateType);
+export const useRemoveTemplateType = () => useAppStore(state => state.removeTemplateType);
+
+// Selector for all template types
+export const selectTemplateTypes = (state: AppState) => state.templateTypes;
+
+// Hook for updateTemplateType
+export const useUpdateTemplateType = () => useAppStore(state => state.updateTemplateType);
+
+// Migration utility for old templates
+function migrateDefaultData(data: unknown): Record<string, unknown> {
+  if (Array.isArray(data)) {
+    // Convert array of {key, value} to object
+    const obj: Record<string, unknown> = {};
+    data.forEach(item => {
+      if (item && typeof item === 'object' && 'key' in item && 'value' in item) {
+        const { key, value } = item as { key: string; value: unknown };
+        obj[key] = value;
+      }
+    });
+    return obj;
+  }
+  if (typeof data === 'object' && data !== null) {
+    return data as Record<string, unknown>;
+  }
+  return {};
+}
+
+// Selector for all rect templates
+export const selectRectTemplates = (state: AppState) => Object.values(state.rectTemplates);
+
+// Helper to ensure AudioDataAnalysis always has required fields
+function ensureAudioDataAnalysis(partial: Partial<AudioDataAnalysis>): AudioDataAnalysis {
+  return {
+    ...initialAudioAnalysis,
+    ...partial,
+  };
+}
+
+export const useDevToolsEnabled = () => useAppStore(state => state.ui.devToolsEnabled);
+export const useSetDevToolsEnabled = () => useAppStore(state => state.setDevToolsEnabled);
+
+// --- Audio selectors ---
+export const selectWaveform = (state: AppState) => state.audio.analysis.waveform || [];
+export const useWaveform = () => useAppStore(selectWaveform);
+
