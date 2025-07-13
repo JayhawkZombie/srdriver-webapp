@@ -1,22 +1,10 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { 
-  Card, 
-  Elevation, 
-  Button, 
-  ButtonGroup, 
-  Text,
-  H5,
-  H6
-} from '@blueprintjs/core';
-import { 
-  Plus, 
-  Refresh, 
-  Upload
-} from '@blueprintjs/icons';
 import { UnifiedThemeProvider } from '../../context/UnifiedThemeProvider';
-import { UnifiedThemeContext } from '../../context/UnifiedThemeContext';
 import { SDCardTree, type FileNode } from '../SDCardTree';
+import type { ChunkEnvelope } from './ChunkReassembler';
+import { ChunkReassembler } from './ChunkReassembler';
+import { SDCardView } from './SDCardView';
 
 // Sample JSON response from the embedded device
 const sampleJsonResponse: FileNode = {
@@ -45,155 +33,99 @@ const errorResponse: FileNode = {
   "error": "Failed to open directory"
 };
 
-const FileViewer: React.FC<{ fileName: string | null }> = ({ fileName }) => {
-  const theme = useContext(UnifiedThemeContext);
+// Example chunked BLE data matching serial output
+const chunkedData: ChunkEnvelope[] = [
+  {
+    t: "FILE_LIST", s: 1, n: 4, p: "{\"name\":\"/\",\"type\":\"directory\",\"children\":[{\"name\":\".Spotlight-V100\",\"type\":\"directory\"},{\"name\":\".fseventsd\",\"type\":\"di", e: false
+  },
+  {
+    t: "FILE_LIST", s: 2, n: 4, p: "rectory\"},{\"name\":\"._.Spotlight-V100\",\"type\":\"file\",\"size\":4096},{\"name\":\"data.txt\",\"type\":\"file\",\"size\":391},{\"name\":\".", e: false
+  },
+  {
+    t: "FILE_LIST", s: 3, n: 4, p: "_data.txt\",\"type\":\"file\",\"size\":4096},{\"name\":\"sample.txt\",\"type\":\"file\",\"size\":3},{\"name\":\"logs\",\"type\":\"directory\"},{\"", e: false
+  },
+  {
+    t: "FILE_LIST", s: 4, n: 4, p: "name\":\"data2.txt\",\"type\":\"file\",\"size\":391}]}" , e: true
+  }
+];
+
+export const ChunkedBLEReassembly: React.FC = () => {
+  const [fileTree, setFileTree] = React.useState<FileNode | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [receivedChunks, setReceivedChunks] = React.useState<ChunkEnvelope[]>([]);
+  const [parseError, setParseError] = React.useState<string | null>(null);
+
+  const handleSimulateList = () => {
+    setLoading(true);
+    setFileTree(null);
+    setReceivedChunks([]);
+    setParseError(null);
+    const reassembler = new ChunkReassembler();
+    let chunkIdx = 0;
+    function sendNextChunk() {
+      if (chunkIdx < chunkedData.length) {
+        setReceivedChunks(prev => [...prev, chunkedData[chunkIdx]]);
+        const fullJson = reassembler.addChunk(chunkedData[chunkIdx]);
+        chunkIdx++;
+        if (fullJson) {
+          setTimeout(() => {
+            try {
+              setFileTree(JSON.parse(fullJson));
+            } catch (err) {
+              let msg = 'Unknown error';
+              if (typeof err === 'object' && err && 'message' in err) {
+                msg = (err as { message: string }).message;
+              } else if (typeof err === 'string') {
+                msg = err;
+              }
+              setParseError('Failed to parse chunked JSON: ' + msg);
+            }
+            setLoading(false);
+          }, 500);
+        } else {
+          setTimeout(sendNextChunk, 600);
+        }
+      }
+    }
+    sendNextChunk();
+  };
+
+  // BlueprintJS dark theme variables
+  const cardStyle: React.CSSProperties = {
+    border: '2px solid var(--bp5-intent-primary)',
+    borderRadius: 12,
+    boxShadow: '0 4px 24px 0 rgba(0,0,0,0.45)',
+    padding: 24,
+    marginBottom: 24,
+    minWidth: 400,
+  };
+
   return (
-    <div className={theme?.mode === 'dark' ? 'bp5-dark' : ''} style={{ padding: 16, height: '100%' }}>
-      {fileName ? (
-        <Text style={{ color: 'var(--bp5-intent-primary-text)', fontWeight: 600, fontSize: 18 }}>
-          Selected file: <b>{fileName}</b>
-        </Text>
-      ) : (
-        <Text style={{ color: 'var(--bp5-text-color-muted)', fontSize: 15 }}>
-          Select a file to view its contents.
-        </Text>
-      )}
-    </div>
-  );
-};
-
-const SDCardView: React.FC = () => {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [fileTree, setFileTree] = useState<FileNode | null>(sampleJsonResponse);
-  const theme = useContext(UnifiedThemeContext);
-
-  const darkBg = 'var(--bp5-dark-gray1)';
-  const darkCardBg = 'var(--bp5-dark-gray2)';
-  const darkText = 'var(--bp5-text-color)';
-  const darkBorder = '2px solid var(--bp5-intent-primary)';
-  const darkShadow = '0 4px 24px 0 rgba(0,0,0,0.45)';
-  const borderRadius = 12;
-
-  const handleRefresh = () => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setFileTree(sampleJsonResponse);
-      setIsLoading(false);
-    }, 1000);
-  };
-
-  const handleUpload = () => {
-    console.log('Upload file');
-  };
-
-  const handleNewFile = () => {
-    console.log('Create new file');
-  };
-
-  return (
-    <div
-      className={theme?.mode === 'dark' ? 'bp5-dark' : ''}
-      style={{
-        minHeight: '100vh',
-        background: theme?.mode === 'dark' ? darkBg : undefined,
-        color: theme?.mode === 'dark' ? darkText : undefined,
-      }}
-    >
-      <div style={{ padding: '20px', height: '100vh', display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <H5 style={{ margin: 0 }}>SD Card Browser</H5>
-            <ButtonGroup>
-              <Button icon={<Refresh />} text="Refresh" onClick={handleRefresh} loading={isLoading} />
-              <Button icon={<Upload />} text="Upload" onClick={handleUpload} />
-              <Button icon={<Plus />} text="New File" onClick={handleNewFile} />
-            </ButtonGroup>
+    <div style={{ padding: 32, minHeight: '100vh' }}>
+      <h3 style={{ color: '#fff' }}>Chunked BLE Reassembly Demo</h3>
+      <button onClick={handleSimulateList} disabled={loading} style={{ marginBottom: 16, fontSize: 16 }}>
+        {loading ? 'Receiving...' : 'Simulate LIST (Chunked)'}
+      </button>
+      <div style={{ marginBottom: 16 }}>
+        {receivedChunks.length > 0 && (
+          <div style={cardStyle}>
+            <b>Received Chunks:</b>
+            <ul style={{ color: 'var(--bp5-text-color)', fontFamily: 'monospace', fontSize: 13 }}>
+              {receivedChunks.map((chunk, i) => (
+                <li key={i}>
+                  <span>Chunk {chunk.s}/{chunk.n}: </span>
+                  <span>{chunk.p.slice(0, 60)}{chunk.p.length > 60 ? '...' : ''}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-        {/* Main Content */}
-        <div style={{ display: 'flex', flex: 1, gap: '20px', minHeight: 0 }}>
-          {/* Directory Tree */}
-          <Card
-            elevation={Elevation.TWO}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              minWidth: 0,
-              background: theme?.mode === 'dark' ? darkCardBg : undefined,
-              color: theme?.mode === 'dark' ? darkText : undefined,
-              border: theme?.mode === 'dark' ? darkBorder : undefined,
-              borderRadius: theme?.mode === 'dark' ? borderRadius : undefined,
-              boxShadow: theme?.mode === 'dark' ? darkShadow : undefined,
-            }}
-          >
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bp5-dark-gray3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <H6
-                  style={{
-                    margin: 0,
-                    color: theme?.mode === 'dark' ? 'var(--bp5-intent-primary)' : undefined,
-                    fontWeight: 700,
-                    fontSize: 18,
-                    letterSpacing: 1,
-                    textTransform: 'uppercase',
-                    borderBottom: theme?.mode === 'dark' ? '2px solid var(--bp5-intent-primary)' : undefined,
-                    paddingBottom: 4,
-                  }}
-                >
-                  Directory Tree
-                </H6>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
-              <SDCardTree 
-                fileTree={fileTree} 
-                onFileSelect={setSelectedFile} 
-                isLoading={isLoading} 
-              />
-            </div>
-          </Card>
-          {/* File Viewer */}
-          <Card
-            elevation={Elevation.TWO}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              minWidth: 0,
-              background: theme?.mode === 'dark' ? darkCardBg : undefined,
-              color: theme?.mode === 'dark' ? darkText : undefined,
-              border: theme?.mode === 'dark' ? darkBorder : undefined,
-              borderRadius: theme?.mode === 'dark' ? borderRadius : undefined,
-              boxShadow: theme?.mode === 'dark' ? darkShadow : undefined,
-            }}
-          >
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bp5-dark-gray3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <H6
-                  style={{
-                    margin: 0,
-                    color: theme?.mode === 'dark' ? 'var(--bp5-intent-primary)' : undefined,
-                    fontWeight: 700,
-                    fontSize: 18,
-                    letterSpacing: 1,
-                    textTransform: 'uppercase',
-                    borderBottom: theme?.mode === 'dark' ? '2px solid var(--bp5-intent-primary)' : undefined,
-                    paddingBottom: 4,
-                  }}
-                >
-                  File Viewer
-                </H6>
-              </div>
-            </div>
-            <div style={{ flex: 1, padding: 0, overflow: 'auto', minWidth: 0 }}>
-              <FileViewer fileName={selectedFile} />
-            </div>
-          </Card>
-        </div>
+        )}
+        {parseError && (
+          <div style={{ color: 'var(--bp5-intent-danger)', marginTop: 12 }}>{parseError}</div>
+        )}
+      </div>
+      <div style={cardStyle}>
+        <SDCardView fileTree={fileTree} loading={loading} />
       </div>
     </div>
   );
@@ -259,6 +191,15 @@ export const Error: Story = {
           isLoading={false} 
         />
       </div>
+    </UnifiedThemeProvider>
+  )
+}; 
+
+// Wrap the ChunkedBLE story in UnifiedThemeProvider
+export const ChunkedBLE: Story = {
+  render: () => (
+    <UnifiedThemeProvider>
+      <ChunkedBLEReassembly />
     </UnifiedThemeProvider>
   )
 }; 
