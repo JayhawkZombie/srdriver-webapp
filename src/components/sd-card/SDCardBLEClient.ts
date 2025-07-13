@@ -50,6 +50,7 @@ export class SDCardBLEClient {
       const chunkStr = decoder.decode(target.value);
       try {
         const chunk: ChunkEnvelope = JSON.parse(chunkStr);
+        console.log('[SDCardBLEClient] Any chunk received:', chunk);
         if (this.onChunk) this.onChunk(chunk);
         const full = this.reassembler.addChunk(chunk);
         if (full && this.onComplete) {

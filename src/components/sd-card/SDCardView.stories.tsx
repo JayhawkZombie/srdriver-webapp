@@ -68,7 +68,7 @@ export const ChunkedBLEReassembly: React.FC = () => {
         const fullJson = reassembler.addChunk(chunkedData[chunkIdx]);
         chunkIdx++;
         if (fullJson) {
-          setTimeout(() => {
+    setTimeout(() => {
             try {
               setFileTree(JSON.parse(fullJson));
             } catch (err) {
@@ -123,7 +123,7 @@ export const ChunkedBLEReassembly: React.FC = () => {
         {parseError && (
           <div style={{ color: 'var(--bp5-intent-danger)', marginTop: 12 }}>{parseError}</div>
         )}
-      </div>
+        </div>
       <div style={cardStyle}>
         <SDCardView fileTree={fileTree} loading={loading} />
       </div>

@@ -48,12 +48,64 @@ export function findNodeByPath(root: FileNode | null, path: string): FileNode | 
 }
 
 /**
+ * Merge LIST response into the file tree.
+ * - If path is '/', replace root.
+ * - Otherwise, update children of the node at the given path.
+ * - Never replace root with a subdir node.
+ * - Deep debug logging for every step.
+ */
+export function updateFileTreeWithListResponse(
+  prevTree: FileNode | null,
+  listNode: FileNode
+): FileNode {
+  const logPrefix = '[updateFileTreeWithListResponse]';
+  if (!prevTree || listNode.path === '/') {
+    console.log(`${logPrefix} Setting root to:`, listNode);
+    return listNode;
+  }
+  if (!listNode.path) {
+    console.warn(`${logPrefix} No path in listNode, cannot merge.`, listNode);
+    return prevTree;
+  }
+  // Deep clone prevTree for immutability
+  const clone = JSON.parse(JSON.stringify(prevTree));
+  let found = false;
+
+  function recurse(node: FileNode): FileNode {
+    if (node.path === listNode.path) {
+      found = true;
+      console.log(`${logPrefix} Updating children of node:`, node.path, 'with:', listNode.children);
+      return { ...node, children: listNode.children || [] };
+    }
+    if (node.children && node.children.length > 0) {
+      return {
+        ...node,
+        children: node.children.map(child =>
+          typeof child === 'object' && child !== null && 'path' in child
+            ? recurse(child as FileNode)
+            : child
+        ),
+      };
+    }
+    return node;
+  }
+
+  const updated = recurse(clone);
+  if (!found) {
+    console.warn(`${logPrefix} Node not found for path:`, listNode.path, 'in tree:', prevTree);
+    return prevTree;
+  }
+  return updated;
+}
+
+/**
  * Utility to update the children of a node by path in a FileNode tree.
  * Returns a new tree with the update applied.
  */
 export function updateNodeChildren(tree: FileNode, nodePath: string, children: FileNode[]): FileNode {
   const thisPath = tree.path || tree.name;
   if (normalizeSDPath(thisPath) === normalizeSDPath(nodePath)) {
+    console.log('[updateNodeChildren] Updating children for', thisPath, 'with', children);
     return { ...tree, children };
   }
   if (tree.children) {
@@ -86,5 +138,31 @@ export function addPathsToFileTree(node: FileNode, parentPath = ''): FileNode {
     ...node,
     path,
     children: node.children ? node.children.map(child => addPathsToFileTree(child, path)) : node.children,
+  };
+}
+
+/**
+ * Converts a compact SD card JSON object (with fields like f, t, sz, ch, etc.)
+ * to the FileNode format expected by the UI (name, type, size, children, etc.).
+ * Works recursively for the whole tree.
+ */
+export function compactJsonToFileNode(node: Record<string, unknown>): FileNode {
+  if (!node) return { name: '', type: 'file' };
+  return {
+    name:
+      (node.f as string) ||
+      (node.name as string) ||
+      (typeof node.d === 'string'
+        ? node.d === '/' ? '/' : node.d.split('/').filter(Boolean).pop() || ''
+        : ''),
+    type: node.t === 'd' || node.type === 'directory' ? 'directory' : 'file',
+    size: node.sz !== undefined ? (node.sz as number) : (node.size as number | undefined),
+    children: Array.isArray(node.ch)
+      ? (node.ch as Record<string, unknown>[]).map(child => compactJsonToFileNode(child))
+      : Array.isArray(node.children)
+        ? (node.children as Record<string, unknown>[]).map(child => compactJsonToFileNode(child))
+        : undefined,
+    error: (node.err as string) || (node.error as string) || undefined,
+    path: node.path as string | undefined, // will be set by addPathsToFileTree
   };
 } 

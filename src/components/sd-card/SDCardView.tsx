@@ -6,7 +6,7 @@ import { SDCardBLEClient } from './SDCardBLEClient';
 import { useSDCardStream } from './useSDCardStream';
 import { SDCardFileTree } from './SDCardFileTree';
 import type { FileNode } from '../SDCardTree';
-import { findNodeByPath, updateNodeChildren, ensureEmptyChildrenForDirs, addPathsToFileTree } from './SDUtils';
+import { findNodeByPath, ensureEmptyChildrenForDirs, addPathsToFileTree, compactJsonToFileNode, updateFileTreeWithListResponse } from './SDUtils';
 import { SDCardContextMenuPortal } from './SDCardContextMenuPortal';
 import type { SDCardContextMenuAction } from './SDCardContextMenuAction';
 import { SDCardFileViewer } from './SDCardFileViewer';
@@ -73,24 +73,18 @@ export const SDCardView: React.FC = () => {
       setSDCardLoading(false);
       setSDCardError(streamingError);
       setLoadingDirId(null);
-    } else if (streamingData && (streamingData as FileNode).name) {
-      // streamingData is a FileNode for the directory just listed
-      console.log('[SDCardView] Raw streamingData:', streamingData);
-      // Ensure all directories have children: [] and correct path
-      const normalizedData = ensureEmptyChildrenForDirs(streamingData as FileNode);
-      console.log('[SDCardView] After ensureEmptyChildrenForDirs:', normalizedData);
+    } else if (streamingData && (streamingData as Record<string, unknown>).c === 'LIST') {
+      // streamingData is a compact LIST response
+      const fileNode = compactJsonToFileNode(streamingData as Record<string, unknown>);
+      const normalizedData = ensureEmptyChildrenForDirs(fileNode);
       const dataWithPaths = addPathsToFileTree(normalizedData);
-      console.log('[SDCardView] After addPathsToFileTree:', dataWithPaths);
+      console.log('[SDCardView] LIST response:', { fileNode, normalizedData, dataWithPaths });
       setSDCardLoading(false);
       setSDCardError(null);
       setSDCardFileTree((prevTree: FileNode | null) => {
-        if (!prevTree) {
-          console.log('[SDCardView] No previous tree, setting root:', dataWithPaths);
-          return dataWithPaths;
-        }
-        const nodePath = dataWithPaths.path || dataWithPaths.name;
-        const updated = updateNodeChildren(prevTree, nodePath, dataWithPaths.children || []);
-        console.log('[SDCardView] Updated fileTree after updateNodeChildren:', updated);
+        console.log('[SDCardView] Calling updateFileTreeWithListResponse with:', { prevTree, dataWithPaths });
+        const updated = updateFileTreeWithListResponse(prevTree, dataWithPaths);
+        console.log('[SDCardView] File tree after updateFileTreeWithListResponse:', updated);
         return updated;
       });
       setLoadingDirId(null);
@@ -137,17 +131,15 @@ export const SDCardView: React.FC = () => {
         next.add(nodeId);
         // Use findNodeByPath from SDUtils
         if (fileTree) {
-          const node = findNodeByPath(fileTree, nodeId);
-          console.log('[SDCardView] Finding', { id: nodeId, node });
           let isLoadingSpinner = false;
-          if (node && node.children && node.children.length === 1) {
-            const childNode = node.children[0] as FileNode;
-            // FileNode does not have 'id', so check for loading spinner by path
+          const foundNode = findNodeByPath(fileTree, nodeId);
+          if (foundNode && foundNode.children && foundNode.children.length === 1) {
+            const childNode = foundNode.children[0] as FileNode;
             if (typeof childNode.path === 'string' && childNode.path === nodeId + '__loading') {
               isLoadingSpinner = true;
             }
           }
-          if (node && node.type === 'directory' && (!node.children || node.children.length === 0 || isLoadingSpinner)) {
+          if (foundNode && foundNode.type === 'directory' && (!foundNode.children || foundNode.children.length === 0 || isLoadingSpinner)) {
             console.log('[SDCardView] Sending LIST command for:', nodeId);
             setLoadingDirId(nodeId);
             sendCommand('LIST', nodeId);
@@ -169,7 +161,7 @@ export const SDCardView: React.FC = () => {
   } | null>(null);
 
   // Context menu actions (customize as needed)
-  const getContextMenuActions = (path: string, node: FileNode): SDCardContextMenuAction[] => [
+  const getContextMenuActions = (path: string): SDCardContextMenuAction[] => [
     { label: 'Open', onClick: () => alert(`Open ${path}`) },
     { label: 'Delete', onClick: () => alert(`Delete ${path}`), intent: 'danger' },
   ];
@@ -181,7 +173,7 @@ export const SDCardView: React.FC = () => {
       y: e.clientY,
       path,
       node,
-      actions: getContextMenuActions(path, node),
+      actions: getContextMenuActions(path),
     });
   };
 

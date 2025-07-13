@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, CircularProgress } from '@mui/material';
 import type { SDCardBLEClient } from './SDCardBLEClient';
+import { ChunkReassembler, type ChunkEnvelope } from './ChunkReassembler';
 
 export const SDCardFileViewer: React.FC<{ bleClient: SDCardBLEClient | null; filePath: string | null }> = ({ bleClient, filePath }) => {
   const [content, setContent] = useState<string | null>(null);
@@ -13,16 +14,25 @@ export const SDCardFileViewer: React.FC<{ bleClient: SDCardBLEClient | null; fil
     setError(null);
     setContent(null);
     bleClient.reset();
-    bleClient.setOnComplete((json) => {
-      try {
-        setContent(json);
-        setLoading(false);
-      } catch {
-        setError('Failed to parse file content');
+    const reassembler = new ChunkReassembler();
+    const onChunk = (chunk: ChunkEnvelope) => {
+      console.log('[SDCardFileViewer] Received chunk:', chunk);
+      if (chunk.t !== 'D') return; // Only handle PRINT/file data
+      const full = reassembler.addChunk(chunk);
+      if (full) {
+        console.log('[SDCardFileViewer] Reassembled file content:', full);
+        setContent(full);
         setLoading(false);
       }
-    });
+    };
+    bleClient.setOnChunk(onChunk);
+    bleClient.setOnComplete(() => {}); // No-op, we handle completion in onChunk
+    console.log('[SDCardFileViewer] Sending PRINT command for', filePath);
     bleClient.sendCommand(`PRINT ${filePath}`);
+    return () => {
+      bleClient.setOnChunk(() => {});
+      bleClient.setOnComplete(() => {});
+    };
   }, [bleClient, filePath]);
 
   if (!filePath) return null;
