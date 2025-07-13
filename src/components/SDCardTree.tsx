@@ -8,20 +8,29 @@ export interface FileNode {
   size?: number;
   children?: FileNode[];
   error?: string;
+  path?: string; // Add path for unique identification
 }
 
-function fileNodeToTreeNodes(node: FileNode | FileNode[], keyPrefix = ''): TreeNodeInfo[] {
+function fileNodeToTreeNodes(node: FileNode | FileNode[], keyPrefix = '', parentPath = ''): TreeNodeInfo[] {
   if (!node) return [];
   if (Array.isArray(node)) {
-    return node.flatMap((child, idx) => fileNodeToTreeNodes(child, `${keyPrefix}${idx}-`));
+    return node.flatMap((child, idx) => fileNodeToTreeNodes(child, `${keyPrefix}${idx}-`, parentPath));
   }
+  // Special-case root node to avoid double slashes
+  const isRoot = parentPath === '' && node.name === '/';
+  const path = isRoot
+    ? '/'
+    : parentPath === '' || parentPath === '/'
+      ? `/${node.name}`
+      : `${parentPath}/${node.name}`;
   return [{
-    id: keyPrefix + node.name,
+    id: path, // Use full path as unique ID
     label: node.name,
     icon: node.type === 'directory' ? 'folder-close' : 'document',
     isExpanded: node.type === 'directory',
-    childNodes: node.children ? fileNodeToTreeNodes(node.children, `${keyPrefix}${node.name}-`) : undefined,
-    nodeData: node,
+    hasCaret: node.type === 'directory', // Force caret for directories
+    childNodes: node.children ? fileNodeToTreeNodes(node.children, `${keyPrefix}${node.name}-`, path) : undefined,
+    nodeData: { ...node, path },
   }];
 }
 
@@ -32,20 +41,33 @@ export interface SDCardTreeProps {
   isLoading?: boolean;
   expandedIds: Set<string>;
   onToggleExpand: (nodeId: string, isExpanding: boolean) => void;
+  loadingDirId?: string | null;
 }
 
-export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, isLoading = false, expandedIds, onToggleExpand }) => {
+export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, isLoading = false, expandedIds, onToggleExpand, loadingDirId }) => {
   const [treeNodes, setTreeNodes] = useState<TreeNodeInfo[]>([]);
 
-  // Update tree nodes when fileTree or expandedIds changes
+  // Update tree nodes when fileTree, expandedIds, or loadingDirId changes
   useEffect(() => {
     function markExpanded(nodes: TreeNodeInfo[]): TreeNodeInfo[] {
       return nodes.map(n => {
         const isExpanded = expandedIds.has(n.id as string);
+        let childNodes = n.childNodes ? markExpanded(n.childNodes) : undefined;
+        // If this node is loading, show a spinner as a child
+        if (loadingDirId && n.id === loadingDirId && isExpanded && (!childNodes || childNodes.length === 0)) {
+          childNodes = [{
+            id: `${n.id}__loading`,
+            label: <span style={{ display: 'flex', alignItems: 'center', color: '#888' }}><Spinner size={16} /> Loading…</span>,
+            icon: null,
+            isExpanded: false,
+            childNodes: undefined,
+            nodeData: {},
+          }];
+        }
         return {
           ...n,
           isExpanded,
-          childNodes: n.childNodes ? markExpanded(n.childNodes) : undefined,
+          childNodes,
         };
       });
     }
@@ -54,7 +76,7 @@ export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, 
     } else {
       setTreeNodes([]);
     }
-  }, [fileTree, expandedIds]);
+  }, [fileTree, expandedIds, loadingDirId]);
 
   // Custom render for tree node labels
   const renderLabel = (node: TreeNodeInfo) => {
@@ -74,15 +96,23 @@ export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, 
     );
   };
 
-  // Handle expand/collapse and file select
+  // Handle file select only (no expansion logic here)
   const handleNodeClick = (node: TreeNodeInfo) => {
     const fileNode = node.nodeData as FileNode;
-    if (fileNode.type === 'directory') {
-      const isExpanding = !expandedIds.has(node.id as string);
-      onToggleExpand(node.id as string, isExpanding);
-    } else if (fileNode.type === 'file') {
+    console.log('[SDCardTree] Node clicked:', { id: node.id, name: fileNode.name, type: fileNode.type });
+    if (fileNode.type === 'file') {
       onFileSelect(node.label as string);
     }
+  };
+
+  // Handle expand/collapse
+  const handleNodeExpand = (node: TreeNodeInfo) => {
+    console.log('[SDCardTree] Node expanded:', { id: node.id });
+    onToggleExpand(node.id as string, true);
+  };
+  const handleNodeCollapse = (node: TreeNodeInfo) => {
+    console.log('[SDCardTree] Node collapsed:', { id: node.id });
+    onToggleExpand(node.id as string, false);
   };
 
   if (isLoading) {
@@ -117,6 +147,8 @@ export const SDCardTree: React.FC<SDCardTreeProps> = ({ fileTree, onFileSelect, 
     <Tree
       contents={treeNodes.map(node => ({ ...node, label: renderLabel(node) }))}
       onNodeClick={handleNodeClick}
+      onNodeExpand={handleNodeExpand}
+      onNodeCollapse={handleNodeCollapse}
       className="sdcard-tree"
     />
   );

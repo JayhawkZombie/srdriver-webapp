@@ -6,6 +6,7 @@ import { SDCardBLEClient } from './SDCardBLEClient';
 import { useSDCardStream } from './useSDCardStream';
 import { SDCardTree } from '../SDCardTree';
 import type { FileNode } from '../SDCardTree';
+import { findNodeByPath, updateNodeChildren, ensureEmptyChildrenForDirs, addPathsToFileTree } from './SDUtils';
 
 const useSDCardFileTree = () => useAppStore(state => state.sdCard.fileTree);
 const useSDCardLoading = () => useAppStore(state => state.sdCard.loading);
@@ -33,17 +34,8 @@ export const SDCardView: React.FC = () => {
 
   // Track expanded node IDs
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  // Helper to update children of a node in the file tree (in Zustand)
-  const updateNodeChildren = (tree: FileNode, nodeName: string, children: FileNode[]): FileNode => {
-    if (tree.name === nodeName) {
-      return { ...tree, children };
-    }
-    if (tree.children) {
-      return { ...tree, children: tree.children.map(child => updateNodeChildren(child, nodeName, children)) };
-    }
-    return tree;
-  };
+  // Track which directory is currently loading
+  const [loadingDirId, setLoadingDirId] = useState<string | null>(null);
 
   // Manage SDCardBLEClient instances per device
   const clientRefs = useRef<Map<string, SDCardBLEClient>>(new Map());
@@ -76,15 +68,28 @@ export const SDCardView: React.FC = () => {
     } else if (streamingError) {
       setSDCardLoading(false);
       setSDCardError(streamingError);
-    } else if (streamingData && streamingData.name) {
+      setLoadingDirId(null);
+    } else if (streamingData && (streamingData as FileNode).name) {
       // streamingData is a FileNode for the directory just listed
-      // Update only that node's children in the file tree
+      console.log('[SDCardView] Raw streamingData:', streamingData);
+      // Ensure all directories have children: [] and correct path
+      const normalizedData = ensureEmptyChildrenForDirs(streamingData as FileNode);
+      console.log('[SDCardView] After ensureEmptyChildrenForDirs:', normalizedData);
+      const dataWithPaths = addPathsToFileTree(normalizedData);
+      console.log('[SDCardView] After addPathsToFileTree:', dataWithPaths);
       setSDCardLoading(false);
       setSDCardError(null);
       setSDCardFileTree((prevTree: FileNode | null) => {
-        if (!prevTree) return streamingData as FileNode;
-        return updateNodeChildren(prevTree, (streamingData as FileNode).name, (streamingData as FileNode).children || []);
+        if (!prevTree) {
+          console.log('[SDCardView] No previous tree, setting root:', dataWithPaths);
+          return dataWithPaths;
+        }
+        const nodePath = dataWithPaths.path || dataWithPaths.name;
+        const updated = updateNodeChildren(prevTree, nodePath, dataWithPaths.children || []);
+        console.log('[SDCardView] Updated fileTree after updateNodeChildren:', updated);
+        return updated;
       });
+      setLoadingDirId(null);
     }
   }, [streamingLoading, streamingError, streamingData, setSDCardLoading, setSDCardError, setSDCardFileTree]);
 
@@ -121,26 +126,27 @@ export const SDCardView: React.FC = () => {
 
   // Handle directory expand/collapse
   const handleToggleExpand = (nodeId: string, isExpanding: boolean) => {
+    console.log('[SDCardView] handleToggleExpand:', { nodeId, isExpanding });
     setExpandedIds(prev => {
       const next = new Set(prev);
       if (isExpanding) {
         next.add(nodeId);
-        // Find the node in the file tree
-        const findNode = (node: FileNode, id: string): FileNode | null => {
-          if (node.name === id) return node;
-          if (node.children) {
-            for (const child of node.children) {
-              const found = findNode(child, id);
-              if (found) return found;
+        // Use findNodeByPath from SDUtils
+        if (fileTree) {
+          const node = findNodeByPath(fileTree, nodeId);
+          console.log('[SDCardView] Finding', { id: nodeId, node });
+          let isLoadingSpinner = false;
+          if (node && node.children && node.children.length === 1) {
+            const childNode = node.children[0] as FileNode;
+            // FileNode does not have 'id', so check for loading spinner by path
+            if (typeof childNode.path === 'string' && childNode.path === nodeId + '__loading') {
+              isLoadingSpinner = true;
             }
           }
-          return null;
-        };
-        if (fileTree) {
-          const node = findNode(fileTree, nodeId);
-          if (node && node.type === 'directory' && (!node.children || node.children.length === 0)) {
-            // Only list if children are missing
-            sendCommand('LIST', node.name);
+          if (node && node.type === 'directory' && (!node.children || node.children.length === 0 || isLoadingSpinner)) {
+            console.log('[SDCardView] Sending LIST command for:', nodeId);
+            setLoadingDirId(nodeId);
+            sendCommand('LIST', nodeId);
           }
         }
       } else {
@@ -198,6 +204,7 @@ export const SDCardView: React.FC = () => {
             isLoading={false} 
             expandedIds={expandedIds} 
             onToggleExpand={handleToggleExpand}
+            loadingDirId={loadingDirId}
           />
         </Box>
       )}

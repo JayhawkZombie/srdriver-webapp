@@ -58,10 +58,13 @@ export function useSDCardStream<T = unknown>(client: SDCardBLEClient | null): SD
       }
     });
     try {
-      client.sendCommand(arg ? `${command} ${arg}` : command);
-    } catch {
+      const fullCommand = arg ? `${command} ${arg}` : command;
+      console.log('[useSDCardStream] Sending BLE command:', fullCommand);
+      client.sendCommand(fullCommand);
+    } catch (err) {
       setLoading(false);
       setError('Failed to send SD card command');
+      console.error('[useSDCardStream] Error sending BLE command:', err);
     }
   }, [client, reset]);
 
