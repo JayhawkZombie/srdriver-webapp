@@ -53,55 +53,47 @@ export function useSDCardStream<T = unknown>(client: SDCardBLEClient | null): SD
       setProgress({ received: chunksReceived.current, total: totalChunks.current });
     });
     
-    client.setOnComplete((fullJson: string) => {
+    client.setOnComplete((result) => {
       setLoading(false);
-      try {
-        // Parse the JSON to check the command type
-        const parsed = JSON.parse(fullJson);
-        
-        if (currentCommand.current === 'PRINT') {
-          // For PRINT, decode base64 file content from the 'p' field
-          if (parsed.c === 'PRINT' && typeof parsed.p === 'string') {
-            try {
-              // Decode base64 to binary
-              const binary = Uint8Array.from(atob(parsed.p), c => c.charCodeAt(0));
-              // Try to decode as UTF-8 text
-              let decoded: string | Uint8Array;
-              let isText = false;
-              try {
-                // TextDecoder is supported in all modern browsers
-                const text = new TextDecoder('utf-8', { fatal: false }).decode(binary);
-                // Heuristic: if text contains replacement chars or lots of nulls, treat as binary
-                if (/\uFFFD/.test(text) || /[\0]{4,}/.test(text)) {
-                  decoded = binary;
-                  isText = false;
-                } else {
-                  decoded = text;
-                  isText = true;
-                }
-              } catch {
-                decoded = binary;
-                isText = false;
-              }
-              console.log('[useSDCardStream] PRINT decoded:', { isText, length: binary.length });
-              setData(decoded as T);
-            } catch (e) {
-              setError('Failed to decode base64 file content');
-              console.error('[useSDCardStream] Base64 decode error:', e);
-            }
-          } else {
-            setError('Invalid PRINT response format');
-          }
-        } else if (currentCommand.current === 'LIST') {
-          // For LIST, return the parsed JSON for further processing
-          setData(parsed as T);
-        } else {
-          // For other commands, return the parsed JSON
-          setData(parsed as T);
+      if (Array.isArray(result)) {
+        // PRINT/file: result is ChunkEnvelope[]
+        // Decode each chunk's base64 to binary, then concatenate
+        const binaryChunks = result.map(env => Uint8Array.from(atob(env.p), c => c.charCodeAt(0)));
+        const totalLength = binaryChunks.reduce((sum, arr) => sum + arr.length, 0);
+        const fullBinary = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of binaryChunks) {
+          fullBinary.set(chunk, offset);
+          offset += chunk.length;
         }
-      } catch (parseError) {
-        console.error('[useSDCardStream] Failed to parse response:', parseError);
-        setError('Failed to parse SD card response');
+        // Try to decode as UTF-8 text
+        let decoded: string | Uint8Array;
+        let isText = false;
+        try {
+          const text = new TextDecoder('utf-8', { fatal: false }).decode(fullBinary);
+          if (/\uFFFD/.test(text) || /[\0]{4,}/.test(text)) {
+            decoded = fullBinary;
+            isText = false;
+          } else {
+            decoded = text;
+            isText = true;
+          }
+        } catch {
+          decoded = fullBinary;
+          isText = false;
+        }
+        console.log('[useSDCardStream] PRINT decoded:', { isText, length: fullBinary.length });
+        setData(decoded as T);
+      } else if (typeof result === 'string') {
+        // LIST/JSON: result is string
+        try {
+          const parsed = JSON.parse(result);
+          setData(parsed as T);
+        } catch (parseError) {
+          setError('Failed to parse SD card response');
+        }
+      } else {
+        setError('Unknown SD card response type');
       }
     });
     

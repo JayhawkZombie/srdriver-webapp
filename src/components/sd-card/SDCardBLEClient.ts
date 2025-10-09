@@ -5,7 +5,7 @@ import { ChunkReassembler } from './ChunkReassembler';
 export class SDCardBLEClient {
   private controller: WebSRDriverController;
   private onChunk: ((chunk: ChunkEnvelope) => void) | null = null;
-  private onComplete: ((fullJson: string) => void) | null = null;
+  private onComplete: ((full: string | ChunkEnvelope[]) => void) | null = null;
   private reassembler = new ChunkReassembler();
 
   constructor(controller: WebSRDriverController) {
@@ -33,7 +33,7 @@ export class SDCardBLEClient {
   }
 
   // Set a callback for when the full response is reassembled
-  setOnComplete(cb: (fullJson: string) => void) {
+  setOnComplete(cb: (full: string | ChunkEnvelope[]) => void) {
     this.onComplete = cb;
   }
 
@@ -61,6 +61,7 @@ export class SDCardBLEClient {
         if (this.onChunk) this.onChunk(chunk);
         
         const full = this.reassembler.addChunk(chunk);
+        console.log('[SDCardBLEClient] Reassembly complete, full response:', full);
         if (full && this.onComplete) {
           console.log('[SDCardBLEClient] Reassembly complete, full response length:', full.length);
           this.onComplete(full);
