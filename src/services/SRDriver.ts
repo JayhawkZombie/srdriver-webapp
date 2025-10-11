@@ -5,6 +5,9 @@ export class SRDriver {
   private brightnessCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private ipAddressCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private wifiSSIDCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private wifiPasswordCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private wifiStatusCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
 
   constructor(bleConnection: BLEConnection) {
     this.bleConnection = bleConnection;
@@ -33,6 +36,34 @@ export class SRDriver {
     } catch (error) {
         console.log('📱 IP address characteristic not found (older device)');
         this.ipAddressCharacteristic = null;
+    }
+    
+    // Get WiFi characteristics (optional for older devices)
+    try {
+        console.log('📱 Attempting to get WiFi SSID characteristic...');
+        this.wifiSSIDCharacteristic = await service.getCharacteristic(
+            "04a1d69b-efbc-4919-9b61-b557bdafeb8a"
+        );
+        console.log('📱 WiFi SSID characteristic found');
+        
+        console.log('📱 Attempting to get WiFi Password characteristic...');
+        this.wifiPasswordCharacteristic = await service.getCharacteristic(
+            "21308ad6-e818-41fa-a81f-c5995cc938ac"
+        );
+        console.log('📱 WiFi Password characteristic found');
+        
+        console.log('📱 Attempting to get WiFi Status characteristic...');
+        this.wifiStatusCharacteristic = await service.getCharacteristic(
+            "f3d6b6b2-a507-413f-9d41-952fbe3cc494"
+        );
+        console.log('📱 WiFi Status characteristic found');
+        
+        console.log('📱 All WiFi characteristics found');
+    } catch (error) {
+        console.log('📱 WiFi characteristics not found (older device):', error);
+        this.wifiSSIDCharacteristic = null;
+        this.wifiPasswordCharacteristic = null;
+        this.wifiStatusCharacteristic = null;
     }
     
     console.log('📱 SRDriver initialized');
@@ -84,6 +115,37 @@ export class SRDriver {
       return ipAddress;
     } catch (error) {
       console.log('📱 Failed to read IP address (older device):', error);
+      return null;
+    }
+  }
+
+  async setWiFiCredentials(ssid: string, password: string): Promise<void> {
+    if (!this.wifiSSIDCharacteristic || !this.wifiPasswordCharacteristic) {
+      throw new Error('WiFi characteristics not available (older device)');
+    }
+
+    const ssidBuffer = new TextEncoder().encode(ssid);
+    const passwordBuffer = new TextEncoder().encode(password);
+    
+    await this.wifiSSIDCharacteristic.writeValue(ssidBuffer);
+    await this.wifiPasswordCharacteristic.writeValue(passwordBuffer);
+    
+    console.log(`📱 Set WiFi credentials: SSID=${ssid}, Password=${password.length} chars`);
+  }
+
+  async getWiFiStatus(): Promise<string | null> {
+    if (!this.wifiStatusCharacteristic) {
+      console.log('📱 WiFi status characteristic not available (older device)');
+      return null;
+    }
+
+    try {
+      const data = await this.wifiStatusCharacteristic.readValue();
+      const status = new TextDecoder().decode(data);
+      console.log(`📱 Read WiFi status: ${status}`);
+      return status;
+    } catch (error) {
+      console.log('📱 Failed to read WiFi status (older device):', error);
       return null;
     }
   }

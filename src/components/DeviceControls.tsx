@@ -8,6 +8,9 @@ import {
     Button,
     ColorInput,
     SegmentedControl,
+    TextInput,
+    PasswordInput,
+    Divider,
 } from "@mantine/core";
 import { IconX, IconPalette } from "@tabler/icons-react";
 import { SRDriver } from "../services/SRDriver";
@@ -30,6 +33,10 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
     const [color, setColor] = useState("#ffffff");
     const [isLoading, setIsLoading] = useState(false);
     const [ipAddress, setIPAddress] = useState<string | null>(null);
+    const [wifiSSID, setWifiSSID] = useState("");
+    const [wifiPassword, setWifiPassword] = useState("");
+    const [wifiStatus, setWifiStatus] = useState<string | null>(null);
+    const [isWifiLoading, setIsWifiLoading] = useState(false);
     const [activeEffectTab, setActiveEffectTab] = useState<EffectTab>(
         effectTabs[0]
     );
@@ -48,6 +55,22 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
             }
         };
         fetchIPAddress();
+    }, [srDriver]);
+
+    // Fetch WiFi status when component mounts
+    useEffect(() => {
+        const fetchWiFiStatus = async () => {
+            if (srDriver) {
+                try {
+                    const status = await srDriver.getWiFiStatus();
+                    setWifiStatus(status);
+                } catch (error) {
+                    console.log('WiFi status not available (older device)');
+                    setWifiStatus(null);
+                }
+            }
+        };
+        fetchWiFiStatus();
     }, [srDriver]);
 
     const handleBrightnessChange = async (value: number) => {
@@ -90,6 +113,30 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
             console.error("Failed to send color LED command:", error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleWiFiSetup = async () => {
+        if (!srDriver) return;
+
+        setIsWifiLoading(true);
+        try {
+            await srDriver.setWiFiCredentials(wifiSSID, wifiPassword);
+            console.log('✅ WiFi credentials sent successfully');
+            
+            // Refresh WiFi status after a short delay
+            setTimeout(async () => {
+                try {
+                    const status = await srDriver.getWiFiStatus();
+                    setWifiStatus(status);
+                } catch (error) {
+                    console.error('Failed to get WiFi status:', error);
+                }
+            }, 2000);
+        } catch (error) {
+            console.error('Failed to set WiFi credentials:', error);
+        } finally {
+            setIsWifiLoading(false);
         }
     };
 
@@ -186,6 +233,42 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
                         </Button>
                     </Group>
                 )}
+
+                <Divider label="WiFi Setup" labelPosition="center" />
+
+                {wifiStatus && (
+                    <Text size="sm" c="dimmed">
+                        WiFi Status: {wifiStatus}
+                    </Text>
+                )}
+
+                <Stack gap="sm">
+                    <TextInput
+                        label="WiFi Network Name (SSID)"
+                        placeholder="Enter WiFi network name"
+                        value={wifiSSID}
+                        onChange={(event) => setWifiSSID(event.currentTarget.value)}
+                        size="sm"
+                    />
+                    <PasswordInput
+                        label="WiFi Password"
+                        placeholder="Enter WiFi password"
+                        value={wifiPassword}
+                        onChange={(event) => setWifiPassword(event.currentTarget.value)}
+                        size="sm"
+                    />
+                    <Button
+                        onClick={handleWiFiSetup}
+                        loading={isWifiLoading}
+                        disabled={!wifiSSID || !wifiPassword}
+                        variant="filled"
+                        color="green"
+                        fullWidth
+                        size="sm"
+                    >
+                        {isWifiLoading ? "Setting up WiFi..." : "Setup WiFi"}
+                    </Button>
+                </Stack>
             </Stack>
         </Card>
     );
