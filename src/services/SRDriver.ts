@@ -4,6 +4,7 @@ export class SRDriver {
   private bleConnection: BLEConnection;
   private brightnessCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private ipAddressCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
 
   constructor(bleConnection: BLEConnection) {
     this.bleConnection = bleConnection;
@@ -22,6 +23,17 @@ export class SRDriver {
     this.commandCharacteristic = await service.getCharacteristic(
         "c1862b70-e0ce-4b1b-9734-d7629eb8d712"
     );
+    
+    // Get IP address characteristic (optional for older devices)
+    try {
+        this.ipAddressCharacteristic = await service.getCharacteristic(
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        );
+        console.log('📱 IP address characteristic found');
+    } catch (error) {
+        console.log('📱 IP address characteristic not found (older device)');
+        this.ipAddressCharacteristic = null;
+    }
     
     console.log('📱 SRDriver initialized');
   }
@@ -57,5 +69,22 @@ export class SRDriver {
     const buffer = new TextEncoder().encode(command);
     await this.commandCharacteristic.writeValue(buffer);
     console.log(`📱 Sent command: ${command}`);
+  }
+
+  async getIPAddress(): Promise<string | null> {
+    if (!this.ipAddressCharacteristic) {
+      console.log('📱 IP address characteristic not available (older device)');
+      return null;
+    }
+
+    try {
+      const data = await this.ipAddressCharacteristic.readValue();
+      const ipAddress = new TextDecoder().decode(data);
+      console.log(`📱 Read IP address: ${ipAddress}`);
+      return ipAddress;
+    } catch (error) {
+      console.log('📱 Failed to read IP address (older device):', error);
+      return null;
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Card,
     Stack,
@@ -29,9 +29,26 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
     const [brightness, setBrightness] = useState(128);
     const [color, setColor] = useState("#ffffff");
     const [isLoading, setIsLoading] = useState(false);
+    const [ipAddress, setIPAddress] = useState<string | null>(null);
     const [activeEffectTab, setActiveEffectTab] = useState<EffectTab>(
         effectTabs[0]
     );
+
+    // Fetch IP address when component mounts
+    useEffect(() => {
+        const fetchIPAddress = async () => {
+            if (srDriver) {
+                try {
+                    const ip = await srDriver.getIPAddress();
+                    setIPAddress(ip);
+                } catch (error) {
+                    console.log('IP address not available (older device)');
+                    setIPAddress(null);
+                }
+            }
+        };
+        fetchIPAddress();
+    }, [srDriver]);
 
     const handleBrightnessChange = async (value: number) => {
         if (!srDriver) return;
@@ -101,6 +118,16 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
                         Disconnect
                     </Button>
                 </Group>
+
+                {ipAddress ? (
+                    <Text size="sm" c="dimmed">
+                        WiFi IP: {ipAddress}
+                    </Text>
+                ) : (
+                    <Text size="sm" c="dimmed">
+                        WiFi not available (older device)
+                    </Text>
+                )}
 
                 <Group gap="md" w="100%">
                     <Text size="sm" fw={500} w={100}>
