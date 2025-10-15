@@ -8,6 +8,10 @@ export class SRDriver {
   private wifiSSIDCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private wifiPasswordCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private wifiStatusCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  
+  // WebSocket connection
+  private wsConnection: WebSocket | null = null;
+  private wsIP: string | null = null;
 
   constructor(bleConnection: BLEConnection) {
     this.bleConnection = bleConnection;
@@ -102,6 +106,10 @@ export class SRDriver {
     console.log(`📱 Sent command: ${command}`);
   }
 
+  async delayRequest(ms: number): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   async getIPAddress(): Promise<string | null> {
     if (!this.ipAddressCharacteristic) {
       console.log('📱 IP address characteristic not available (older device)');
@@ -109,6 +117,8 @@ export class SRDriver {
     }
 
     try {
+      // Add delay to avoid GATT operation conflicts
+      await this.delayRequest(500);
       const data = await this.ipAddressCharacteristic.readValue();
       const ipAddress = new TextDecoder().decode(data);
       console.log(`📱 Read IP address: ${ipAddress}`);
@@ -147,6 +157,85 @@ export class SRDriver {
     } catch (error) {
       console.log('📱 Failed to read WiFi status (older device):', error);
       return null;
+    }
+  }
+
+  // WebSocket methods
+  async connectWebSocket(ip: string): Promise<void> {
+    console.log(`📱 WebSocket: Attempting to connect to ${ip}:8080`);
+    
+    if (this.wsConnection && this.wsConnection.readyState === WebSocket.OPEN) {
+      console.log('📱 WebSocket already connected');
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        const wsUrl = `ws://${ip}:8080`;
+        console.log(`📱 WebSocket: Creating connection to ${wsUrl}`);
+        
+        this.wsConnection = new WebSocket(wsUrl);
+        this.wsIP = ip;
+
+        this.wsConnection.onopen = () => {
+          console.log(`📱 WebSocket: ✅ Connected to ${ip}:8080`);
+          resolve();
+        };
+
+        this.wsConnection.onmessage = (event) => {
+          console.log('📱 WebSocket: 📨 Message received:', event.data);
+        };
+
+        this.wsConnection.onerror = (error) => {
+          console.error('📱 WebSocket: ❌ Error occurred:', error);
+          console.error('📱 WebSocket: Error details:', {
+            type: error.type,
+            target: error.target,
+            readyState: this.wsConnection?.readyState
+          });
+          reject(error);
+        };
+
+        this.wsConnection.onclose = (event) => {
+          console.log(`📱 WebSocket: 🔌 Disconnected (code: ${event.code}, reason: ${event.reason})`);
+          this.wsConnection = null;
+          this.wsIP = null;
+        };
+      } catch (error) {
+        console.error('📱 WebSocket: ❌ Exception during connection:', error);
+        reject(error);
+      }
+    });
+  }
+
+  async sendWebSocketCommand(command: any): Promise<void> {
+    console.log(`📱 WebSocket: Attempting to send command:`, command);
+    
+    if (!this.wsConnection || this.wsConnection.readyState !== WebSocket.OPEN) {
+      console.error(`📱 WebSocket: ❌ Not connected (readyState: ${this.wsConnection?.readyState})`);
+      throw new Error('WebSocket not connected');
+    }
+
+    const message = JSON.stringify(command);
+    console.log(`📱 WebSocket: 📤 Sending message: ${message}`);
+    this.wsConnection.send(message);
+    console.log(`📱 WebSocket: ✅ Command sent successfully`);
+  }
+
+  isWebSocketConnected(): boolean {
+    return this.wsConnection !== null && this.wsConnection.readyState === WebSocket.OPEN;
+  }
+
+  getWebSocketIP(): string | null {
+    return this.wsIP;
+  }
+
+  disconnectWebSocket(): void {
+    if (this.wsConnection) {
+      this.wsConnection.close();
+      this.wsConnection = null;
+      this.wsIP = null;
+      console.log('📱 WebSocket disconnected');
     }
   }
 }

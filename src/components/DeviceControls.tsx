@@ -40,16 +40,19 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
     const [activeEffectTab, setActiveEffectTab] = useState<EffectTab>(
         effectTabs[0]
     );
+    const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+    const [isWebSocketLoading, setIsWebSocketLoading] = useState(false);
 
     // Fetch IP address when component mounts
     useEffect(() => {
         const fetchIPAddress = async () => {
             if (srDriver) {
                 try {
+                    await srDriver.delayRequest(500);
                     const ip = await srDriver.getIPAddress();
                     setIPAddress(ip);
                 } catch (error) {
-                    console.log('IP address not available (older device)');
+                    console.log('IP address not available (older device)', error);
                     setIPAddress(null);
                 }
             }
@@ -62,6 +65,7 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
         const fetchWiFiStatus = async () => {
             if (srDriver) {
                 try {
+                    await srDriver.delayRequest(500);
                     const status = await srDriver.getWiFiStatus();
                     setWifiStatus(status);
                 } catch (error) {
@@ -140,6 +144,30 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
         }
     };
 
+    const handleWebSocketConnect = async () => {
+        if (!srDriver || !ipAddress) return;
+
+        setIsWebSocketLoading(true);
+        try {
+            await srDriver.connectWebSocket(ipAddress);
+            setIsWebSocketConnected(true);
+            console.log('✅ WebSocket connected successfully');
+        } catch (error) {
+            console.error('Failed to connect WebSocket:', error);
+            setIsWebSocketConnected(false);
+        } finally {
+            setIsWebSocketLoading(false);
+        }
+    };
+
+    const handleWebSocketDisconnect = () => {
+        if (!srDriver) return;
+        
+        srDriver.disconnectWebSocket();
+        setIsWebSocketConnected(false);
+        console.log('✅ WebSocket disconnected');
+    };
+
     if (!srDriver) {
         return (
             <Card shadow="sm" padding="lg" radius="md" withBorder>
@@ -167,9 +195,28 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
                 </Group>
 
                 {ipAddress ? (
-                    <Text size="sm" c="dimmed">
-                        WiFi IP: {ipAddress}
-                    </Text>
+                    <Stack gap="sm">
+                        <Text size="sm" c="dimmed">
+                            WiFi IP: {ipAddress}
+                        </Text>
+                        <Group gap="sm">
+                            <Button
+                                size="xs"
+                                variant={isWebSocketConnected ? "filled" : "outline"}
+                                color={isWebSocketConnected ? "green" : "blue"}
+                                loading={isWebSocketLoading}
+                                onClick={isWebSocketConnected ? handleWebSocketDisconnect : handleWebSocketConnect}
+                                disabled={isWebSocketLoading}
+                            >
+                                {isWebSocketConnected ? "WebSocket Connected" : "Connect WebSocket"}
+                            </Button>
+                            {isWebSocketConnected && (
+                                <Text size="xs" c="green">
+                                    ✅ Real-time control active
+                                </Text>
+                            )}
+                        </Group>
+                    </Stack>
                 ) : (
                     <Text size="sm" c="dimmed">
                         WiFi not available (older device)
