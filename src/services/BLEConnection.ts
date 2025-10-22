@@ -47,4 +47,8 @@ export class BLEConnection {
   getService(): BluetoothRemoteGATTService | null {
     return this.service;
   }
+  
+  getDeviceId(): string {
+    return this.device?.id || 'unknown';
+  }
 }

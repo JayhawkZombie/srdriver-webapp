@@ -1,7 +1,20 @@
 import { BLEConnection } from './BLEConnection';
 
+export interface CommunicationLog {
+  id: string;
+  deviceId: string;
+  timestamp: Date;
+  direction: 'in' | 'out';
+  method: 'ble' | 'websocket';
+  command: string;
+  success: boolean;
+  error?: string;
+  duration?: number;
+  extraTags?: string[];
+}
+
 export class SRDriver {
-  private bleConnection: BLEConnection;
+  private bleConnection: BLEConnection | null = null;
   private brightnessCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private commandCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private ipAddressCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
@@ -12,12 +25,26 @@ export class SRDriver {
   // WebSocket connection
   private wsConnection: WebSocket | null = null;
   private wsIP: string | null = null;
+  
+  // Communication logging
+  private onCommunicationLog?: (log: CommunicationLog) => void;
 
-  constructor(bleConnection: BLEConnection) {
-    this.bleConnection = bleConnection;
+  constructor(bleConnection?: BLEConnection) {
+    this.bleConnection = bleConnection || null;
+  }
+  
+  // Set communication logging callback
+  setCommunicationLogger(callback: (log: CommunicationLog) => void) {
+    console.log('📱 Setting communication logger');
+    this.onCommunicationLog = callback;
   }
 
   async initialize(): Promise<void> {
+    if (!this.bleConnection) {
+      console.log('📱 No BLE connection provided, WebSocket-only mode');
+      return;
+    }
+    
     const service = this.bleConnection.getService();
     if (!service) {
       throw new Error('No BLE service available');
@@ -73,15 +100,46 @@ export class SRDriver {
     console.log('📱 SRDriver initialized');
   }
 
-  async setBrightness(brightness: number): Promise<void> {
-    if (!this.brightnessCharacteristic) {
-      throw new Error('Brightness characteristic not available');
-    }
+  getDeviceId(): string {
+    return this.wsIP || this.bleConnection?.getDeviceId() || 'unknown';
+  }
 
-    const value = brightness.toString();
-    const buffer = new TextEncoder().encode(value);
-    await this.brightnessCharacteristic.writeValue(buffer);
-    console.log(`📱 Set brightness to: ${brightness}`);
+  async setBrightness(brightness: number): Promise<void> {
+    const startTime = performance.now();
+    let method: 'ble' | 'websocket' = 'ble';
+    let success = false;
+    let error: string | undefined;
+    
+    try {
+      if (this.isWebSocketConnected()) {
+        method = 'websocket';
+        await this.sendWebSocketCommand({ brightness });
+        success = true;
+      } else if (this.brightnessCharacteristic) {
+        method = 'ble';
+        const value = brightness.toString();
+        const buffer = new TextEncoder().encode(value);
+        await this.brightnessCharacteristic.writeValue(buffer);
+        success = true;
+      } else {
+        throw new Error('No connection available for brightness control');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error';
+      throw err;
+    } finally {
+      this.onCommunicationLog?.({
+        id: `log-${Date.now()}-${Math.random()}`,
+        deviceId: this.getDeviceId(),
+        timestamp: new Date(),
+        direction: 'out',
+        method,
+        command: `setBrightness(${brightness})`,
+        success,
+        error,
+        duration: performance.now() - startTime
+      });
+    }
   }
 
   async getBrightness(): Promise<number> {
@@ -96,29 +154,41 @@ export class SRDriver {
     return brightness;
   }
 
+  async connectBLE(): Promise<void> {
+    if (!this.bleConnection) {
+      this.bleConnection = new BLEConnection();
+    }
+    await this.bleConnection.connect();
+    await this.initialize();
+  }
+
   async sendCommand(command: string): Promise<void> {
-    // Try WebSocket first if connected
-    if (this.isWebSocketConnected()) {
-      try {
+    const startTime = performance.now();
+    let method: 'ble' | 'websocket' = 'ble';
+    let success = false;
+    let error: string | undefined;
+    
+    try {
+      // Try WebSocket first if connected
+      if (this.isWebSocketConnected()) {
+        method = 'websocket';
         const commandObj = JSON.parse(command);
         await this.sendWebSocketCommand(commandObj);
         console.log(`📱 Sent command via WebSocket: ${command}`);
-        return;
-      } catch (error) {
-        console.warn(`📱 WebSocket command failed, falling back to BLE:`, error);
+        success = true;
+      } else if (this.bleConnection && this.commandCharacteristic) {
+        method = 'ble';
+        const buffer = new TextEncoder().encode(command);
+        await this.commandCharacteristic.writeValue(buffer);
+        console.log(`📱 Sent command via BLE: ${command}`);
+        success = true;
+      } else {
+        throw new Error('No connection available');
       }
-    } else {
-      console.log(`📱 WebSocket not connected, falling back to BLE: ${command}`);
-      // Fallback to BLE
-      if (!this.commandCharacteristic) {
-        throw new Error('Command characteristic not available');
-      }
-  
-      const buffer = new TextEncoder().encode(command);
-      await this.commandCharacteristic.writeValue(buffer);
-      console.log(`📱 Sent command via BLE: ${command}`);
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error';
+      throw err;
     }
-
   }
 
   async delayRequest(ms: number): Promise<void> {
@@ -194,12 +264,32 @@ export class SRDriver {
 
         this.wsConnection.onopen = () => {
           console.log(`📱 WebSocket: ✅ Connected to ${ip}:8080`);
+          this.onCommunicationLog?.({
+            id: `log-${Date.now()}-${Math.random()}`,
+            deviceId: this.getDeviceId(),
+            timestamp: new Date(),
+            direction: 'out',
+            method: 'websocket',
+            command: `connectWebSocket(${ip})`,
+            success: true,
+            extraTags: [':8080']
+          });
           resolve();
         };
 
         this.wsConnection.onmessage = (event) => {
           console.log('📱 WebSocket: 📨 Message received:', event.data);
-          resolve
+          this.onCommunicationLog?.({
+            id: `log-${Date.now()}-${Math.random()}`,
+            deviceId: this.getDeviceId(),
+            timestamp: new Date(),
+            direction: 'in',
+            method: 'websocket',
+            command: event.data,
+            success: true,
+            extraTags: [':8080']
+          });
+          resolve();
         };
 
         this.wsConnection.onerror = (error) => {
@@ -235,9 +325,24 @@ export class SRDriver {
 
     const message = JSON.stringify(command);
     console.log(`📱 WebSocket: 📤 Sending message: ${message}`);
-    this.wsConnection.send(message);
-    const endTime = performance.now();
-    console.log(`📱 WebSocket: ✅ Command sent successfully in ${(endTime - startTime).toFixed(2)}ms`);
+    this.onCommunicationLog?.({
+      id: `log-${Date.now()}-${Math.random()}`,
+      deviceId: this.getDeviceId(),
+      timestamp: new Date(),
+      direction: 'out',
+      method: 'websocket',
+      command: message,
+      success: true,
+      extraTags: [':8080']
+    });
+    try {
+      this.wsConnection.send(message);
+      const endTime = performance.now();
+      console.log(`📱 WebSocket: ✅ Command sent successfully in ${(endTime - startTime).toFixed(2)}ms`);
+    } catch (error) {
+      console.error('📱 WebSocket: ❌ Error sending message:', error);
+      throw error;
+    }
   }
 
   isWebSocketConnected(): boolean {
@@ -255,5 +360,18 @@ export class SRDriver {
       this.wsIP = null;
       console.log('📱 WebSocket disconnected');
     }
+  }
+  
+  async disconnect(): Promise<void> {
+    if (this.wsConnection) {
+      this.disconnectWebSocket();
+    }
+    if (this.bleConnection) {
+      await this.bleConnection.disconnect();
+    }
+  }
+  
+  isConnected(): boolean {
+    return this.isWebSocketConnected() || (this.bleConnection?.isConnected() || false);
   }
 }

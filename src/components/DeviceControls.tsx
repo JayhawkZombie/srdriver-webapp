@@ -6,14 +6,13 @@ import {
     Slider,
     Group,
     Button,
-    ColorInput,
     SegmentedControl,
     TextInput,
     PasswordInput,
     Divider,
 } from "@mantine/core";
-import { IconX, IconPalette } from "@tabler/icons-react";
-import { SRDriver } from "../services/SRDriver";
+import { IconX } from "@tabler/icons-react";
+import { useDeviceContext } from "../contexts/DeviceContext";
 import { WebSocketConnection } from "./WebSocketConnection";
 import { FlatColorControls } from "./controls/FlatColorControls";
 import { RainbowColorControls } from "./controls/RainbowColorControls";
@@ -22,8 +21,7 @@ import { TwinkleEffectControls } from "./controls/TwinkleEffectControls";
 import styles from "./DeviceControls.module.css";
 
 interface DeviceControlsProps {
-    srDriver: SRDriver | null;
-    deviceName?: string;
+    deviceId: string;
     onDisconnect: () => void;
 }
 
@@ -31,10 +29,13 @@ const effectTabs = ["flat", "rainbow", "blend", "twinkling", "waves", "misc"];
 type EffectTab = (typeof effectTabs)[number];
 
 export const DeviceControls: React.FC<DeviceControlsProps> = ({
-    srDriver,
-    deviceName,
+    deviceId,
     onDisconnect,
 }) => {
+    const { getDevice } = useDeviceContext();
+    const device = getDevice(deviceId);
+    const srDriver = device?.srDriver;
+    const deviceName = device?.name;
     const [brightness, setBrightness] = useState(128);
     const [ipAddress, setIPAddress] = useState<string | null>(null);
     const [wifiSSID, setWifiSSID] = useState("");

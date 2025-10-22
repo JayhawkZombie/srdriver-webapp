@@ -1,66 +1,35 @@
 import { useState } from 'react';
-import { Button, Stack, Text, Alert, Group, Title } from '@mantine/core';
-import { IconBluetooth, IconPlus } from '@tabler/icons-react';
-import { BLEConnection } from '../services/BLEConnection';
-import { SRDriver } from '../services/SRDriver';
+import { Button, Stack, Text, Alert, Group, Title, TextInput } from '@mantine/core';
+import { IconPlus } from '@tabler/icons-react';
+import { useDeviceContext } from '../contexts/DeviceContext';
 import { DeviceControls } from './DeviceControls';
-
-interface ConnectedDevice {
-  id: string;
-  name: string;
-  bleConnection: BLEConnection;
-  srDriver: SRDriver;
-}
+import { CommunicationMonitor } from './monitoring/CommunicationMonitor';
 
 export const ConnectionButton = () => {
-  const [devices, setDevices] = useState<ConnectedDevice[]>([]);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { 
+    devices, 
+    connectDeviceBLE, 
+    connectDeviceWebSocket, 
+    disconnectDevice, 
+    isConnecting, 
+    error 
+  } = useDeviceContext();
+  
+  const [wsIP, setWsIP] = useState('');
 
-  const handleConnect = async () => {
-    try {
-      setIsConnecting(true);
-      setError(null);
-
-      const connection = new BLEConnection();
-      await connection.connect();
-      
-      const driver = new SRDriver(connection);
-      await driver.initialize();
-
-      // Create a unique device entry
-      const deviceId = `device-${Date.now()}`;
-      const deviceName = `SRDriver ${devices.length + 1}`;
-      
-      const newDevice: ConnectedDevice = {
-        id: deviceId,
-        name: deviceName,
-        bleConnection: connection,
-        srDriver: driver
-      };
-
-      setDevices(prev => [...prev, newDevice]);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Connection failed');
-    } finally {
-      setIsConnecting(false);
-    }
+  const handleBLEConnect = async () => {
+    await connectDeviceBLE();
   };
 
-  const handleDisconnect = async (deviceId: string) => {
-    try {
-      const device = devices.find(d => d.id === deviceId);
-      if (device) {
-        await device.bleConnection.disconnect();
-        setDevices(prev => prev.filter(d => d.id !== deviceId));
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Disconnection failed');
+  const handleWSConnect = async () => {
+    if (wsIP.trim()) {
+      await connectDeviceWebSocket(wsIP.trim());
+      setWsIP(''); // Clear the input after successful connection
     }
   };
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" miw={1000}>
       {error && (
         <Alert color="red" variant="light">
           {error}
@@ -69,32 +38,56 @@ export const ConnectionButton = () => {
 
       <Group justify="space-between" align="center">
         <Title order={3}>Connected Devices ({devices.length})</Title>
+      </Group>
+
+      <Group gap="md">
         <Button
           leftSection={<IconPlus size={16} />}
-          onClick={handleConnect}
+          onClick={handleBLEConnect}
           loading={isConnecting}
           color="blue"
           variant="filled"
           size="sm"
         >
-          Add Device
+          Connect BLE
+        </Button>
+        
+        <TextInput
+          placeholder="IP Address (e.g., 192.168.1.100)"
+          value={wsIP}
+          onChange={(e) => setWsIP(e.target.value)}
+          size="sm"
+          style={{ flex: 1 }}
+        />
+        <Button
+          onClick={handleWSConnect}
+          loading={isConnecting}
+          disabled={!wsIP.trim()}
+          color="green"
+          variant="filled"
+          size="sm"
+        >
+          Connect WebSocket
         </Button>
       </Group>
 
       {devices.length === 0 && (
         <Text size="sm" c="dimmed" ta="center">
-          No devices connected. Click "Add Device" to connect to an SRDriver.
+          No devices connected. Use the buttons above to connect to an SRDriver.
         </Text>
       )}
 
       {devices.map((device) => (
         <DeviceControls
           key={device.id}
-          srDriver={device.srDriver}
-          deviceName={device.name}
-          onDisconnect={() => handleDisconnect(device.id)}
+          deviceId={device.id}
+          onDisconnect={() => disconnectDevice(device.id)}
         />
       ))}
+      
+      {devices.length > 0 && (
+        <CommunicationMonitor />
+      )}
     </Stack>
   );
 };
