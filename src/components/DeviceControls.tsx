@@ -14,6 +14,12 @@ import {
 } from "@mantine/core";
 import { IconX, IconPalette } from "@tabler/icons-react";
 import { SRDriver } from "../services/SRDriver";
+import { WebSocketConnection } from "./WebSocketConnection";
+import { FlatColorControls } from "./controls/FlatColorControls";
+import { RainbowColorControls } from "./controls/RainbowColorControls";
+import { ColorBlendControls } from "./controls/ColorBlendControls";
+import { TwinkleEffectControls } from "./controls/TwinkleEffectControls";
+import styles from "./DeviceControls.module.css";
 
 interface DeviceControlsProps {
     srDriver: SRDriver | null;
@@ -21,7 +27,7 @@ interface DeviceControlsProps {
     onDisconnect: () => void;
 }
 
-const effectTabs = ["flat", "waves", "misc"];
+const effectTabs = ["flat", "rainbow", "blend", "twinkling", "waves", "misc"];
 type EffectTab = (typeof effectTabs)[number];
 
 export const DeviceControls: React.FC<DeviceControlsProps> = ({
@@ -30,8 +36,6 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
     onDisconnect,
 }) => {
     const [brightness, setBrightness] = useState(128);
-    const [color, setColor] = useState("#ffffff");
-    const [isLoading, setIsLoading] = useState(false);
     const [ipAddress, setIPAddress] = useState<string | null>(null);
     const [wifiSSID, setWifiSSID] = useState("");
     const [wifiPassword, setWifiPassword] = useState("");
@@ -40,8 +44,7 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
     const [activeEffectTab, setActiveEffectTab] = useState<EffectTab>(
         effectTabs[0]
     );
-    const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
-    const [isWebSocketLoading, setIsWebSocketLoading] = useState(false);
+
 
     // Fetch IP address when component mounts
     useEffect(() => {
@@ -88,37 +91,7 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
         }
     };
 
-    const handleShowColorLEDs = async () => {
-        if (!srDriver) return;
 
-        setIsLoading(true);
-        try {
-            // Convert hex color to RGB
-            const hex = color.replace("#", "");
-            const r = parseInt(hex.substr(0, 2), 16);
-            const g = parseInt(hex.substr(2, 2), 16);
-            const b = parseInt(hex.substr(4, 2), 16);
-
-            // Send JSON command to show color LEDs (shortened field names)
-            const command = JSON.stringify({
-                t: "effect",
-                e: {
-                    t: "solid_color",
-                    p: {
-                        c: `rgb(${r},${g},${b})`,
-                        d: -1,
-                    },
-                },
-            });
-
-            await srDriver.sendCommand(command);
-            console.log("✅ Sent color LED command:", command);
-        } catch (error) {
-            console.error("Failed to send color LED command:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleWiFiSetup = async () => {
         if (!srDriver) return;
@@ -142,30 +115,6 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
         } finally {
             setIsWifiLoading(false);
         }
-    };
-
-    const handleWebSocketConnect = async () => {
-        if (!srDriver || !ipAddress) return;
-
-        setIsWebSocketLoading(true);
-        try {
-            await srDriver.connectWebSocket(ipAddress);
-            setIsWebSocketConnected(true);
-            console.log('✅ WebSocket connected successfully');
-        } catch (error) {
-            console.error('Failed to connect WebSocket:', error);
-            setIsWebSocketConnected(false);
-        } finally {
-            setIsWebSocketLoading(false);
-        }
-    };
-
-    const handleWebSocketDisconnect = () => {
-        if (!srDriver) return;
-        
-        srDriver.disconnectWebSocket();
-        setIsWebSocketConnected(false);
-        console.log('✅ WebSocket disconnected');
     };
 
     if (!srDriver) {
@@ -195,28 +144,10 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
                 </Group>
 
                 {ipAddress ? (
-                    <Stack gap="sm">
-                        <Text size="sm" c="dimmed">
-                            WiFi IP: {ipAddress}
-                        </Text>
-                        <Group gap="sm">
-                            <Button
-                                size="xs"
-                                variant={isWebSocketConnected ? "filled" : "outline"}
-                                color={isWebSocketConnected ? "green" : "blue"}
-                                loading={isWebSocketLoading}
-                                onClick={isWebSocketConnected ? handleWebSocketDisconnect : handleWebSocketConnect}
-                                disabled={isWebSocketLoading}
-                            >
-                                {isWebSocketConnected ? "WebSocket Connected" : "Connect WebSocket"}
-                            </Button>
-                            {isWebSocketConnected && (
-                                <Text size="xs" c="green">
-                                    ✅ Real-time control active
-                                </Text>
-                            )}
-                        </Group>
-                    </Stack>
+                    <WebSocketConnection
+                        srDriver={srDriver}
+                        ipAddress={ipAddress}
+                    />
                 ) : (
                     <Text size="sm" c="dimmed">
                         WiFi not available (older device)
@@ -252,34 +183,25 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
                     data={effectTabs}
                 />
 
-                {activeEffectTab === "flat" && (
-                    <Group gap="md" w="100%">
-                        <Group gap="md" w="100%">
-                            <Text size="sm" fw={500} w={100}>
-                                Color
-                            </Text>
-                            <ColorInput
-                                value={color}
-                                onChange={setColor}
-                                format="hex"
-                                style={{ flex: 1 }}
-                                size="md"
-                                placeholder="Pick color"
-                            />
-                        </Group>
+                <div className={styles.controlsContainer}>
+                    {activeEffectTab === "flat" && (
+                        <FlatColorControls srDriver={srDriver} />
+                    )}
 
-                        <Button
-                            leftSection={<IconPalette size={16} />}
-                            onClick={handleShowColorLEDs}
-                            loading={isLoading}
-                            variant="filled"
-                            color="blue"
-                            fullWidth
-                        >
-                            {isLoading ? "Sending..." : "Show Color LEDs"}
-                        </Button>
-                    </Group>
-                )}
+                    {activeEffectTab === "rainbow" && (
+                        <RainbowColorControls srDriver={srDriver} />
+                    )}
+
+                    {activeEffectTab === "blend" && (
+                        <ColorBlendControls srDriver={srDriver} />
+                    )}
+
+                    {activeEffectTab === "twinkling" && (
+                        <TwinkleEffectControls srDriver={srDriver} />
+                    )}
+
+                </div>
+
 
                 <Divider label="WiFi Setup" labelPosition="center" />
 
@@ -294,14 +216,18 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
                         label="WiFi Network Name (SSID)"
                         placeholder="Enter WiFi network name"
                         value={wifiSSID}
-                        onChange={(event) => setWifiSSID(event.currentTarget.value)}
+                        onChange={(event) =>
+                            setWifiSSID(event.currentTarget.value)
+                        }
                         size="sm"
                     />
                     <PasswordInput
                         label="WiFi Password"
                         placeholder="Enter WiFi password"
                         value={wifiPassword}
-                        onChange={(event) => setWifiPassword(event.currentTarget.value)}
+                        onChange={(event) =>
+                            setWifiPassword(event.currentTarget.value)
+                        }
                         size="sm"
                     />
                     <Button

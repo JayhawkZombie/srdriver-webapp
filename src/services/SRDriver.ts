@@ -97,13 +97,28 @@ export class SRDriver {
   }
 
   async sendCommand(command: string): Promise<void> {
-    if (!this.commandCharacteristic) {
-      throw new Error('Command characteristic not available');
+    // Try WebSocket first if connected
+    if (this.isWebSocketConnected()) {
+      try {
+        const commandObj = JSON.parse(command);
+        await this.sendWebSocketCommand(commandObj);
+        console.log(`📱 Sent command via WebSocket: ${command}`);
+        return;
+      } catch (error) {
+        console.warn(`📱 WebSocket command failed, falling back to BLE:`, error);
+      }
+    } else {
+      console.log(`📱 WebSocket not connected, falling back to BLE: ${command}`);
+      // Fallback to BLE
+      if (!this.commandCharacteristic) {
+        throw new Error('Command characteristic not available');
+      }
+  
+      const buffer = new TextEncoder().encode(command);
+      await this.commandCharacteristic.writeValue(buffer);
+      console.log(`📱 Sent command via BLE: ${command}`);
     }
 
-    const buffer = new TextEncoder().encode(command);
-    await this.commandCharacteristic.writeValue(buffer);
-    console.log(`📱 Sent command: ${command}`);
   }
 
   async delayRequest(ms: number): Promise<void> {
@@ -184,6 +199,7 @@ export class SRDriver {
 
         this.wsConnection.onmessage = (event) => {
           console.log('📱 WebSocket: 📨 Message received:', event.data);
+          resolve
         };
 
         this.wsConnection.onerror = (error) => {
@@ -209,6 +225,7 @@ export class SRDriver {
   }
 
   async sendWebSocketCommand(command: any): Promise<void> {
+    const startTime = performance.now();
     console.log(`📱 WebSocket: Attempting to send command:`, command);
     
     if (!this.wsConnection || this.wsConnection.readyState !== WebSocket.OPEN) {
@@ -219,7 +236,8 @@ export class SRDriver {
     const message = JSON.stringify(command);
     console.log(`📱 WebSocket: 📤 Sending message: ${message}`);
     this.wsConnection.send(message);
-    console.log(`📱 WebSocket: ✅ Command sent successfully`);
+    const endTime = performance.now();
+    console.log(`📱 WebSocket: ✅ Command sent successfully in ${(endTime - startTime).toFixed(2)}ms`);
   }
 
   isWebSocketConnected(): boolean {

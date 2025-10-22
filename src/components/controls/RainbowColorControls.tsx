@@ -1,0 +1,71 @@
+import React, { useState, useEffect } from "react";
+import {
+    Card,
+    Stack,
+    Text,
+    Slider,
+    Group,
+    Button,
+    ColorInput,
+    SegmentedControl,
+    TextInput,
+    PasswordInput,
+    Divider,
+} from "@mantine/core";
+import { IconX, IconPalette } from "@tabler/icons-react";
+import { SRDriver } from "../../services/SRDriver";
+import { WebSocketConnection } from "./WebSocketConnection";
+
+type Props = {
+    srDriver: SRDriver | null;
+};
+
+export const RainbowColorControls: React.FC<Props> = ({ srDriver }) => {
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleShowRainbowLEDs = async () => {
+        if (!srDriver) return;
+
+        setIsLoading(true);
+        try {
+            // Send JSON command to show rainbow LEDs
+            const command = JSON.stringify({
+                t: "effect",
+                e: {
+                    t: "rainbow",
+                    p: {
+                        s: 1.0, // speed
+                        r: false, // reverse direction
+                        d: -1, // duration (infinite)
+                    },
+                },
+            });
+
+            await srDriver.sendCommand(command);
+            console.log("✅ Sent rainbow LED command:", command);
+        } catch (error) {
+            console.error("Failed to send rainbow LED command:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Group gap="md" w="100%">
+            <Text size="sm" c="dimmed">
+                🌈 Rainbow Effect - Flowing rainbow animation across all LEDs
+            </Text>
+
+            <Button
+                leftSection={<IconPalette size={16} />}
+                onClick={handleShowRainbowLEDs}
+                loading={isLoading}
+                variant="filled"
+                color="violet"
+                fullWidth
+            >
+                {isLoading ? "Sending..." : "Show Rainbow LEDs"}
+            </Button>
+        </Group>
+    );
+};
