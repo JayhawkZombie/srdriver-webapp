@@ -113,7 +113,7 @@ export class SRDriver {
     try {
       if (this.isWebSocketConnected()) {
         method = 'websocket';
-        await this.sendWebSocketCommand({ brightness });
+        await this.sendWebSocketCommand({ type: "brightness", brightness });
         success = true;
       } else if (this.brightnessCharacteristic) {
         method = 'ble';
