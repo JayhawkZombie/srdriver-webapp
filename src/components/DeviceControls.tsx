@@ -19,13 +19,14 @@ import { RainbowColorControls } from "./controls/RainbowColorControls";
 import { ColorBlendControls } from "./controls/ColorBlendControls";
 import { TwinkleEffectControls } from "./controls/TwinkleEffectControls";
 import styles from "./DeviceControls.module.css";
+import { RainEffectControls } from "./controls/RainEffectControls";
 
 interface DeviceControlsProps {
     deviceId: string;
     onDisconnect: () => void;
 }
 
-const effectTabs = ["flat", "rainbow", "blend", "twinkling", "waves", "misc"];
+const effectTabs = ["flat", "rainbow", "blend", "twinkling", "rain", "waves", "misc"];
 type EffectTab = (typeof effectTabs)[number];
 
 export const DeviceControls: React.FC<DeviceControlsProps> = ({
@@ -129,7 +130,7 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
     }
 
     return (
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
+        <Card shadow="sm" padding="lg" radius="md" withBorder className={styles.deviceControlsContainer}>
             <Stack gap="md">
                 <Group justify="space-between">
                     <Text fw={500}>{deviceName || "Device Controls"}</Text>
@@ -199,6 +200,10 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
 
                     {activeEffectTab === "twinkling" && (
                         <TwinkleEffectControls srDriver={srDriver} />
+                    )}
+
+                    {activeEffectTab === "rain" && (
+                        <RainEffectControls srDriver={srDriver} />
                     )}
 
                 </div>

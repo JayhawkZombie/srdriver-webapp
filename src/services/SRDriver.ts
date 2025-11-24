@@ -1,6 +1,6 @@
 import { BLEConnection } from './BLEConnection';
 
-export interface CommunicationLog {
+export type CommunicationLog = {
   id: string;
   deviceId: string;
   timestamp: Date;
@@ -134,7 +134,7 @@ export class SRDriver {
         timestamp: new Date(),
         direction: 'out',
         method,
-        command: `setBrightness(${brightness})`,
+        command: JSON.stringify({ t: "brightness", p: { brightness } }),
         success,
         error,
         duration: performance.now() - startTime
@@ -270,7 +270,7 @@ export class SRDriver {
             timestamp: new Date(),
             direction: 'out',
             method: 'websocket',
-            command: `connectWebSocket(${ip})`,
+            command: `{"t": "connectWebSocket", "p": {"ip": "${ip}"}}`,
             success: true,
             extraTags: [':8080']
           });

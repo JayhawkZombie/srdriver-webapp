@@ -16,6 +16,11 @@
   background-color: transparent;
 }
 
+.labelGroup {
+  width: 250px;
+  flex-wrap: nowrap;
+}
+
 .thumb {
   background-color:rgb(131, 131, 131);
   height: 24px;
@@ -29,6 +34,7 @@
 }
 
 .textValue {
-    min-width: 200px;
+    min-width: 20px;
+    width: fit-content;
     text-align: left;
 }

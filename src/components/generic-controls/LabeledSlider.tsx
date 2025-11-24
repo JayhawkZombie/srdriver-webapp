@@ -1,6 +1,7 @@
 import React from "react";
 import { Slider, type SliderProps, Group, Text } from "@mantine/core";
 import styles from "./LabeledSlider.module.css";
+import isNil from "lodash/isNil";
 
 export type SliderValue = SliderProps["value"];
 
@@ -12,6 +13,8 @@ type Props = {
     max: number;
     step: number;
     defaultValue: SliderValue;
+    unit?: string;
+    customValueFormatter?: (value: SliderValue) => string;
 };
 
 export const LabeledSlider: React.FC<Props> = ({
@@ -22,15 +25,25 @@ export const LabeledSlider: React.FC<Props> = ({
     max,
     step,
     defaultValue,
+    unit,
+    customValueFormatter,
 }) => {
+    let valueDisplay = "";
+    if (customValueFormatter) {
+        valueDisplay = customValueFormatter(value);
+    } else {
+        valueDisplay = isNil(value) ? "n/a" : value.toFixed(2) + " " + unit;
+    }
     return (
         <Group gap="sm" w="100%">
-            <Text size="sm" fw={500}>
-                {label}
-            </Text>
-            <Text size="sm" c="dimmed" className={styles.textValue}>
-                {value ? value.toFixed(2) : "n/a"}
-            </Text>
+            <Group className={styles.labelGroup}>
+                <Text size="sm" fw={500}>
+                    {label}
+                </Text>
+                <Text size="sm" c="dimmed" className={styles.textValue}>
+                    {valueDisplay}
+                </Text>
+            </Group>
             <Slider
                 min={min}
                 max={max}

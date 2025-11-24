@@ -4,6 +4,7 @@ import { IconPlus } from '@tabler/icons-react';
 import { useDeviceContext } from '../contexts/DeviceContext';
 import { DeviceControls } from './DeviceControls';
 import { CommunicationMonitor } from './monitoring/CommunicationMonitor';
+import styles from './generic-controls/ConnectionButton.module.css';
 
 export const ConnectionButton = () => {
   const { 
@@ -29,7 +30,7 @@ export const ConnectionButton = () => {
   };
 
   return (
-    <Stack gap="md" miw={1000}>
+    <Stack gap="md" miw={1000} className={styles.connectionButtonContainer}>
       {error && (
         <Alert color="red" variant="light">
           {error}

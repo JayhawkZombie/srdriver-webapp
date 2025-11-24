@@ -1,0 +1,305 @@
+import {
+    Group,
+    Text,
+    Button,
+    type RangeSliderValue,
+    Stack,
+    RangeSlider,
+    Grid,
+} from "@mantine/core";
+import React, { useState, useEffect } from "react";
+import { IconCloudRain } from "@tabler/icons-react";
+import { SRDriver } from "../../services/SRDriver";
+import { LabeledRangeSlider } from "../generic-controls/LabeledRangeSlider";
+import {
+    LabeledSlider,
+    type SliderValue,
+} from "../generic-controls/LabeledSlider";
+import { JSONCommandPreview } from "../generic-controls/JSONCommandPreview";
+
+type Props = {
+    srDriver: SRDriver | null;
+};
+
+export const RainEffectControls: React.FC<Props> = ({ srDriver }) => {
+    const [isLoading, setIsLoading] = useState(false);
+
+    // const [tElapStart, setTElapStart] = useState(0);
+    const [baseTimeBetweenRings, setBaseTimeBetweenRings] = useState(0.14);
+    const [oddsOfRadiating, setOddsOfRadiating] = useState(3);
+    // const [colorRange, setColorRange] = useState(160);
+    const [ringWidthRange, setRingWidthRange] = useState<RangeSliderValue>([
+        2, 4,
+    ]);
+    const [hiLightRange, setHiLightRange] = useState<RangeSliderValue>([
+        80, 160,
+    ]);
+    const [loLightRange, setLoLightRange] = useState<RangeSliderValue>([
+        16, 80,
+    ]);
+    const [fadeRRatio, setFadeRRatio] = useState(1.6);
+    const [fadeWRatio, setFadeWRatio] = useState(1.6);
+    const [baseSpawnTime, setBaseSpawnTime] = useState(0.5);
+    const [lifetimeRange, setLifetimeRange] = useState<RangeSliderValue>([
+        0.5, 2.0,
+    ]);
+    const [amplitudeRange, setAmplitudeRange] = useState<RangeSliderValue>([
+        0.3, 1.0,
+    ]);
+    const [speedFactor, setSpeedFactor] = useState(1.0);
+    const [spawnColumnRange, setSpawnColumnRange] = useState<RangeSliderValue>([
+        -8 + 8,
+        38 + 8,
+    ]);
+    const [spawnRowRange, setSpawnRowRange] = useState<RangeSliderValue>([
+        -8 + 8,
+        38 + 8,
+    ]);
+
+    const generateCommandJson = () => {
+        return {
+            t: "effect",
+            e: {
+                t: "rain",
+                p: {
+                    sc_min: spawnColumnRange[0],
+                    sc_max: spawnColumnRange[1],
+                    sr_min: spawnRowRange[0],
+                    sr_max: spawnRowRange[1],
+                    hi_min: hiLightRange[0],
+                    hi_max: hiLightRange[1],
+                    lo_min: loLightRange[0],
+                    lo_max: loLightRange[1],
+                    rw_min: ringWidthRange[0],
+                    rw_max: ringWidthRange[1],
+                    lt_min: lifetimeRange[0],
+                    lt_max: lifetimeRange[1],
+                    amp_min: amplitudeRange[0],
+                    amp_max: amplitudeRange[1],
+                    oor: oddsOfRadiating,
+                    sf: speedFactor,
+                    st: baseSpawnTime,
+                },
+            },
+        }
+    }
+
+    const [onePulseChance, setOnePulseChance] = useState(0.3);
+
+        const handleShowRainLEDs = async () => {
+            if (!srDriver) return;
+
+            setIsLoading(true);
+            try {
+                const command = JSON.stringify(generateCommandJson());
+
+                await srDriver.sendCommand(command);
+                console.log("✅ Sent rain LED command:", command);
+            } catch (error) {
+                console.error("Failed to send rain LED command:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+    return (
+        <Group gap="md" w="100%" h="100%">
+            <Stack gap="md" h="100%" w="100%">
+                <Text size="sm" c="dimmed">
+                    🌧️ Rain Effect
+                </Text>
+                <LabeledSlider
+                    label="Base Time Between Rings"
+                    value={baseTimeBetweenRings}
+                    onChange={(newVal: SliderValue) => {
+                        setBaseTimeBetweenRings(newVal ?? 0.14);
+                    }}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.14}
+                    unit="s"
+                />
+                <LabeledSlider
+                    label="Odds Of Radiating"
+                    value={oddsOfRadiating}
+                    onChange={(newVal: SliderValue) => {
+                        setOddsOfRadiating(newVal ?? 3);
+                    }}
+                    min={0}
+                    max={10}
+                    step={1}
+                    defaultValue={3}
+                    unit=""
+                    customValueFormatter={(value: SliderValue) => {
+                        return `1 in ${value}`;
+                    }}
+                />
+                <LabeledSlider
+                    label="One Pulse Chance"
+                    value={onePulseChance}
+                    onChange={(newVal: SliderValue) => {
+                        setOnePulseChance(newVal ?? 0.3);
+                    }}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    defaultValue={0.3}
+                    unit=""
+                    customValueFormatter={(value: SliderValue) => {
+                        return `${(value ?? 0) * 100}%`;
+                    }}
+                />
+                <LabeledRangeSlider
+                    label="Hi Light Range"
+                    value={hiLightRange}
+                    onChange={(newVal: RangeSliderValue) => {
+                        setHiLightRange(newVal);
+                    }}
+                    min={0}
+                    max={500}
+                    step={1}
+                    defaultValue={[80, 160]}
+                    unit=""
+                />
+                <LabeledRangeSlider
+                    label="Lo Light Range"
+                    value={loLightRange}
+                    onChange={(newVal: RangeSliderValue) => {
+                        setLoLightRange(newVal);
+                    }}
+                    min={0}
+                    max={500}
+                    step={1}
+                    defaultValue={[16, 80]}
+                    unit=""
+                />
+                <LabeledRangeSlider
+                    label="Ring Width"
+                    value={ringWidthRange}
+                    onChange={(newVal: RangeSliderValue) => {
+                        setRingWidthRange(newVal);
+                    }}
+                    min={0}
+                    max={12}
+                    step={0.1}
+                    minRange={1}
+                    // defaultValue={[2, 4]}
+                    unit="px"
+                />
+                <LabeledSlider
+                    label="Fade R Ratio"
+                    value={fadeRRatio}
+                    onChange={(newVal: SliderValue) => {
+                        setFadeRRatio(newVal ?? 1.6);
+                    }}
+                    min={0}
+                    max={5}
+                    step={0.01}
+                    defaultValue={1.6}
+                    unit="px"
+                />
+                <LabeledSlider
+                    label="Fade W Ratio"
+                    value={fadeWRatio}
+                    onChange={(newVal: SliderValue) => {
+                        setFadeWRatio(newVal ?? 1.6);
+                    }}
+                    min={0}
+                    max={5}
+                    step={0.01}
+                    defaultValue={1.6}
+                    unit="px"
+                />
+                <LabeledSlider
+                    label="Base Spawn Time"
+                    value={baseSpawnTime}
+                    onChange={(newVal: SliderValue) => {
+                        setBaseSpawnTime(newVal ?? 0.5);
+                    }}
+                    min={0}
+                    max={10}
+                    step={0.01}
+                    defaultValue={0.5}
+                    unit="s"
+                />
+                <LabeledSlider
+                    label="Speed Factor"
+                    value={speedFactor}
+                    onChange={(newVal: SliderValue) => {
+                        setSpeedFactor(newVal ?? 1.0);
+                    }}
+                    min={0}
+                    max={10}
+                    step={0.01}
+                    defaultValue={1.0}
+                    unit=""
+                />
+                <LabeledRangeSlider
+                    label="Spawn Column Range"
+                    value={spawnColumnRange}
+                    onChange={(newVal: RangeSliderValue) => {
+                        setSpawnColumnRange(newVal);
+                    }}
+                    min={0}
+                    max={32}
+                    step={1}
+                    defaultValue={[-8, 38]}
+                    unit="px"
+                    customValueFormatter={(value: RangeSliderValue) => {
+                        return `(${value[0]}, ${value[1]})`;
+                    }}
+                />
+                <LabeledRangeSlider
+                    label="Spawn Row Range"
+                    value={spawnRowRange}
+                    onChange={(newVal: RangeSliderValue) => {
+                        setSpawnRowRange(newVal);
+                    }}
+                    customValueFormatter={(value: RangeSliderValue) => {
+                        return `(${value[0]}, ${value[1]})`;
+                    }}
+                    min={0}
+                    max={32}
+                    step={1}
+                    defaultValue={[-8, 38]}
+                    unit="px"
+                />
+                <LabeledRangeSlider
+                    label="Lifetime Range"
+                    value={lifetimeRange}
+                    onChange={(newVal: RangeSliderValue) => {
+                        setLifetimeRange(newVal);
+                    }}
+                    min={0}
+                    max={10}
+                    step={0.01}
+                />
+                <LabeledRangeSlider
+                    label="Amplitude Range"
+                    value={amplitudeRange}
+                    onChange={(newVal: RangeSliderValue) => {
+                        setAmplitudeRange(newVal);
+                    }}
+                    min={0}
+                    max={10}
+                    step={0.01}
+                />
+                <Button
+                    leftSection={<IconCloudRain size={16} />}
+                    onClick={handleShowRainLEDs}
+                    loading={isLoading}
+                    variant="filled"
+                    color="violet"
+                    fullWidth
+                >
+                    {isLoading ? "Sending..." : "Show Rain Effect"}
+                </Button>
+                <JSONCommandPreview
+                    isCompact
+                    command={JSON.stringify(generateCommandJson())}
+                />
+            </Stack>
+        </Group>
+    );
+};
