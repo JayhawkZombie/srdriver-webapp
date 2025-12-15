@@ -25,7 +25,6 @@ type Props = {
 export const ColorRange: React.FC<Props> = ({ label, format, value, onChange }) => {
     return (
         <Card withBorder>
-            {/* <Group gap="sm" w="100%" wrap="nowrap"> */}
             <Stack gap="sm" w="fit-content">
                 {label && <Text size="sm" fw={500}>{label}</Text>}
                 <ColorInput

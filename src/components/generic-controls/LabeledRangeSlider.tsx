@@ -1,5 +1,5 @@
 import React from "react";
-import { RangeSlider, type RangeSliderValue, Group, Text } from "@mantine/core";
+import { RangeSlider, type RangeSliderValue, Group, Text, Paper } from "@mantine/core";
 import styles from "./LabeledRangeSlider.module.css";
 import isNil from "lodash/isNil";
 
@@ -30,27 +30,30 @@ export const LabeledRangeSlider: React.FC<Props> = ({ label, value, onChange, mi
     }
     return (
         <Group gap="sm" w="100%">
-            <Group className={styles.labelGroup}>
-                <Text size="sm" fw={500}>
-                    {label}
-                </Text>
-                <Text size="sm" c="dimmed" className={styles.textValue}>
-                    {/* Show text so it always has 2 decimal places */}
-                    {valueDisplay}
-                </Text>
-            </Group>
-            <RangeSlider
-                min={min}
-                max={max}
-                minRange={minRange ?? 1}
-                step={step}
-                defaultValue={defaultValue}
-                value={value}
-                onChange={onChange}
-                // labelAlwaysOn
-                classNames={styles}
-                className={styles.rangeSlider}
-            />
+            <Paper p="sm">
+                <Group className={styles.labelGroup}>
+                    <Text size="sm" fw={500}>
+                        {label}
+                    </Text>
+                    <Text size="xs" c="dimmed" className={styles.textValue}>
+                        {/* Show text so it always has 2 decimal places */}
+                        {valueDisplay}
+                    </Text>
+                </Group>
+                <RangeSlider
+                    size="xs"
+                    min={min}
+                    max={max}
+                    minRange={minRange ?? 1}
+                    step={step}
+                    defaultValue={defaultValue}
+                    value={value}
+                    onChange={onChange}
+                    // labelAlwaysOn
+                    classNames={styles}
+                    className={styles.rangeSlider + " " + styles.compactSlider}
+                />
+            </Paper>
         </Group>
     );
 };

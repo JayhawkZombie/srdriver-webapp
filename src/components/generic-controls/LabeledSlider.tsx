@@ -1,5 +1,5 @@
 import React from "react";
-import { Slider, type SliderProps, Group, Text } from "@mantine/core";
+import { Slider, type SliderProps, Group, Text, Paper } from "@mantine/core";
 import styles from "./LabeledSlider.module.css";
 import isNil from "lodash/isNil";
 
@@ -36,25 +36,28 @@ export const LabeledSlider: React.FC<Props> = ({
     }
     return (
         <Group gap="sm" w="100%">
-            <Group className={styles.labelGroup}>
-                <Text size="sm" fw={500}>
-                    {label}
-                </Text>
-                <Text size="sm" c="dimmed" className={styles.textValue}>
-                    {valueDisplay}
-                </Text>
-            </Group>
-            <Slider
-                min={min}
-                max={max}
-                step={step}
-                defaultValue={defaultValue}
-                value={value}
-                onChange={onChange}
-                // labelAlwaysOn
-                classNames={styles}
-                className={styles.slider}
-            />
+            <Paper p="sm">
+                <Group className={styles.labelGroup}>
+                    <Text size="sm" fw={500}>
+                        {label}
+                    </Text>
+                    <Text size="xs" c="dimmed" className={styles.textValue}>
+                        {valueDisplay}
+                    </Text>
+                </Group>
+                <Slider
+                    size="xs"
+                    min={min}
+                    max={max}
+                    step={step}
+                    defaultValue={defaultValue}
+                    value={value}
+                    onChange={onChange}
+                    // labelAlwaysOn
+                    classNames={styles}
+                    className={styles.slider + " " + styles.compactSlider}
+                />
+            </Paper>
         </Group>
     );
 };

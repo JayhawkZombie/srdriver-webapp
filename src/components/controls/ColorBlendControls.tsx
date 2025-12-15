@@ -34,20 +34,6 @@ export const ColorBlendControls: React.FC<Props> = ({ srDriver }) => {
 
         setIsLoading(true);
         try {
-            // // Convert hex colors to RGB format
-            // const hexToRgb = (hex: string) => {
-            //     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
-            //         hex
-            //     );
-            //     return result
-            //         ? {
-            //               r: parseInt(result[1], 16),
-            //               g: parseInt(result[2], 16),
-            //               b: parseInt(result[3], 16),
-            //           }
-            //         : null;
-            // };
-
             const color1Rgb = hexToRgb(colorRange[0]);
             const color2Rgb = hexToRgb(colorRange[1]);
 
@@ -86,31 +72,6 @@ export const ColorBlendControls: React.FC<Props> = ({ srDriver }) => {
             </Text>
 
             <Stack gap="sm" w="100%">
-                {/* <Group gap="sm" w="fit-content">
-                    <Text size="sm" fw={500} w="50%">
-                        Color 1:
-                    </Text>
-                    <ColorInput
-                        className={styles.colorInput}
-                        value={blendColor1}
-                        onChange={setBlendColor1}
-                        placeholder="Pick color 1"
-                        // w="50%"
-                    />
-                </Group>
-
-                <Group gap="sm" w="100%">
-                    <Text size="sm" fw={500} w="50%">
-                        Color 2:
-                    </Text>
-                    <ColorInput
-                        value={blendColor2}
-                        onChange={setBlendColor2}
-                        placeholder="Pick color 2"
-                        w="50%"
-                    />
-                </Group> */}
-
                 <ColorRange format="hex" value={colorRange} onChange={(value) => {
                     setColorRange([
                         value[0] ?? "#000000",

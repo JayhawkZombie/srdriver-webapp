@@ -1,4 +1,4 @@
-export const hslRegex = /^hsl\((\d+),\s?(\d+)%,\s?(\d+)%\)$/gim;
+export const hslRegex = /^hsl\((\d+),\s?(\d+)%,\s?(\d+)%\)$/im;
 export const hexRegex = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
 
 export const parseHSL = (hsl: string) => {
