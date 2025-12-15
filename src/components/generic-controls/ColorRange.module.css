@@ -1,7 +1,13 @@
 .rangeDisplay {
      /* Displays the 2 HSV values with a gradient between them */
     width: 100%;
+    min-width: 5rem;
+    flex: 20;
     height: 1.5rem;
     border-radius: 3px;
     background: linear-gradient(to right, var(--hsv-color-1), var(--hsv-color-2));
+}
+
+.colorInput {
+    flex: 10;
 }

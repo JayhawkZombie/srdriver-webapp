@@ -6,7 +6,8 @@ import {
     Slider,
     Group,
     Button,
-    ColorInput, type ColorInputProps,
+    ColorInput,
+    type ColorInputProps,
     SegmentedControl,
     TextInput,
     PasswordInput,
@@ -20,20 +21,30 @@ type Props = {
     label?: string;
     format: ColorInputProps["format"];
     value: [ColorInputProps["value"], ColorInputProps["value"]];
-    onChange: (value: [ColorInputProps["value"], ColorInputProps["value"]]) => void;
+    onChange: (
+        value: [ColorInputProps["value"], ColorInputProps["value"]]
+    ) => void;
 };
 
-export const ColorRange: React.FC<Props> = ({ label, format, value, onChange }) => {
+export const ColorRange: React.FC<Props> = ({
+    label,
+    format,
+    value,
+    onChange,
+}) => {
     return (
-        <Group gap="sm" w="100%" align="center" justify="center">
-            <Paper p="sm" withBorder w="100%">
-                <Stack gap="sm" w="100%" align="center">
-                    {label && (
-                        <Text size="sm" fw={500}>
-                            {label}
-                        </Text>
-                    )}
+        <Paper p="sm" withBorder w="100%">
+            <Group gap="sm" w="100%" align="center" justify="flex-start">
+                {/* <Stack gap="sm" w="100%" align="center"> */}
+                {label && (
+                    <Text size="sm" fw={500}>
+                        {label}
+                    </Text>
+                )}
+                <Group w="100%">
                     <ColorInput
+                        withEyeDropper={false}
+                        className={styles.colorInput}
                         size="xs"
                         format={format}
                         value={value[0]}
@@ -52,6 +63,8 @@ export const ColorRange: React.FC<Props> = ({ label, format, value, onChange }) 
                         }
                     />
                     <ColorInput
+                        withEyeDropper={false}
+                        className={styles.colorInput}
                         size="xs"
                         format={format}
                         value={value[1]}
@@ -59,9 +72,10 @@ export const ColorRange: React.FC<Props> = ({ label, format, value, onChange }) 
                             onChange([value[0], newVal]);
                         }}
                     />
-                </Stack>
+                </Group>
+                {/* </Stack> */}
                 {/* </Group> */}
-            </Paper>
-        </Group>
+            </Group>
+        </Paper>
     );
 };
