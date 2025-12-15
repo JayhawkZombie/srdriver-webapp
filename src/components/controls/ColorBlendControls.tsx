@@ -11,41 +11,45 @@ import {
     TextInput,
     PasswordInput,
     Divider,
+    type ColorInputProps,
 } from "@mantine/core";
 import { IconX, IconPalette } from "@tabler/icons-react";
 import { SRDriver } from "../../services/SRDriver";
-import { WebSocketConnection } from "./WebSocketConnection";
-
+import { ColorRange } from "../generic-controls/ColorRange";
+import styles from "./ColorBlendControls.module.css";
+import { hexToRgb } from "../utility/ColorUtil";
 type Props = {
     srDriver: SRDriver | null;
 };
 
 export const ColorBlendControls: React.FC<Props> = ({ srDriver }) => {
-    const [blendColor1, setBlendColor1] = useState("#00ff00"); // Green
-    const [blendColor2, setBlendColor2] = useState("#0000ff"); // Blue
     const [isLoading, setIsLoading] = useState(false);
+    const [colorRange, setColorRange] = useState<[string, string]>([
+        "#00ff00",
+        "#ff00ff",
+    ]);
 
     const handleShowColorBlendLEDs = async () => {
         if (!srDriver) return;
 
         setIsLoading(true);
         try {
-            // Convert hex colors to RGB format
-            const hexToRgb = (hex: string) => {
-                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
-                    hex
-                );
-                return result
-                    ? {
-                          r: parseInt(result[1], 16),
-                          g: parseInt(result[2], 16),
-                          b: parseInt(result[3], 16),
-                      }
-                    : null;
-            };
+            // // Convert hex colors to RGB format
+            // const hexToRgb = (hex: string) => {
+            //     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
+            //         hex
+            //     );
+            //     return result
+            //         ? {
+            //               r: parseInt(result[1], 16),
+            //               g: parseInt(result[2], 16),
+            //               b: parseInt(result[3], 16),
+            //           }
+            //         : null;
+            // };
 
-            const color1Rgb = hexToRgb(blendColor1);
-            const color2Rgb = hexToRgb(blendColor2);
+            const color1Rgb = hexToRgb(colorRange[0]);
+            const color2Rgb = hexToRgb(colorRange[1]);
 
             if (!color1Rgb || !color2Rgb) {
                 console.error("Invalid color format");
@@ -82,15 +86,16 @@ export const ColorBlendControls: React.FC<Props> = ({ srDriver }) => {
             </Text>
 
             <Stack gap="sm" w="100%">
-                <Group gap="sm" w="100%">
+                {/* <Group gap="sm" w="fit-content">
                     <Text size="sm" fw={500} w="50%">
                         Color 1:
                     </Text>
                     <ColorInput
+                        className={styles.colorInput}
                         value={blendColor1}
                         onChange={setBlendColor1}
                         placeholder="Pick color 1"
-                        w="50%"
+                        // w="50%"
                     />
                 </Group>
 
@@ -104,7 +109,14 @@ export const ColorBlendControls: React.FC<Props> = ({ srDriver }) => {
                         placeholder="Pick color 2"
                         w="50%"
                     />
-                </Group>
+                </Group> */}
+
+                <ColorRange format="hex" value={colorRange} onChange={(value) => {
+                    setColorRange([
+                        value[0] ?? "#000000",
+                        value[1] ?? "#000000",
+                    ]);
+                }} />
 
                 <Button
                     leftSection={<IconPalette size={16} />}

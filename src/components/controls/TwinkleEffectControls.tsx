@@ -234,7 +234,7 @@ export const TwinkleEffectControls: React.FC<Props> = ({ srDriver }) => {
                 >
                     {isLoading ? "Sending..." : "Show Twinkling LEDs"}
                 </Button>
-                <JSONCommandPreview command={JSON.stringify({
+                <JSONCommandPreview command={{
                     t: "effect",
                     e: {
                         t: "twinkle",
@@ -249,7 +249,7 @@ export const TwinkleEffectControls: React.FC<Props> = ({ srDriver }) => {
                             fos: effectParams.fadeOutSpeed,
                         },
                     },
-                })} />
+                }} />
             </Stack>
         </Group>
     );

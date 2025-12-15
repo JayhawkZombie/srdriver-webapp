@@ -1,3 +1,5 @@
 .connectionButtonContainer {
   align-items: stretch;
+  flex-wrap: nowrap;
+  min-width: 200px;
 }

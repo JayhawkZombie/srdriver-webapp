@@ -1,10 +1,10 @@
 import React from "react";
 import { ScrollArea, Text } from "@mantine/core";
 import styles from "./JSONCommandPreview.module.css";
-import { JsonView } from "react-json-view-lite";
+import { JsonView, darkStyles } from "react-json-view-lite";
 
 type Props = {
-    command: string;
+    command: {[key: string]: any};
     isCompact?: boolean;
 };
 
@@ -15,7 +15,7 @@ export const JSONCommandPreview: React.FC<Props> = ({ command, isCompact = false
                 {isCompact ? "Compact JSON" : "Full JSON"}
             </Text>
             <Text size="sm" c="dimmed" className={styles.text}>
-                <JsonView data={JSON.parse(command)} />
+                <JsonView style={darkStyles} data={command} />
             </Text>
         </ScrollArea>
     );

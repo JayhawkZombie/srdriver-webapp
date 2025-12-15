@@ -196,15 +196,22 @@ export class SRDriver {
   }
 
   async getIPAddress(): Promise<string | null> {
-    if (!this.ipAddressCharacteristic) {
-      console.log('📱 IP address characteristic not available (older device)');
+    if (!this.ipAddressCharacteristic && !this.wsIP) {
+      console.log('📱 IP address characteristic not available (older device) or WebSocket IP not available');
       return null;
     }
 
     try {
       // Add delay to avoid GATT operation conflicts
       await this.delayRequest(500);
-      const data = await this.ipAddressCharacteristic.readValue();
+      let data: ArrayBuffer;
+      if (this.ipAddressCharacteristic) {
+        data = await this.ipAddressCharacteristic.readValue();
+      } else if (this.wsIP) {
+        data = new TextEncoder().encode(this.wsIP).buffer;
+      } else {
+        return null;
+      }
       const ipAddress = new TextDecoder().decode(data);
       console.log(`📱 Read IP address: ${ipAddress}`);
       return ipAddress;

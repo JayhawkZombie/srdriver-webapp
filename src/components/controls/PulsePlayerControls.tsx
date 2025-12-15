@@ -20,19 +20,17 @@ type Props = {
     srDriver: SRDriver | null;
 };
 
-export const FlatColorControls: React.FC<Props> = ({
-    srDriver,
-}) => {
-    const [color, setColor] = useState("#ffffff");
+export const PulsePlayerControls: React.FC<Props> = ({ srDriver }) => {
+    const [pulsePlayerColor, setPulsePlayerColor] = useState("#ffffff");
     const [isLoading, setIsLoading] = useState(false);
 
-        const handleShowColorLEDs = async () => {
+    const handleShowPulsePlayerLEDs = async () => {
         if (!srDriver) return;
 
         setIsLoading(true);
         try {
             // Convert hex color to RGB
-            const hex = color.replace("#", "");
+            const hex = pulsePlayerColor.replace("#", "");
             const r = parseInt(hex.substr(0, 2), 16);
             const g = parseInt(hex.substr(2, 2), 16);
             const b = parseInt(hex.substr(4, 2), 16);
@@ -41,18 +39,14 @@ export const FlatColorControls: React.FC<Props> = ({
             const command = JSON.stringify({
                 t: "effect",
                 e: {
-                    t: "solid_color",
-                    p: {
-                        c: `rgb(${r},${g},${b})`,
-                        d: -1,
-                    },
+                    t: "pulse",
                 },
             });
 
             await srDriver.sendCommand(command);
-            console.log("✅ Sent color LED command:", command);
+            console.log("✅ Sent pulse player LED command:", command);
         } catch (error) {
-            console.error("Failed to send color LED command:", error);
+            console.error("Failed to send pulse player LED command:", error);
         } finally {
             setIsLoading(false);
         }
@@ -62,27 +56,27 @@ export const FlatColorControls: React.FC<Props> = ({
         <Group gap="md" w="100%">
             <Group gap="md" w="100%">
                 <Text size="sm" fw={500} w={100}>
-                    Color
+                    Pulse Player
                 </Text>
                 <ColorInput
-                    value={color}
-                    onChange={setColor}
+                    value={pulsePlayerColor}
+                    onChange={setPulsePlayerColor}
                     format="hex"
                     style={{ flex: 1 }}
                     size="md"
-                    placeholder="Pick color"
+                    placeholder="Pick pulse player color"
                 />
             </Group>
 
             <Button
                 leftSection={<IconPalette size={16} />}
-                onClick={handleShowColorLEDs}
+                onClick={handleShowPulsePlayerLEDs}
                 loading={isLoading}
                 variant="filled"
                 color="blue"
                 fullWidth
             >
-                {isLoading ? "Sending..." : "Show Color LEDs"}
+                {isLoading ? "Sending..." : "Show Pulse Player LEDs"}
             </Button>
         </Group>
     );

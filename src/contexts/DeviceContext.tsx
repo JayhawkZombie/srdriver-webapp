@@ -12,6 +12,8 @@ interface ConnectedDevice {
   lastActivity: Date;
 }
 
+type ConnectionCallback = (info: ConnectedDevice) => Promise<void>;
+
 interface DeviceContextType {
   devices: ConnectedDevice[];
   communicationLogs: CommunicationLog[];
@@ -19,8 +21,8 @@ interface DeviceContextType {
   error: string | null;
   
   // Device management
-  connectDeviceBLE: () => Promise<void>;
-  connectDeviceWebSocket: (ip: string) => Promise<void>;
+  connectDeviceBLE: ( callback: ConnectionCallback ) => Promise<void>;
+  connectDeviceWebSocket: (ip: string, callback: ConnectionCallback ) => Promise<void>;
   disconnectDevice: (deviceId: string) => Promise<void>;
   getDevice: (deviceId: string) => ConnectedDevice | undefined;
   
@@ -67,7 +69,7 @@ export const DeviceProvider: React.FC<DeviceProviderProps> = ({ children }) => {
     setError(null);
   }, []);
 
-  const connectDeviceBLE = useCallback(async () => {
+  const connectDeviceBLE = useCallback(async (callback: ConnectionCallback) => {
     try {
       setIsConnecting(true);
       setError(null);
@@ -95,6 +97,7 @@ export const DeviceProvider: React.FC<DeviceProviderProps> = ({ children }) => {
       };
 
       setDevices(prev => [...prev, newDevice]);
+      await callback(newDevice);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'BLE connection failed');
     } finally {
@@ -102,7 +105,7 @@ export const DeviceProvider: React.FC<DeviceProviderProps> = ({ children }) => {
     }
   }, [devices.length, addCommunicationLog]);
 
-  const connectDeviceWebSocket = useCallback(async (ip: string) => {
+  const connectDeviceWebSocket = useCallback(async (ip: string, callback: ConnectionCallback) => {
     try {
       setIsConnecting(true);
       setError(null);
@@ -127,6 +130,7 @@ export const DeviceProvider: React.FC<DeviceProviderProps> = ({ children }) => {
       };
 
       setDevices(prev => [...prev, newDevice]);
+      await callback(newDevice);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'WebSocket connection failed');
     } finally {

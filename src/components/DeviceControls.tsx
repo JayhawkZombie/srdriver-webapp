@@ -20,13 +20,15 @@ import { ColorBlendControls } from "./controls/ColorBlendControls";
 import { TwinkleEffectControls } from "./controls/TwinkleEffectControls";
 import styles from "./DeviceControls.module.css";
 import { RainEffectControls } from "./controls/RainEffectControls";
+import { WaveEffectControls } from "./controls/WaveEffectControls";
+import { PulsePlayerControls } from "./controls/PulsePlayerControls";
 
 interface DeviceControlsProps {
     deviceId: string;
     onDisconnect: () => void;
 }
 
-const effectTabs = ["flat", "rainbow", "blend", "twinkling", "rain", "waves", "misc"];
+const effectTabs = ["flat", "rainbow", "blend", "twinkling", "rain", "waves", "pulse", "misc"];
 type EffectTab = (typeof effectTabs)[number];
 
 export const DeviceControls: React.FC<DeviceControlsProps> = ({
@@ -204,6 +206,14 @@ export const DeviceControls: React.FC<DeviceControlsProps> = ({
 
                     {activeEffectTab === "rain" && (
                         <RainEffectControls srDriver={srDriver} />
+                    )}
+
+                    {activeEffectTab === "waves" && (
+                        <WaveEffectControls srDriver={srDriver} />
+                    )}
+
+                    {activeEffectTab === "pulse" && (
+                        <PulsePlayerControls srDriver={srDriver} />
                     )}
 
                 </div>
