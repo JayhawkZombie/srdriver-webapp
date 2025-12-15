@@ -4,7 +4,8 @@
     gap: 1rem;
     min-width: 40rem;
     transition: min-width 0.3s ease-in-out;
-    max-width: 60rem;
+    max-width: 80rem;
+    width: 60rem;
 }
 
 .deviceControlsContainer {

@@ -29,10 +29,8 @@ type Props = {
 export const RainEffectControls: React.FC<Props> = ({ srDriver }) => {
     const [isLoading, setIsLoading] = useState(false);
 
-    // const [tElapStart, setTElapStart] = useState(0);
     const [baseTimeBetweenRings, setBaseTimeBetweenRings] = useState(0.14);
     const [oddsOfRadiating, setOddsOfRadiating] = useState(3);
-    // const [colorRange, setColorRange] = useState(160);
     const [ringWidthRange, setRingWidthRange] = useState<RangeSliderValue>([
         2, 4,
     ]);
@@ -90,12 +88,8 @@ export const RainEffectControls: React.FC<Props> = ({ srDriver }) => {
                     sc_max: spawnColumnRange[1],
                     sr_min: spawnRowRange[0],
                     sr_max: spawnRowRange[1],
-                    // hi_min: hiLightRange[0],
-                    // hi_max: hiLightRange[1],
                     hi_min: parsedHiLightHSL.h,
                     hi_max: parsedHiLightHSL2.h,
-                    // lo_min: loLightRange[0],
-                    // lo_max: loLightRange[1],
                     lo_min: parsedLoLightHSL.h,
                     lo_max: parsedLoLightHSL2.h,
                     rw_min: ringWidthRange[0],
@@ -138,78 +132,8 @@ export const RainEffectControls: React.FC<Props> = ({ srDriver }) => {
                 <Text size="sm" c="dimmed">
                     🌧️ Rain Effect
                 </Text>
-                <Group>
-                    <Stack></Stack>
-                    {/* End of left stack */}
-
-                    <Stack></Stack>
-                    {/* End of right stack */}
-                </Group>
-
-                <Card withBorder w="fit-content">
-                    <Group wrap="nowrap" align="flex-start">
-                        <Stack>
-                            <LabeledSlider
-                                label="Odds Of Radiating"
-                                value={oddsOfRadiating}
-                                onChange={(newVal: SliderValue) => {
-                                    setOddsOfRadiating(newVal ?? 3);
-                                }}
-                                min={0}
-                                max={10}
-                                step={1}
-                                defaultValue={3}
-                                unit=""
-                                customValueFormatter={(value: SliderValue) => {
-                                    return `1 in ${value}`;
-                                }}
-                            />
-                            <LabeledSlider
-                                label="One Pulse Chance"
-                                value={onePulseChance}
-                                onChange={(newVal: SliderValue) => {
-                                    setOnePulseChance(newVal ?? 0.3);
-                                }}
-                                min={0}
-                                max={1}
-                                step={0.01}
-                                defaultValue={0.3}
-                                unit=""
-                                customValueFormatter={(value: SliderValue) => {
-                                    return `${(value ?? 0) * 100}%`;
-                                }}
-                            />
-                        </Stack>
-                        <Stack>
-                            <LabeledSlider
-                                label="Fade R Ratio"
-                                value={fadeRRatio}
-                                onChange={(newVal: SliderValue) => {
-                                    setFadeRRatio(newVal ?? 1.6);
-                                }}
-                                min={0}
-                                max={5}
-                                step={0.01}
-                                defaultValue={1.6}
-                                unit="px"
-                            />
-                            <LabeledSlider
-                                label="Fade W Ratio"
-                                value={fadeWRatio}
-                                onChange={(newVal: SliderValue) => {
-                                    setFadeWRatio(newVal ?? 1.6);
-                                }}
-                                min={0}
-                                max={5}
-                                step={0.01}
-                                defaultValue={1.6}
-                                unit="px"
-                            />
-                        </Stack>
-                    </Group>
-                </Card>
-                <Card withBorder>
-                    <Group gap="sm" w="100%" wrap="nowrap">
+                <Grid gutter="md">
+                    <Grid.Col span={4}>
                         <ColorRange
                             label="Hi Light Range"
                             format="hsl"
@@ -232,151 +156,191 @@ export const RainEffectControls: React.FC<Props> = ({ srDriver }) => {
                                 ]);
                             }}
                         />
-                    </Group>
-                </Card>
-                <Card withBorder>
-                    <Group wrap="nowrap" align="flex-start">
-                        <Stack>
-                            <LabeledRangeSlider
-                                label="Ring Width"
-                                value={ringWidthRange}
-                                onChange={(newVal: RangeSliderValue) => {
-                                    setRingWidthRange(newVal);
-                                }}
-                                min={0}
-                                max={12}
-                                step={0.1}
-                                minRange={1}
-                                // defaultValue={[2, 4]}
-                                unit="px"
-                            />
-                            <LabeledRangeSlider
-                                label="Lifetime Range"
-                                value={lifetimeRange}
-                                onChange={(newVal: RangeSliderValue) => {
-                                    setLifetimeRange(newVal);
-                                }}
-                                min={0}
-                                max={10}
-                                step={0.01}
-                            />
-                            <LabeledRangeSlider
-                                label="Amplitude Range"
-                                value={amplitudeRange}
-                                onChange={(newVal: RangeSliderValue) => {
-                                    setAmplitudeRange(newVal);
-                                }}
-                                min={0}
-                                max={10}
-                                step={0.01}
-                            />
-                        </Stack>
-                        <Stack>
-                            <LabeledRangeSlider
-                                label="Spawn Column Range"
-                                value={spawnColumnRange}
-                                onChange={(newVal: RangeSliderValue) => {
-                                    setSpawnColumnRange(newVal);
-                                }}
-                                min={0}
-                                max={32}
-                                step={1}
-                                defaultValue={[-8, 38]}
-                                unit="px"
-                                customValueFormatter={(
-                                    value: RangeSliderValue
-                                ) => {
-                                    return `(${value[0]}, ${value[1]})`;
-                                }}
-                            />
-                            <LabeledRangeSlider
-                                label="Spawn Row Range"
-                                value={spawnRowRange}
-                                onChange={(newVal: RangeSliderValue) => {
-                                    setSpawnRowRange(newVal);
-                                }}
-                                customValueFormatter={(
-                                    value: RangeSliderValue
-                                ) => {
-                                    return `(${value[0]}, ${value[1]})`;
-                                }}
-                                min={0}
-                                max={32}
-                                step={1}
-                                defaultValue={[-8, 38]}
-                                unit="px"
-                            />
-                        </Stack>
-                    </Group>
-                </Card>
-                <Card withBorder>
-                    <Group wrap="nowrap" align="flex-start">
-                        <Stack>
-                            <LabeledSlider
-                                label="Base Time Between Rings"
-                                value={baseTimeBetweenRings}
-                                onChange={(newVal: SliderValue) => {
-                                    setBaseTimeBetweenRings(newVal ?? 0.14);
-                                }}
-                                min={0}
-                                max={1}
-                                step={0.01}
-                                defaultValue={0.14}
-                                unit="s"
-                            />
-                            <LabeledSlider
-                                label="Base Spawn Time"
-                                value={baseSpawnTime}
-                                onChange={(newVal: SliderValue) => {
-                                    setBaseSpawnTime(newVal ?? 0.5);
-                                }}
-                                min={0}
-                                max={10}
-                                step={0.01}
-                                defaultValue={0.5}
-                                unit="s"
-                            />
-                        </Stack>
-                        <Stack>
-                            <LabeledSlider
-                                label="Speed Factor"
-                                value={speedFactor}
-                                onChange={(newVal: SliderValue) => {
-                                    setSpeedFactor(newVal ?? 1.0);
-                                }}
-                                min={0}
-                                max={10}
-                                step={0.01}
-                                defaultValue={1.0}
-                                unit=""
-                            />
-                            <LabeledSlider
-                                label="T Start Factor"
-                                value={tStartFactor}
-                                onChange={(newVal: SliderValue) => {
-                                    setTStartFactor(newVal ?? 2.0);
-                                }}
-                                min={0}
-                                max={4}
-                                step={0.01}
-                                defaultValue={2.0}
-                                unit=""
-                            />
-                            <LabeledSlider
-                                label="T Start Mod"
-                                value={tStartMod}
-                                onChange={(newVal: SliderValue) => {
-                                    setTStartMod(newVal ?? 1000);
-                                }}
-                                min={0}
-                                max={10000}
-                                step={1}
-                                defaultValue={1000}
-                                unit=""
-                            />
-                        </Stack>
-                    </Group>
-                </Card>
+                        <LabeledRangeSlider
+                            label="Ring Width"
+                            value={ringWidthRange}
+                            onChange={(newVal: RangeSliderValue) => {
+                                setRingWidthRange(newVal);
+                            }}
+                            min={0}
+                            max={12}
+                            step={0.1}
+                            minRange={1}
+                            // defaultValue={[2, 4]}
+                            unit="px"
+                        />
+                        <LabeledRangeSlider
+                            label="Lifetime Range"
+                            value={lifetimeRange}
+                            onChange={(newVal: RangeSliderValue) => {
+                                setLifetimeRange(newVal);
+                            }}
+                            min={0}
+                            max={10}
+                            step={0.01}
+                        />
+                        <LabeledRangeSlider
+                            label="Amplitude Range"
+                            value={amplitudeRange}
+                            onChange={(newVal: RangeSliderValue) => {
+                                setAmplitudeRange(newVal);
+                            }}
+                            min={0}
+                            max={10}
+                            step={0.01}
+                        />
+                    </Grid.Col>
+                    {/* Leftmost */}
+                    <Grid.Col span={4}>
+                        <LabeledSlider
+                            label="Fade R Ratio"
+                            value={fadeRRatio}
+                            onChange={(newVal: SliderValue) => {
+                                setFadeRRatio(newVal ?? 1.6);
+                            }}
+                            min={0}
+                            max={5}
+                            step={0.01}
+                            defaultValue={1.6}
+                            unit="px"
+                        />
+                        <LabeledSlider
+                            label="Fade W Ratio"
+                            value={fadeWRatio}
+                            onChange={(newVal: SliderValue) => {
+                                setFadeWRatio(newVal ?? 1.6);
+                            }}
+                            min={0}
+                            max={5}
+                            step={0.01}
+                            defaultValue={1.6}
+                            unit="px"
+                        />
+                        <LabeledRangeSlider
+                            label="Spawn Column Range"
+                            value={spawnColumnRange}
+                            onChange={(newVal: RangeSliderValue) => {
+                                setSpawnColumnRange(newVal);
+                            }}
+                            min={0}
+                            max={32}
+                            step={1}
+                            defaultValue={[-8, 38]}
+                            unit="px"
+                            customValueFormatter={(value: RangeSliderValue) => {
+                                return `(${value[0]}, ${value[1]})`;
+                            }}
+                        />
+                        <LabeledRangeSlider
+                            label="Spawn Row Range"
+                            value={spawnRowRange}
+                            onChange={(newVal: RangeSliderValue) => {
+                                setSpawnRowRange(newVal);
+                            }}
+                            customValueFormatter={(value: RangeSliderValue) => {
+                                return `(${value[0]}, ${value[1]})`;
+                            }}
+                            min={0}
+                            max={32}
+                            step={1}
+                            defaultValue={[-8, 38]}
+                            unit="px"
+                        />
+                        <LabeledSlider
+                            label="Odds Of Radiating"
+                            value={oddsOfRadiating}
+                            onChange={(newVal: SliderValue) => {
+                                setOddsOfRadiating(newVal ?? 3);
+                            }}
+                            min={0}
+                            max={10}
+                            step={1}
+                            defaultValue={3}
+                            unit=""
+                            customValueFormatter={(value: SliderValue) => {
+                                return `1 in ${value}`;
+                            }}
+                        />
+                        <LabeledSlider
+                            label="One Pulse Chance"
+                            value={onePulseChance}
+                            onChange={(newVal: SliderValue) => {
+                                setOnePulseChance(newVal ?? 0.3);
+                            }}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            defaultValue={0.3}
+                            unit=""
+                            customValueFormatter={(value: SliderValue) => {
+                                return `${(value ?? 0) * 100}%`;
+                            }}
+                        />
+                    </Grid.Col>
+                    {/* Middle */}
+                    <Grid.Col span={4}>
+                        <LabeledSlider
+                            label="Base Time Between Rings"
+                            value={baseTimeBetweenRings}
+                            onChange={(newVal: SliderValue) => {
+                                setBaseTimeBetweenRings(newVal ?? 0.14);
+                            }}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            defaultValue={0.14}
+                            unit="s"
+                        />
+                        <LabeledSlider
+                            label="Base Spawn Time"
+                            value={baseSpawnTime}
+                            onChange={(newVal: SliderValue) => {
+                                setBaseSpawnTime(newVal ?? 0.5);
+                            }}
+                            min={0}
+                            max={10}
+                            step={0.01}
+                            defaultValue={0.5}
+                            unit="s"
+                        />
+                        <LabeledSlider
+                            label="Speed Factor"
+                            value={speedFactor}
+                            onChange={(newVal: SliderValue) => {
+                                setSpeedFactor(newVal ?? 1.0);
+                            }}
+                            min={0}
+                            max={10}
+                            step={0.01}
+                            defaultValue={1.0}
+                            unit=""
+                        />
+                        <LabeledSlider
+                            label="T Start Factor"
+                            value={tStartFactor}
+                            onChange={(newVal: SliderValue) => {
+                                setTStartFactor(newVal ?? 2.0);
+                            }}
+                            min={0}
+                            max={4}
+                            step={0.01}
+                            defaultValue={2.0}
+                            unit=""
+                        />
+                        <LabeledSlider
+                            label="T Start Mod"
+                            value={tStartMod}
+                            onChange={(newVal: SliderValue) => {
+                                setTStartMod(newVal ?? 1000);
+                            }}
+                            min={0}
+                            max={10000}
+                            step={1}
+                            defaultValue={1000}
+                            unit=""
+                        />
+                    </Grid.Col>
+                </Grid>
                 <Button
                     leftSection={<IconCloudRain size={16} />}
                     onClick={handleShowRainLEDs}

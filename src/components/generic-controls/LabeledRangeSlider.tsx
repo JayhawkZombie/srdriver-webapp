@@ -30,7 +30,7 @@ export const LabeledRangeSlider: React.FC<Props> = ({ label, value, onChange, mi
     }
     return (
         <Group gap="sm" w="100%">
-            <Paper p="sm">
+            <Paper p="sm" withBorder w="100%">
                 <Group className={styles.labelGroup}>
                     <Text size="sm" fw={500}>
                         {label}
