@@ -1,20 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
-    Card,
-    Stack,
     Text,
-    Slider,
     Group,
-    Button,
     ColorInput,
     type ColorInputProps,
-    SegmentedControl,
-    TextInput,
-    PasswordInput,
-    Divider,
     Paper,
 } from "@mantine/core";
-import { IconX, IconPalette } from "@tabler/icons-react";
 import styles from "./ColorRange.module.css";
 
 type Props = {

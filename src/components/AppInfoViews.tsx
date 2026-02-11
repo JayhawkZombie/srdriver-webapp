@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { ActionIcon, Container, Drawer, Group, Stack } from "@mantine/core";
+import { useState } from "react";
+import { ActionIcon, Container, Drawer, Stack } from "@mantine/core";
 import AppStoreDisplay from "../stores/AppStoreDisplay";
 import { CommunicationMonitor } from "./monitoring/CommunicationMonitor";
 import { IconInfoCircle } from "@tabler/icons-react";

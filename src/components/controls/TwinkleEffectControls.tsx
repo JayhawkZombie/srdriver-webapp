@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
-    Card,
     Stack,
     Text,
-    Slider,
     Group,
     Button,
-    ColorInput,
-    SegmentedControl,
-    TextInput,
-    PasswordInput,
-    Divider,
-    RangeSlider,
     type RangeSliderValue,
 } from "@mantine/core";
-import { IconX, IconPalette } from "@tabler/icons-react";
+import { IconPalette } from "@tabler/icons-react";
 import { SRDriver } from "../../services/SRDriver";
-import styles from "./TwinkleEffectControls.module.css";
 import { LabeledRangeSlider } from "../generic-controls/LabeledRangeSlider";
 import { LabeledSlider, type SliderValue } from "../generic-controls/LabeledSlider";
 import { JSONCommandPreview } from "../generic-controls/JSONCommandPreview";

@@ -1,7 +1,6 @@
 import { Card, Group, Slider, Stack, Text } from '@mantine/core';
-import React, { useState } from 'react';
-import type { SRDriver } from '../../../services/SRDriver';
-import { LabeledSlider, type SliderValue } from '../../generic-controls/LabeledSlider';
+import React from 'react';
+import { type SliderValue } from '../../generic-controls/LabeledSlider';
 
 
 // Controls to set hte value of 3 coefficients for the wave pattern

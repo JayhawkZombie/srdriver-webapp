@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { JsonView } from "react-json-view-lite";
 import { type CommunicationLog } from "../../services/SRDriver";
 import { Group, Text, Badge, Accordion } from "@mantine/core";
@@ -8,7 +8,7 @@ type Props = {
 };
 
 export const CommunicationLogDisplay: React.FC<Props> = ({ log }) => {
-    const [expanded, setExpanded] = useState(false);
+    // const [expanded, setExpanded] = useState(false);
     const formatTimestamp = (timestamp: Date) => {
         return timestamp.toLocaleTimeString();
     };
@@ -21,12 +21,10 @@ export const CommunicationLogDisplay: React.FC<Props> = ({ log }) => {
         return direction === "out" ? "orange" : "cyan";
     };
 
-    const getCommandTypeColor = (commandType: string) => {
+    const getCommandTypeColor = (
+        _commandType: string
+    ) => {
         return "green";
-    };
-
-    const toggleCommandExpanded = () => {
-        setExpanded(!expanded);
     };
 
     const parsedCommand = JSON.parse(log.command);

@@ -11,7 +11,6 @@ import {
 import { IconPlus } from "@tabler/icons-react";
 import { useDeviceContext } from "../contexts/DeviceContext";
 import { DeviceControls } from "./DeviceControls";
-import { CommunicationMonitor } from "./monitoring/CommunicationMonitor";
 import styles from "./generic-controls/ConnectionButton.module.css";
 import { useAppStore } from "../stores/appStore";
 
@@ -28,13 +27,6 @@ export const ConnectionButton = () => {
     const [wsIP, setWsIP] = useState("");
 
     const addDeviceToHistory = useAppStore((state) => state.addDeviceToHistory);
-    const checkIfDeviceExists = (ip?: string) => {
-        // Check if ip exists in app state
-        const deviceHistory = useAppStore.getState().deviceHistory;
-        return Object.values(deviceHistory).some(
-            (device) => device.ipAddress === ip
-        );
-    };
 
     const handleBLEConnect = async () => {
         await connectDeviceBLE(async (info) => {

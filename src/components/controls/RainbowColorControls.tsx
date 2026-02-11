@@ -1,20 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
-    Card,
-    Stack,
     Text,
-    Slider,
     Group,
     Button,
-    ColorInput,
-    SegmentedControl,
-    TextInput,
-    PasswordInput,
-    Divider,
 } from "@mantine/core";
-import { IconX, IconPalette } from "@tabler/icons-react";
+import { IconPalette } from "@tabler/icons-react";
 import { SRDriver } from "../../services/SRDriver";
-import { WebSocketConnection } from "./WebSocketConnection";
 
 type Props = {
     srDriver: SRDriver | null;

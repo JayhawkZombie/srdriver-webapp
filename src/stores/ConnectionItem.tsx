@@ -1,4 +1,4 @@
-import { Card, Stack, Text, Group } from "@mantine/core";
+import { Card, Text, Group } from "@mantine/core";
 import { AutoConnectButton } from "../components/AutoConnectButton";
 import type { PersistedDeviceInfo } from "../types/App";
 import { IconBluetooth, IconWifi } from "@tabler/icons-react";

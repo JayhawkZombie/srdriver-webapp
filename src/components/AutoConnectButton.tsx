@@ -1,5 +1,4 @@
 // Button that auto-connects (like ConnectionButton, but provided the IP address ahead of time it will just try to initiate a connection when clicked)
-import React from "react";
 import { ActionIcon } from "@mantine/core";
 import { IconPlugConnectedX } from "@tabler/icons-react";
 import { useDeviceContext } from "../contexts/DeviceContext";

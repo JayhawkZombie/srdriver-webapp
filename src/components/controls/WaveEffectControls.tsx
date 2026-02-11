@@ -49,12 +49,12 @@ export const WaveEffectControls: React.FC<Props> = ({ srDriver }) => {
     const [c_lt, setC_lt] = useState([0.0, 0.0, 0.0]);
     const [onLight, setOnLight] = useState("#ffffff");
     const [offLight, setOffLight] = useState("#0000ff");
-    const [rightTrigFuncIndex, setRightTrigFuncIndex] = useState(0);
-    const [leftTrigFuncIndex, setLeftTrigFuncIndex] = useState(0);
+    // const [rightTrigFuncIndex, setRightTrigFuncIndex] = useState(0);
+    // const [leftTrigFuncIndex, setLeftTrigFuncIndex] = useState(0);
     const [useRightCoefficients, setUseRightCoefficients] = useState(false);
     const [useLeftCoefficients, setUseLeftCoefficients] = useState(false);
-    const [nTermsRt, setNTermsRt] = useState(0);
-    const [nTermsLt, setNTermsLt] = useState(0);
+    // const [nTermsRt, setNTermsRt] = useState(0);
+    // const [nTermsLt, setNTermsLt] = useState(0);
     const [speed, setSpeed] = useState(1.0);
 
     const generateCommandJson = () => {

@@ -163,7 +163,7 @@ export class SRDriver {
   }
 
   async sendCommand(command: string): Promise<void> {
-    const startTime = performance.now();
+    // const startTime = performance.now();
     let method: 'ble' | 'websocket' = 'ble';
     let success = false;
     let error: string | undefined;
@@ -183,7 +183,7 @@ export class SRDriver {
         console.log(`📱 Sent command via BLE: ${command}`);
         success = true;
       } else {
-        throw new Error('No connection available');
+        throw new Error(`No connection available: ${method} ${success} ${error}`);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';

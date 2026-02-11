@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
-    Card,
     Stack,
     Text,
-    Slider,
     Group,
     Button,
-    ColorInput,
-    SegmentedControl,
-    TextInput,
-    PasswordInput,
-    Divider,
-    type ColorInputProps,
 } from "@mantine/core";
-import { IconX, IconPalette } from "@tabler/icons-react";
+import { IconPalette } from "@tabler/icons-react";
 import { SRDriver } from "../../services/SRDriver";
 import { ColorRange } from "../generic-controls/ColorRange";
-import styles from "./ColorBlendControls.module.css";
 import { hexToRgb } from "../utility/ColorUtil";
 type Props = {
     srDriver: SRDriver | null;

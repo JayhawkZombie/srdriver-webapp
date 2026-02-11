@@ -12,7 +12,6 @@ import { IconSun, IconMoon } from "@tabler/icons-react";
 import { AppStateProvider } from "./contexts/AppStateProvider";
 import { DeviceProvider } from "./contexts/DeviceContext";
 import { ConnectionButton } from "./components/ConnectionButton";
-import AppStoreDisplay from "./stores/AppStoreDisplay";
 import AppInfoViews from "./components/AppInfoViews";
 
 const App = () => {

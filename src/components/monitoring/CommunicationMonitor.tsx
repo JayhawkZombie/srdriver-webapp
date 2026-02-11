@@ -1,4 +1,4 @@
-import { Card, Stack, Text, Group, Badge, ScrollArea } from '@mantine/core';
+import { Card, Stack, Text, Group, ScrollArea } from '@mantine/core';
 import { useDeviceContext } from '../../contexts/DeviceContext';
 import { CommunicationLogDisplay } from './CommunicationLogDisplay';
 

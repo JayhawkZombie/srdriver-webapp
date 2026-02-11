@@ -1,7 +1,6 @@
 import { Button, Card, Group, ScrollArea, Stack, Text } from '@mantine/core';
 import { useAppStore } from './appStore';
 import styles from './AppStoreDisplay.module.css';
-import { AutoConnectButton } from '../components/AutoConnectButton';
 import { ConnectionItem } from './ConnectionItem';
 
 export default function AppStoreDisplay() {

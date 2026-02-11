@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
-    Card,
     Stack,
     Text,
-    Slider,
-    Group,
     Button,
-    ColorInput,
-    SegmentedControl,
-    TextInput,
-    PasswordInput,
-    Divider,
     type RangeSliderValue,
     Grid,
 } from "@mantine/core";
-import { IconX, IconPalette } from "@tabler/icons-react";
+import { IconPalette } from "@tabler/icons-react";
 import { SRDriver } from "../../services/SRDriver";
-import { WebSocketConnection } from "./WebSocketConnection";
 import { LabeledRangeSlider } from "../generic-controls/LabeledRangeSlider";
 import { JSONCommandPreview } from "../generic-controls/JSONCommandPreview";
 import { parseHSL } from "../utility/ColorUtil";
@@ -27,7 +18,6 @@ type Props = {
 };
 
 export const PulsePlayerControls: React.FC<Props> = ({ srDriver }) => {
-    const [pulsePlayerColor, setPulsePlayerColor] = useState("#ffffff");
     const [isLoading, setIsLoading] = useState(false);
 
     const [pulseWidthRange, setPulseWidthRange] = useState<RangeSliderValue>([
