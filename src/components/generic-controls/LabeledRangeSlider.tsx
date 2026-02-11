@@ -41,7 +41,7 @@ export const LabeledRangeSlider: React.FC<Props> = ({ label, value, onChange, mi
                     </Text>
                 </Group>
                 <RangeSlider
-                    size="xs"
+                    size="sm"
                     min={min}
                     max={max}
                     minRange={minRange ?? 1}

@@ -29,7 +29,7 @@ const App = () => {
                         miw={20}
                         align="flex-start"
                     >
-                        <Stack align="center" gap="xl">
+                        <Stack align="center" gap="xl" w="100%">
                             <Group justify="space-between" w="100%">
                                 <Title
                                     order={1}

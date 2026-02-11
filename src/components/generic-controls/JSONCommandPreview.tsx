@@ -9,6 +9,7 @@ type Props = {
 };
 
 export const JSONCommandPreview: React.FC<Props> = ({ command, isCompact = false }) => {
+    console.log("command", command);
     return (
         <ScrollArea h={200} className={styles.scrollArea}>
             <Text size="sm" c="dimmed" className={styles.text}>

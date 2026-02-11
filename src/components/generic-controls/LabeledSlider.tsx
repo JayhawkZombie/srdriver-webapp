@@ -46,7 +46,7 @@ export const LabeledSlider: React.FC<Props> = ({
                     </Text>
                 </Group>
                 <Slider
-                    size="xs"
+                    size="sm"
                     min={min}
                     max={max}
                     step={step}

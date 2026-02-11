@@ -5,7 +5,7 @@
     flex: 20;
     height: 1.5rem;
     border-radius: 3px;
-    background: linear-gradient(to right, var(--hsv-color-1), var(--hsv-color-2));
+    background: linear-gradient(to right, color-mix(in hsl, var(--hsv-color-1), var(--hsv-color-2)));
 }
 
 .colorInput {
