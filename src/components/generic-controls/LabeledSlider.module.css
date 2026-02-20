@@ -1,0 +1,49 @@
+.slider {
+  width: 100%;
+  /* min-width: 400px; */
+}
+
+.label {
+  top: 0;
+  height: 24px;
+  line-height: 28px;
+  width: 34px;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 700;
+  background-color: transparent;
+}
+
+.labelGroup {
+  /* width: 15rem; */
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.thumb {
+  background-color:rgb(131, 131, 131);
+  height: 24px;
+  width: 48px;
+  border: none;
+}
+
+.groupContainer {
+  width: 100%;
+  min-width: 400px;
+}
+
+.textValue {
+    min-width: 20px;
+    width: fit-content;
+    text-align: left;
+}
+
+.compactSlider {
+  /* min-width: 15rem;
+  max-width: 15rem; */
+  width: 100%;
+  padding: 0.5rem;
+  /* margin: 0.5rem; */
+}

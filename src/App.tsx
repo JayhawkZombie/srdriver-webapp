@@ -1,37 +1,71 @@
-import React, { useEffect, useContext } from "react";
-import Dashboard from "./components/Dashboard";
-import { DeviceControllerProvider } from "./controllers/DeviceControllerContext";
-import { ToastProvider } from "./controllers/ToastContext";
-import GlobalToast from "./components/GlobalToast";
-import { UnifiedThemeProvider } from "./context/UnifiedThemeProvider";
-import { UnifiedThemeContext } from "./context/UnifiedThemeContext";
-// @ts-expect-error - no types for blueprintjs direct css imports
-import "@blueprintjs/core/lib/css/blueprint.css";
+import {
+    Container,
+    Title,
+    Text,
+    Stack,
+    Group,
+    ActionIcon,
+    useMantineColorScheme,
+    Affix,
+} from "@mantine/core";
+import { IconSun, IconMoon } from "@tabler/icons-react";
+import { AppStateProvider } from "./contexts/AppStateProvider";
+import { DeviceProvider } from "./contexts/DeviceContext";
+import { ConnectionButton } from "./components/ConnectionButton";
+import AppInfoViews from "./components/AppInfoViews";
 
 const App = () => {
-    const theme = useContext(UnifiedThemeContext);
-    useEffect(() => {
-        if (theme?.mode === 'dark') {
-            document.body.classList.add('bp5-dark');
-        } else {
-            document.body.classList.remove('bp5-dark');
-        }
-    }, [theme?.mode]);
+    const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+
     return (
-        <UnifiedThemeProvider>
-                    <DeviceControllerProvider>
-                        <ToastProvider>
-                            <GlobalToast />
-                    <UnifiedThemeContext.Consumer>
-                        {(value) => {
-                            if (!value) return null;
-                            const { mode, toggleMode } = value;
-                            return <Dashboard mode={mode} onToggleMode={toggleMode} />;
-                        }}
-                    </UnifiedThemeContext.Consumer>
-                        </ToastProvider>
-                    </DeviceControllerProvider>
-        </UnifiedThemeProvider>
+        <AppStateProvider>
+            <DeviceProvider>
+                <Container size="md" py="xl">
+                    <Group
+                        justify="space-between"
+                        w="100%"
+                        wrap="nowrap"
+                        miw={20}
+                        align="flex-start"
+                    >
+                        <Stack align="center" gap="xl" w="100%">
+                            <Group justify="space-between" w="100%">
+                                <Title
+                                    order={1}
+                                    ta="center"
+                                    style={{ flex: 1 }}
+                                >
+                                    SRDriver LED Controller
+                                </Title>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="lg"
+                                    onClick={() => toggleColorScheme()}
+                                    title="Toggle color scheme"
+                                >
+                                    {colorScheme === "dark" ? (
+                                        <IconSun size={18} />
+                                    ) : (
+                                        <IconMoon size={18} />
+                                    )}
+                                </ActionIcon>
+                            </Group>
+
+                            <Text size="lg" c="dimmed" ta="center">
+                                Connect to your SRDriver device and control LED
+                                effects
+                            </Text>
+
+                            <ConnectionButton />
+                        </Stack>
+                        <Affix position={{ right: 20, top: 20 }}>
+                            <AppInfoViews />
+                        </Affix>
+                    </Group>
+                    {/* <AppStoreDisplay /> */}
+                </Container>
+            </DeviceProvider>
+        </AppStateProvider>
     );
 };
 

@@ -1,18 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
+import { MantineProvider, createTheme } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import App from './App';
-import reportWebVitals from './reportWebVitals';
-import "@blueprintjs/core/lib/css/blueprint.css";
+// @ts-ignore
+import '@mantine/core/styles.css';
 
-const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
-);
-root.render(
-  <App />
-);
+const theme = createTheme({
+  /** Put your mantine theme override here */
+});
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <MantineProvider theme={theme} defaultColorScheme="auto">
+      <Notifications />
+      <App />
+    </MantineProvider>
+  </React.StrictMode>
+);
