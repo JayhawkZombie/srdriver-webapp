@@ -15,7 +15,7 @@ export class BLEConnection {
       });
 
       // Connect to GATT server
-      this.server = await this.device.gatt?.connect();
+      this.server = await this.device.gatt?.connect() || null;
       if (!this.server) {
         throw new Error('Failed to connect to GATT server');
       }

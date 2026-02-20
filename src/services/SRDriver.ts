@@ -204,7 +204,7 @@ export class SRDriver {
     try {
       // Add delay to avoid GATT operation conflicts
       await this.delayRequest(500);
-      let data: ArrayBuffer;
+      let data: ArrayBuffer | DataView<ArrayBufferLike>;
       if (this.ipAddressCharacteristic) {
         data = await this.ipAddressCharacteristic.readValue();
       } else if (this.wsIP) {
