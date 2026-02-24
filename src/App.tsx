@@ -13,6 +13,7 @@ import { AppStateProvider } from "./contexts/AppStateProvider";
 import { DeviceProvider } from "./contexts/DeviceContext";
 import { ConnectionButton } from "./components/ConnectionButton";
 import AppInfoViews from "./components/AppInfoViews";
+import { EffectPreviewCanvas } from "./components/effect-preview/EffectPreviewCanvas";
 
 const App = () => {
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
@@ -57,6 +58,7 @@ const App = () => {
                             </Text>
 
                             <ConnectionButton />
+                            <EffectPreviewCanvas />
                         </Stack>
                         <Affix position={{ right: 20, top: 20 }}>
                             <AppInfoViews />
