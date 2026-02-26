@@ -1,10 +1,10 @@
 import { useRef, useEffect, useState } from "react";
 import { Paper, Title, Text } from "@mantine/core";
 import {
-    createRingPlayerAPI,
+    createPulsePlayerAPI,
     ROWS,
     COLS,
-    type RingPlayerAPI,
+    type PulsePlayerAPI,
 } from "../../wasm/playersModule";
 
 const CELL_SIZE = 10; // pixels per LED
@@ -15,7 +15,7 @@ export function EffectPreviewCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [error, setError] = useState<string | null>(null);
     const [ready, setReady] = useState(false);
-    const apiRef = useRef<RingPlayerAPI | null>(null);
+    const apiRef = useRef<PulsePlayerAPI | null>(null);
     const rafRef = useRef<number>(0);
     const lastTimeRef = useRef<number>(0);
 
@@ -24,17 +24,14 @@ export function EffectPreviewCanvas() {
 
         (async () => {
             try {
-                const api = await createRingPlayerAPI();
+                const api = await createPulsePlayerAPI();
                 if (cancelled) {
                     api.dispose();
                     return;
                 }
                 apiRef.current = api;
 
-                api.init(ROWS, COLS);
-                api.setCenter(ROWS / 2, COLS / 2);
-                api.setProps(80, 2, 50, 4);
-                api.setColors(0, 200, 255, 20, 40, 80);
+                api.init(16 * 16, 0, 200, 255, 80, 40, true);
                 api.start();
 
                 setReady(true);
@@ -62,11 +59,12 @@ export function EffectPreviewCanvas() {
             const api = apiRef.current;
             if (!api) return;
 
-            const dt = lastTimeRef.current ? (now - lastTimeRef.current) / 1000 : 1 / 60;
+            const dt = 0.016;// lastTimeRef.current ? (now - lastTimeRef.current) / 1000 : 1 / 60;
             lastTimeRef.current = now;
 
             api.clearBuffer();
-            if (!api.update(dt)) api.start();
+            api.update(dt);
+            // if (!api.update(dt)) api.start();
             const buf = new Uint8Array(api.getBufferView());
 
             const imageData = ctx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -113,7 +111,7 @@ export function EffectPreviewCanvas() {
         <Paper p="md" withBorder>
             <Title order={4}>Effect preview (WASM)</Title>
             <Text size="sm" c="dimmed" mb="xs">
-                Ring player — same C++ as device
+                Pulse player — same C++ as device
             </Text>
             <canvas
                 ref={canvasRef}

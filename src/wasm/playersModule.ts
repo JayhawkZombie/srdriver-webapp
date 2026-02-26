@@ -61,25 +61,28 @@ export function loadPlayersModule(): Promise<PlayersModule> {
 
 /** Ring player API using the loaded module. */
 export type RingPlayerAPI = {
-  /** Buffer pointer in WASM heap (from _malloc). Do not free while using. */
   bufferPtr: number;
-  /** Get a view of the current LED buffer (r,g,b per LED). */
   getBufferView: () => Uint8Array;
-  /** Initialize the ring: bind to buffer and grid size. */
   init: (rows?: number, cols?: number) => void;
-  /** Set ring center in grid coords. */
   setCenter: (rowC: number, colC: number) => void;
-  /** Set ring animation params. */
   setProps: (speed: number, ringWidth: number, fadeRadius: number, fadeWidth: number) => void;
-  /** Set hi/lo colors (0–255). */
   setColors: (hiR: number, hiG: number, hiB: number, loR: number, loG: number, loB: number) => void;
-  /** Start the ring animation. */
   start: () => void;
-  /** Advance by dt seconds; returns true if still playing. */
   update: (dt: number) => boolean;
-  /** Clear the LED buffer to black (call before update() each frame to avoid brightness buildup). */
   clearBuffer: () => void;
-  /** Release the buffer (call when done). */
+  dispose: () => void;
+};
+
+/** Pulse player API: 1D strip, pulse travels along LEDs. */
+export type PulsePlayerAPI = {
+  bufferPtr: number;
+  getBufferView: () => Uint8Array;
+  /** Initialize: buffer, num LEDs, pulse color (RGB), pulse width (LEDs), speed, repeat. */
+  init: (numLeds?: number, hiR?: number, hiG?: number, hiB?: number, pulseWidth?: number, speed?: number, doRepeat?: boolean) => void;
+  setColor: (r: number, g: number, b: number) => void;
+  start: () => void;
+  update: (dt: number) => void;
+  clearBuffer: () => void;
   dispose: () => void;
 };
 
@@ -106,6 +109,29 @@ export async function createRingPlayerAPI(module?: PlayersModule | null): Promis
     },
     start: () => mod.ccall('wasm_ring_start', null, [], []),
     update: (dt: number) => (mod.ccall('wasm_ring_update', 'number', ['number'], [dt]) as number) !== 0,
+    clearBuffer: () => mod.HEAPU8.fill(0, bufferPtr, bufferPtr + BUFFER_BYTES),
+    dispose: () => mod._free(bufferPtr),
+  };
+}
+
+export async function createPulsePlayerAPI(module?: PlayersModule | null): Promise<PulsePlayerAPI> {
+  const mod = module ?? (await loadPlayersModule());
+  const bufferPtr = mod._malloc(BUFFER_BYTES);
+  if (bufferPtr === 0) throw new Error('WASM malloc failed for LED buffer');
+  mod.HEAPU8.fill(0, bufferPtr, bufferPtr + BUFFER_BYTES);
+
+  return {
+    bufferPtr,
+    getBufferView: () => mod.HEAPU8.subarray(bufferPtr, bufferPtr + BUFFER_BYTES),
+    init: (numLeds = NUM_LEDS, hiR = 0, hiG = 200, hiB = 255, pulseWidth = 8, speed = 60, doRepeat = true) => {
+      mod.ccall('wasm_pulse_init', null, ['number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'],
+        [bufferPtr, numLeds, hiR, hiG, hiB, pulseWidth, speed, doRepeat ? 1 : 0]);
+    },
+    setColor: (r: number, g: number, b: number) => {
+      mod.ccall('wasm_pulse_set_color', null, ['number', 'number', 'number'], [r, g, b]);
+    },
+    start: () => mod.ccall('wasm_pulse_start', null, [], []),
+    update: (dt: number) => mod.ccall('wasm_pulse_update', null, ['number'], [dt]),
     clearBuffer: () => mod.HEAPU8.fill(0, bufferPtr, bufferPtr + BUFFER_BYTES),
     dispose: () => mod._free(bufferPtr),
   };

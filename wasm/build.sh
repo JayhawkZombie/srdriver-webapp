@@ -38,6 +38,10 @@ EXPORTED_FUNCTIONS=(
   _wasm_ring_set_colors
   _wasm_ring_start
   _wasm_ring_update
+  _wasm_pulse_init
+  _wasm_pulse_set_color
+  _wasm_pulse_start
+  _wasm_pulse_update
 )
 
 EXPORTED_FUNCTIONS_JSON="["
@@ -53,6 +57,7 @@ EXPORTED_FUNCTIONS_JSON+="]"
 # ------------------------------------------------------------------------------
 SOURCES=(
   "${SCRIPT_DIR}/src/RingPlayer.cpp"
+  "${SCRIPT_DIR}/src/PulsePlayer.cpp"
   "${SCRIPT_DIR}/src/vec2f.cpp"
   "${SCRIPT_DIR}/src/players_api.cpp"
 )

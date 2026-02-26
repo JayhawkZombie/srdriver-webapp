@@ -1686,6 +1686,10 @@ var _wasm_ring_set_props = Module['_wasm_ring_set_props'] = makeInvalidEarlyAcce
 var _wasm_ring_set_colors = Module['_wasm_ring_set_colors'] = makeInvalidEarlyAccess('_wasm_ring_set_colors');
 var _wasm_ring_start = Module['_wasm_ring_start'] = makeInvalidEarlyAccess('_wasm_ring_start');
 var _wasm_ring_update = Module['_wasm_ring_update'] = makeInvalidEarlyAccess('_wasm_ring_update');
+var _wasm_pulse_init = Module['_wasm_pulse_init'] = makeInvalidEarlyAccess('_wasm_pulse_init');
+var _wasm_pulse_set_color = Module['_wasm_pulse_set_color'] = makeInvalidEarlyAccess('_wasm_pulse_set_color');
+var _wasm_pulse_start = Module['_wasm_pulse_start'] = makeInvalidEarlyAccess('_wasm_pulse_start');
+var _wasm_pulse_update = Module['_wasm_pulse_update'] = makeInvalidEarlyAccess('_wasm_pulse_update');
 var _fflush = makeInvalidEarlyAccess('_fflush');
 var _strerror = makeInvalidEarlyAccess('_strerror');
 var _malloc = Module['_malloc'] = makeInvalidEarlyAccess('_malloc');
@@ -1708,6 +1712,10 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['wasm_ring_set_colors'] != 'undefined', 'missing Wasm export: wasm_ring_set_colors');
   assert(typeof wasmExports['wasm_ring_start'] != 'undefined', 'missing Wasm export: wasm_ring_start');
   assert(typeof wasmExports['wasm_ring_update'] != 'undefined', 'missing Wasm export: wasm_ring_update');
+  assert(typeof wasmExports['wasm_pulse_init'] != 'undefined', 'missing Wasm export: wasm_pulse_init');
+  assert(typeof wasmExports['wasm_pulse_set_color'] != 'undefined', 'missing Wasm export: wasm_pulse_set_color');
+  assert(typeof wasmExports['wasm_pulse_start'] != 'undefined', 'missing Wasm export: wasm_pulse_start');
+  assert(typeof wasmExports['wasm_pulse_update'] != 'undefined', 'missing Wasm export: wasm_pulse_update');
   assert(typeof wasmExports['fflush'] != 'undefined', 'missing Wasm export: fflush');
   assert(typeof wasmExports['strerror'] != 'undefined', 'missing Wasm export: strerror');
   assert(typeof wasmExports['malloc'] != 'undefined', 'missing Wasm export: malloc');
@@ -1727,6 +1735,10 @@ function assignWasmExports(wasmExports) {
   _wasm_ring_set_colors = Module['_wasm_ring_set_colors'] = createExportWrapper('wasm_ring_set_colors', 6);
   _wasm_ring_start = Module['_wasm_ring_start'] = createExportWrapper('wasm_ring_start', 0);
   _wasm_ring_update = Module['_wasm_ring_update'] = createExportWrapper('wasm_ring_update', 1);
+  _wasm_pulse_init = Module['_wasm_pulse_init'] = createExportWrapper('wasm_pulse_init', 8);
+  _wasm_pulse_set_color = Module['_wasm_pulse_set_color'] = createExportWrapper('wasm_pulse_set_color', 3);
+  _wasm_pulse_start = Module['_wasm_pulse_start'] = createExportWrapper('wasm_pulse_start', 0);
+  _wasm_pulse_update = Module['_wasm_pulse_update'] = createExportWrapper('wasm_pulse_update', 1);
   _fflush = createExportWrapper('fflush', 1);
   _strerror = createExportWrapper('strerror', 1);
   _malloc = Module['_malloc'] = createExportWrapper('malloc', 1);
