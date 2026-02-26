@@ -59,31 +59,41 @@ export function loadPlayersModule(): Promise<PlayersModule> {
   return modulePromise;
 }
 
-/** Ring player API using the loaded module. */
-export type RingPlayerAPI = {
-  bufferPtr: number;
+/** Simulation runs at this rate (fixed dt per step). */
+export const SIMULATION_FPS = 60;
+export const SIMULATION_DT = 1 / SIMULATION_FPS;
+
+/**
+ * Common interface for any effect that can be driven by the animation loop and drawn to the LED grid.
+ * Keeps animation (fixed timestep, update) separate from rendering (getBufferView → canvas).
+ */
+export type CanvasEffect = {
   getBufferView: () => Uint8Array;
+  clearBuffer: () => void;
+  /** Advance simulation by dt; return false if effect stopped and should be restarted (e.g. one-shot ring). */
+  update: (dt: number) => void | boolean;
+  dispose: () => void;
+  /** Called when update() returns false (optional; e.g. ring restarts, pulse ignores). */
+  restart?: () => void;
+};
+
+/** Ring player API using the loaded module. */
+export type RingPlayerAPI = CanvasEffect & {
+  bufferPtr: number;
   init: (rows?: number, cols?: number) => void;
   setCenter: (rowC: number, colC: number) => void;
   setProps: (speed: number, ringWidth: number, fadeRadius: number, fadeWidth: number) => void;
   setColors: (hiR: number, hiG: number, hiB: number, loR: number, loG: number, loB: number) => void;
   start: () => void;
-  update: (dt: number) => boolean;
-  clearBuffer: () => void;
-  dispose: () => void;
 };
 
 /** Pulse player API: 1D strip, pulse travels along LEDs. */
-export type PulsePlayerAPI = {
+export type PulsePlayerAPI = CanvasEffect & {
   bufferPtr: number;
-  getBufferView: () => Uint8Array;
   /** Initialize: buffer, num LEDs, pulse color (RGB), pulse width (LEDs), speed, repeat. */
   init: (numLeds?: number, hiR?: number, hiG?: number, hiB?: number, pulseWidth?: number, speed?: number, doRepeat?: boolean) => void;
   setColor: (r: number, g: number, b: number) => void;
   start: () => void;
-  update: (dt: number) => void;
-  clearBuffer: () => void;
-  dispose: () => void;
 };
 
 export async function createRingPlayerAPI(module?: PlayersModule | null): Promise<RingPlayerAPI> {
@@ -111,6 +121,7 @@ export async function createRingPlayerAPI(module?: PlayersModule | null): Promis
     update: (dt: number) => (mod.ccall('wasm_ring_update', 'number', ['number'], [dt]) as number) !== 0,
     clearBuffer: () => mod.HEAPU8.fill(0, bufferPtr, bufferPtr + BUFFER_BYTES),
     dispose: () => mod._free(bufferPtr),
+    restart: function () { mod.ccall('wasm_ring_start', null, [], []); },
   };
 }
 
@@ -131,8 +142,9 @@ export async function createPulsePlayerAPI(module?: PlayersModule | null): Promi
       mod.ccall('wasm_pulse_set_color', null, ['number', 'number', 'number'], [r, g, b]);
     },
     start: () => mod.ccall('wasm_pulse_start', null, [], []),
-    update: (dt: number) => mod.ccall('wasm_pulse_update', null, ['number'], [dt]),
+    update: (dt: number): void => { mod.ccall('wasm_pulse_update', null, ['number'], [dt]); },
     clearBuffer: () => mod.HEAPU8.fill(0, bufferPtr, bufferPtr + BUFFER_BYTES),
     dispose: () => mod._free(bufferPtr),
+    restart: function () { mod.ccall('wasm_pulse_start', null, [], []); },
   };
 }

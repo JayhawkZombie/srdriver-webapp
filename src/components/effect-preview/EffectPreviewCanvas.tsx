@@ -4,7 +4,8 @@ import {
     createPulsePlayerAPI,
     ROWS,
     COLS,
-    type PulsePlayerAPI,
+    SIMULATION_DT,
+    type CanvasEffect,
 } from "../../wasm/playersModule";
 
 const CELL_SIZE = 10; // pixels per LED
@@ -15,9 +16,10 @@ export function EffectPreviewCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [error, setError] = useState<string | null>(null);
     const [ready, setReady] = useState(false);
-    const apiRef = useRef<PulsePlayerAPI | null>(null);
+    const apiRef = useRef<CanvasEffect | null>(null);
     const rafRef = useRef<number>(0);
     const lastTimeRef = useRef<number>(0);
+    const accumulatorRef = useRef<number>(0);
 
     useEffect(() => {
         let cancelled = false;
@@ -55,16 +57,27 @@ export function EffectPreviewCanvas() {
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
+        const maxAccumulated = 0.1; // cap to avoid spiral of death
+
         const draw = (now: number) => {
             const api = apiRef.current;
             if (!api) return;
 
-            const dt = 0.016;// lastTimeRef.current ? (now - lastTimeRef.current) / 1000 : 1 / 60;
+            const lastTime = lastTimeRef.current;
+            const realDt = lastTime ? (now - lastTime) / 1000 : SIMULATION_DT;
             lastTimeRef.current = now;
 
-            api.clearBuffer();
-            api.update(dt);
-            // if (!api.update(dt)) api.start();
+            let acc = accumulatorRef.current + realDt;
+            if (acc > maxAccumulated) acc = maxAccumulated;
+
+            while (acc >= SIMULATION_DT) {
+                api.clearBuffer();
+                const stillPlaying = api.update(SIMULATION_DT);
+                if (stillPlaying === false && api.restart) api.restart();
+                acc -= SIMULATION_DT;
+            }
+            accumulatorRef.current = acc;
+
             const buf = new Uint8Array(api.getBufferView());
 
             const imageData = ctx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
