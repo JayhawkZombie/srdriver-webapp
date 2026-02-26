@@ -7,10 +7,11 @@ import {
     SIMULATION_DT,
     type CanvasEffect,
 } from "../../wasm/playersModule";
+import { MatrixArrangement } from "./LEDs";
 
-const CELL_SIZE = 10; // pixels per LED
-const CANVAS_WIDTH = COLS * CELL_SIZE;
-const CANVAS_HEIGHT = ROWS * CELL_SIZE;
+const LAMP_SIZE = 10;
+const GAP = 10;
+const arrangement = new MatrixArrangement(ROWS, COLS, LAMP_SIZE, GAP, "#1a1a2e");
 
 export function EffectPreviewCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -79,26 +80,7 @@ export function EffectPreviewCanvas() {
             accumulatorRef.current = acc;
 
             const buf = new Uint8Array(api.getBufferView());
-
-            const imageData = ctx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
-            imageData.data.fill(0);
-            for (let r = 0; r < ROWS; r++) {
-                for (let c = 0; c < COLS; c++) {
-                    const i = (r * COLS + c) * 3;
-                    const px = c * CELL_SIZE;
-                    const py = r * CELL_SIZE;
-                    for (let dy = 0; dy < CELL_SIZE; dy++) {
-                        for (let dx = 0; dx < CELL_SIZE; dx++) {
-                            const out = ((py + dy) * CANVAS_WIDTH + (px + dx)) * 4;
-                            imageData.data[out] = buf[i];
-                            imageData.data[out + 1] = buf[i + 1];
-                            imageData.data[out + 2] = buf[i + 2];
-                            imageData.data[out + 3] = 255;
-                        }
-                    }
-                }
-            }
-            ctx.putImageData(imageData, 0, 0);
+            arrangement.render(ctx, buf);
 
             rafRef.current = requestAnimationFrame(draw);
         };
@@ -128,8 +110,8 @@ export function EffectPreviewCanvas() {
             </Text>
             <canvas
                 ref={canvasRef}
-                width={CANVAS_WIDTH}
-                height={CANVAS_HEIGHT}
+                width={arrangement.width}
+                height={arrangement.height}
                 style={{ display: "block", borderRadius: 4 }}
             />
         </Paper>
