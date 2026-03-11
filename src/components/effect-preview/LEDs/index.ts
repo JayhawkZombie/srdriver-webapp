@@ -1,10 +1,10 @@
 export type { ILEDArrangement } from "./LEDArrangement";
 export type { LayoutDimensions } from "./types";
 export {
-  BYTES_PER_LED,
-  fillImageDataTransparent,
-  fillImageDataWithColor,
-  parseBackgroundColor,
+	BYTES_PER_LED,
+	fillImageDataTransparent,
+	fillImageDataWithColor,
+	parseBackgroundColor,
 } from "./types";
 export { MatrixArrangement } from "./MatrixArrangement";
 export { RingArrangement } from "./RingArrangement";

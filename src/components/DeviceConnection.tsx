@@ -1,3 +1,3 @@
 export const DeviceConnection = () => {
-  return <div>DeviceConnection</div>;
+	return <div>DeviceConnection</div>;
 };

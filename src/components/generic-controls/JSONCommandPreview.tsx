@@ -4,20 +4,20 @@ import styles from "./JSONCommandPreview.module.css";
 import { JsonView, darkStyles } from "react-json-view-lite";
 
 type Props = {
-    command: {[key: string]: any};
-    isCompact?: boolean;
+	command: { [key: string]: any };
+	isCompact?: boolean;
 };
 
 export const JSONCommandPreview: React.FC<Props> = ({ command, isCompact = false }) => {
-    console.log("command", command);
-    return (
-        <ScrollArea h={200} className={styles.scrollArea}>
-            <Text size="sm" c="dimmed" className={styles.text}>
-                {isCompact ? "Compact JSON" : "Full JSON"}
-            </Text>
-            <Text size="sm" c="dimmed" className={styles.text}>
-                <JsonView style={darkStyles} data={command} />
-            </Text>
-        </ScrollArea>
-    );
+	console.log("command", command);
+	return (
+		<ScrollArea h={200} className={styles.scrollArea}>
+			<Text size="sm" c="dimmed" className={styles.text}>
+				{isCompact ? "Compact JSON" : "Full JSON"}
+			</Text>
+			<Text size="sm" c="dimmed" className={styles.text}>
+				<JsonView style={darkStyles} data={command} />
+			</Text>
+		</ScrollArea>
+	);
 };

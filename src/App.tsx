@@ -1,12 +1,12 @@
 import {
-    Container,
-    Title,
-    Text,
-    Stack,
-    Group,
-    ActionIcon,
-    useMantineColorScheme,
-    Affix,
+	Container,
+	Title,
+	Text,
+	Stack,
+	Group,
+	ActionIcon,
+	useMantineColorScheme,
+	Affix,
 } from "@mantine/core";
 import { IconSun, IconMoon } from "@tabler/icons-react";
 import { AppStateProvider } from "./contexts/AppStateProvider";
@@ -17,60 +17,45 @@ import { EffectPreviewCanvas } from "./components/effect-preview/EffectPreviewCa
 import { OverlayLEDCanvas } from "./components/effect-preview/OverlayLEDCanvas";
 
 const App = () => {
-    const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+	const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
-    return (
-        <AppStateProvider>
-            <DeviceProvider>
-                <OverlayLEDCanvas />
-                <Container size="md" py="xl">
-                    <Group
-                        justify="space-between"
-                        w="100%"
-                        wrap="nowrap"
-                        miw={20}
-                        align="flex-start"
-                    >
-                        <Stack align="center" gap="xl" w="100%">
-                            <Group justify="space-between" w="100%">
-                                <Title
-                                    order={1}
-                                    ta="center"
-                                    style={{ flex: 1 }}
-                                >
-                                    SRDriver LED Controller
-                                </Title>
-                                <ActionIcon
-                                    variant="subtle"
-                                    size="lg"
-                                    onClick={() => toggleColorScheme()}
-                                    title="Toggle color scheme"
-                                >
-                                    {colorScheme === "dark" ? (
-                                        <IconSun size={18} />
-                                    ) : (
-                                        <IconMoon size={18} />
-                                    )}
-                                </ActionIcon>
-                            </Group>
+	return (
+		<AppStateProvider>
+			<DeviceProvider>
+				<OverlayLEDCanvas />
+				<Container size="md" py="xl">
+					<Group justify="space-between" w="100%" wrap="nowrap" miw={20} align="flex-start">
+						<Stack align="center" gap="xl" w="100%">
+							<Group justify="space-between" w="100%">
+								<Title order={1} ta="center" style={{ flex: 1 }}>
+									SRDriver LED Controller
+								</Title>
+								<ActionIcon
+									variant="subtle"
+									size="lg"
+									onClick={() => toggleColorScheme()}
+									title="Toggle color scheme"
+								>
+									{colorScheme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+								</ActionIcon>
+							</Group>
 
-                            <Text size="lg" c="dimmed" ta="center">
-                                Connect to your SRDriver device and control LED
-                                effects
-                            </Text>
+							<Text size="lg" c="dimmed" ta="center">
+								Connect to your SRDriver device and control LED effects
+							</Text>
 
-                            <ConnectionButton />
-                            <EffectPreviewCanvas />
-                        </Stack>
-                        <Affix position={{ right: 20, top: 20 }}>
-                            <AppInfoViews />
-                        </Affix>
-                    </Group>
-                    {/* <AppStoreDisplay /> */}
-                </Container>
-            </DeviceProvider>
-        </AppStateProvider>
-    );
+							<ConnectionButton />
+							<EffectPreviewCanvas />
+						</Stack>
+						<Affix position={{ right: 20, top: 20 }}>
+							<AppInfoViews />
+						</Affix>
+					</Group>
+					{/* <AppStoreDisplay /> */}
+				</Container>
+			</DeviceProvider>
+		</AppStateProvider>
+	);
 };
 
 export default App;
