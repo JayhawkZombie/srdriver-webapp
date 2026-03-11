@@ -1,4 +1,4 @@
-export interface Device {}
+export interface Device { }
 
 export interface PersistedDeviceInfo {
 	id: string; // Unique device identifier - BLE device ID or IP address

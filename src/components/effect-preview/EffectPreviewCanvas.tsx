@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Paper, Title, Text } from "@mantine/core";
 import {
-	createPulsePlayerAPI,
 	ROWS,
 	COLS,
 	SIMULATION_DT,
