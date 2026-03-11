@@ -34,6 +34,23 @@ void wasm_ring_set_colors(uint8_t hiR, uint8_t hiG, uint8_t hiB, uint8_t loR, ui
     s_ring.loLt.init(loR, loG, loB);
 }
 
+void wasm_ring_setup(float rowC, float colC, float ringSpeed, float ringWidth,
+                     float fadeRadius, float fadeWidth, float amp, int onePulse,
+                     uint8_t hiR, uint8_t hiG, uint8_t hiB, uint8_t loR, uint8_t loG, uint8_t loB) {
+    RPdata rpd;
+    rpd.fRowC = rowC;
+    rpd.fColC = colC;
+    rpd.ringSpeed = ringSpeed;
+    rpd.ringWidth = ringWidth;
+    rpd.fadeRadius = fadeRadius;
+    rpd.fadeWidth = fadeWidth;
+    rpd.Amp = amp;
+    rpd.hiLt.init(hiR, hiG, hiB);
+    rpd.loLt.init(loR, loG, loB);
+    s_ring.setup(rpd);
+    s_ring.onePulse = (onePulse != 0);
+}
+
 void wasm_ring_start(void) {
     s_ring.Start();
 }

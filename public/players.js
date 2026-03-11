@@ -1753,6 +1753,7 @@ var _wasm_ring_init = Module['_wasm_ring_init'] = makeInvalidEarlyAccess('_wasm_
 var _wasm_ring_set_center = Module['_wasm_ring_set_center'] = makeInvalidEarlyAccess('_wasm_ring_set_center');
 var _wasm_ring_set_props = Module['_wasm_ring_set_props'] = makeInvalidEarlyAccess('_wasm_ring_set_props');
 var _wasm_ring_set_colors = Module['_wasm_ring_set_colors'] = makeInvalidEarlyAccess('_wasm_ring_set_colors');
+var _wasm_ring_setup = Module['_wasm_ring_setup'] = makeInvalidEarlyAccess('_wasm_ring_setup');
 var _wasm_ring_start = Module['_wasm_ring_start'] = makeInvalidEarlyAccess('_wasm_ring_start');
 var _wasm_ring_update = Module['_wasm_ring_update'] = makeInvalidEarlyAccess('_wasm_ring_update');
 var _wasm_pulse_init = Module['_wasm_pulse_init'] = makeInvalidEarlyAccess('_wasm_pulse_init');
@@ -1780,6 +1781,7 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['wasm_ring_set_center'] != 'undefined', 'missing Wasm export: wasm_ring_set_center');
   assert(typeof wasmExports['wasm_ring_set_props'] != 'undefined', 'missing Wasm export: wasm_ring_set_props');
   assert(typeof wasmExports['wasm_ring_set_colors'] != 'undefined', 'missing Wasm export: wasm_ring_set_colors');
+  assert(typeof wasmExports['wasm_ring_setup'] != 'undefined', 'missing Wasm export: wasm_ring_setup');
   assert(typeof wasmExports['wasm_ring_start'] != 'undefined', 'missing Wasm export: wasm_ring_start');
   assert(typeof wasmExports['wasm_ring_update'] != 'undefined', 'missing Wasm export: wasm_ring_update');
   assert(typeof wasmExports['wasm_pulse_init'] != 'undefined', 'missing Wasm export: wasm_pulse_init');
@@ -1804,6 +1806,7 @@ function assignWasmExports(wasmExports) {
   _wasm_ring_set_center = Module['_wasm_ring_set_center'] = createExportWrapper('wasm_ring_set_center', 2);
   _wasm_ring_set_props = Module['_wasm_ring_set_props'] = createExportWrapper('wasm_ring_set_props', 4);
   _wasm_ring_set_colors = Module['_wasm_ring_set_colors'] = createExportWrapper('wasm_ring_set_colors', 6);
+  _wasm_ring_setup = Module['_wasm_ring_setup'] = createExportWrapper('wasm_ring_setup', 14);
   _wasm_ring_start = Module['_wasm_ring_start'] = createExportWrapper('wasm_ring_start', 0);
   _wasm_ring_update = Module['_wasm_ring_update'] = createExportWrapper('wasm_ring_update', 1);
   _wasm_pulse_init = Module['_wasm_pulse_init'] = createExportWrapper('wasm_pulse_init', 8);
