@@ -29,3 +29,6 @@ storybook-static
 # top-level txt file, but permit recursive subdirectories to have txt files
 !**/*.txt
 *.txt
+
+# Don't include webassembly build output
+wasm/build
