@@ -1,16 +1,17 @@
 /**
  * Minimal C API for the WASM players so JS can call init/start/update.
  * Buffer pointer is the Emscripten HEAP offset (from _malloc or passed from JS).
+ * Pulse supports multiple instances keyed by bufferPtr; ring remains single-instance.
  */
 #include "RingPlayer.h"
 #include "PulsePlayer.h"
 #include <cstdint>
+#include <map>
 
 static RingPlayer s_ring;
 static bool s_ring_initialized = false;
 
-static PulsePlayer s_pulse;
-static bool s_pulse_initialized = false;
+static std::map<int, PulsePlayer> s_pulse_instances;
 
 extern "C" {
 
@@ -46,21 +47,30 @@ void wasm_pulse_init(int bufferPtr, int numLts, uint8_t hiR, uint8_t hiG, uint8_
     if (bufferPtr == 0 || numLts <= 0) return;
     Light hiLt(hiR, hiG, hiB);
     Light* buf = reinterpret_cast<Light*>(bufferPtr);
-    s_pulse.init(*buf, numLts, hiLt, pulseWidth, speed, doRepeat != 0);
-    s_pulse_initialized = true;
+    PulsePlayer& p = s_pulse_instances[bufferPtr];
+    p.init(*buf, numLts, hiLt, pulseWidth, speed, doRepeat != 0);
 }
 
-void wasm_pulse_set_color(uint8_t r, uint8_t g, uint8_t b) {
-    s_pulse.setColor(r, g, b);
+void wasm_pulse_set_color(int bufferPtr, uint8_t r, uint8_t g, uint8_t b) {
+    auto it = s_pulse_instances.find(bufferPtr);
+    if (it == s_pulse_instances.end()) return;
+    it->second.setColor(r, g, b);
 }
 
-void wasm_pulse_start(void) {
-    s_pulse.Start();
+void wasm_pulse_start(int bufferPtr) {
+    auto it = s_pulse_instances.find(bufferPtr);
+    if (it == s_pulse_instances.end()) return;
+    it->second.Start();
 }
 
-void wasm_pulse_update(float dt) {
-    if (!s_pulse_initialized) return;
-    s_pulse.update(dt);
+void wasm_pulse_update(int bufferPtr, float dt) {
+    auto it = s_pulse_instances.find(bufferPtr);
+    if (it == s_pulse_instances.end()) return;
+    it->second.update(dt);
+}
+
+void wasm_pulse_dispose(int bufferPtr) {
+    s_pulse_instances.erase(bufferPtr);
 }
 
 } // extern "C"

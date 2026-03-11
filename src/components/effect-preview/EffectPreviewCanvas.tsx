@@ -6,6 +6,7 @@ import {
     COLS,
     SIMULATION_DT,
     type CanvasEffect,
+    createRingPlayerAPI,
 } from "../../wasm/playersModule";
 import { MatrixArrangement } from "./LEDs";
 
@@ -27,14 +28,18 @@ export function EffectPreviewCanvas() {
 
         (async () => {
             try {
-                const api = await createPulsePlayerAPI();
+                const api = await createRingPlayerAPI();// createPulsePlayerAPI();
                 if (cancelled) {
                     api.dispose();
                     return;
                 }
                 apiRef.current = api;
 
-                api.init(16 * 16, 0, 200, 255, 80, 40, true);
+                // api.init(16 * 16, 0, 200, 255, 80, 40, true);
+                api.init(32, 32);
+                api.setCenter(16, 16);
+                api.setProps(20, 3, 12, 32);
+                api.setColors(255, 255, 255, 0, 0, 0);
                 api.start();
 
                 setReady(true);

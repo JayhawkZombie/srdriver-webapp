@@ -907,6 +907,75 @@ async function createWasm() {
 
   
 
+  class ExceptionInfo {
+      // excPtr - Thrown object pointer to wrap. Metadata pointer is calculated from it.
+      constructor(excPtr) {
+        this.excPtr = excPtr;
+        this.ptr = excPtr - 24;
+      }
+  
+      set_type(type) {
+        HEAPU32[(((this.ptr)+(4))>>2)] = type;
+      }
+  
+      get_type() {
+        return HEAPU32[(((this.ptr)+(4))>>2)];
+      }
+  
+      set_destructor(destructor) {
+        HEAPU32[(((this.ptr)+(8))>>2)] = destructor;
+      }
+  
+      get_destructor() {
+        return HEAPU32[(((this.ptr)+(8))>>2)];
+      }
+  
+      set_caught(caught) {
+        caught = caught ? 1 : 0;
+        HEAP8[(this.ptr)+(12)] = caught;
+      }
+  
+      get_caught() {
+        return HEAP8[(this.ptr)+(12)] != 0;
+      }
+  
+      set_rethrown(rethrown) {
+        rethrown = rethrown ? 1 : 0;
+        HEAP8[(this.ptr)+(13)] = rethrown;
+      }
+  
+      get_rethrown() {
+        return HEAP8[(this.ptr)+(13)] != 0;
+      }
+  
+      // Initialize native structure fields. Should be called once after allocated.
+      init(type, destructor) {
+        this.set_adjusted_ptr(0);
+        this.set_type(type);
+        this.set_destructor(destructor);
+      }
+  
+      set_adjusted_ptr(adjustedPtr) {
+        HEAPU32[(((this.ptr)+(16))>>2)] = adjustedPtr;
+      }
+  
+      get_adjusted_ptr() {
+        return HEAPU32[(((this.ptr)+(16))>>2)];
+      }
+    }
+  
+  var exceptionLast = 0;
+  
+  var uncaughtExceptionCount = 0;
+  var ___cxa_throw = (ptr, type, destructor) => {
+      var info = new ExceptionInfo(ptr);
+      // Initialize ExceptionInfo content after it was allocated in __cxa_allocate_exception.
+      info.init(type, destructor);
+      exceptionLast = ptr;
+      uncaughtExceptionCount++;
+      assert(false, 'Exception thrown, but exception catching is not enabled. Compile with -sNO_DISABLE_EXCEPTION_CATCHING or -sEXCEPTION_CATCHING_ALLOWED=[..] to catch.');
+    };
+
   var __abort_js = () =>
       abort('native code called abort()');
 
@@ -1393,7 +1462,6 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'makePromise',
   'idsToPromises',
   'makePromiseCallback',
-  'ExceptionInfo',
   'findMatchingCatch',
   'Browser_asyncPrepareDataCounter',
   'isLeapYear',
@@ -1515,6 +1583,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'uncaughtExceptionCount',
   'exceptionLast',
   'exceptionCaught',
+  'ExceptionInfo',
   'Browser',
   'requestFullscreen',
   'requestFullScreen',
@@ -1690,6 +1759,7 @@ var _wasm_pulse_init = Module['_wasm_pulse_init'] = makeInvalidEarlyAccess('_was
 var _wasm_pulse_set_color = Module['_wasm_pulse_set_color'] = makeInvalidEarlyAccess('_wasm_pulse_set_color');
 var _wasm_pulse_start = Module['_wasm_pulse_start'] = makeInvalidEarlyAccess('_wasm_pulse_start');
 var _wasm_pulse_update = Module['_wasm_pulse_update'] = makeInvalidEarlyAccess('_wasm_pulse_update');
+var _wasm_pulse_dispose = Module['_wasm_pulse_dispose'] = makeInvalidEarlyAccess('_wasm_pulse_dispose');
 var _fflush = makeInvalidEarlyAccess('_fflush');
 var _strerror = makeInvalidEarlyAccess('_strerror');
 var _malloc = Module['_malloc'] = makeInvalidEarlyAccess('_malloc');
@@ -1716,6 +1786,7 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['wasm_pulse_set_color'] != 'undefined', 'missing Wasm export: wasm_pulse_set_color');
   assert(typeof wasmExports['wasm_pulse_start'] != 'undefined', 'missing Wasm export: wasm_pulse_start');
   assert(typeof wasmExports['wasm_pulse_update'] != 'undefined', 'missing Wasm export: wasm_pulse_update');
+  assert(typeof wasmExports['wasm_pulse_dispose'] != 'undefined', 'missing Wasm export: wasm_pulse_dispose');
   assert(typeof wasmExports['fflush'] != 'undefined', 'missing Wasm export: fflush');
   assert(typeof wasmExports['strerror'] != 'undefined', 'missing Wasm export: strerror');
   assert(typeof wasmExports['malloc'] != 'undefined', 'missing Wasm export: malloc');
@@ -1736,9 +1807,10 @@ function assignWasmExports(wasmExports) {
   _wasm_ring_start = Module['_wasm_ring_start'] = createExportWrapper('wasm_ring_start', 0);
   _wasm_ring_update = Module['_wasm_ring_update'] = createExportWrapper('wasm_ring_update', 1);
   _wasm_pulse_init = Module['_wasm_pulse_init'] = createExportWrapper('wasm_pulse_init', 8);
-  _wasm_pulse_set_color = Module['_wasm_pulse_set_color'] = createExportWrapper('wasm_pulse_set_color', 3);
-  _wasm_pulse_start = Module['_wasm_pulse_start'] = createExportWrapper('wasm_pulse_start', 0);
-  _wasm_pulse_update = Module['_wasm_pulse_update'] = createExportWrapper('wasm_pulse_update', 1);
+  _wasm_pulse_set_color = Module['_wasm_pulse_set_color'] = createExportWrapper('wasm_pulse_set_color', 4);
+  _wasm_pulse_start = Module['_wasm_pulse_start'] = createExportWrapper('wasm_pulse_start', 1);
+  _wasm_pulse_update = Module['_wasm_pulse_update'] = createExportWrapper('wasm_pulse_update', 2);
+  _wasm_pulse_dispose = Module['_wasm_pulse_dispose'] = createExportWrapper('wasm_pulse_dispose', 1);
   _fflush = createExportWrapper('fflush', 1);
   _strerror = createExportWrapper('strerror', 1);
   _malloc = Module['_malloc'] = createExportWrapper('malloc', 1);
@@ -1755,6 +1827,8 @@ function assignWasmExports(wasmExports) {
 }
 
 var wasmImports = {
+  /** @export */
+  __cxa_throw: ___cxa_throw,
   /** @export */
   _abort_js: __abort_js,
   /** @export */

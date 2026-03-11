@@ -42,6 +42,7 @@ EXPORTED_FUNCTIONS=(
   _wasm_pulse_set_color
   _wasm_pulse_start
   _wasm_pulse_update
+  _wasm_pulse_dispose
 )
 
 EXPORTED_FUNCTIONS_JSON="["

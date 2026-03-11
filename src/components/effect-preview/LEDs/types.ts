@@ -44,3 +44,8 @@ export function fillImageDataWithColor(
     data[i + 3] = 255;
   }
 }
+
+/** Fill ImageData with transparent (alpha 0). Use for overlay canvases. */
+export function fillImageDataTransparent(data: Uint8ClampedArray): void {
+  data.fill(0);
+}

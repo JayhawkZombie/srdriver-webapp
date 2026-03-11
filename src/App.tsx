@@ -14,6 +14,7 @@ import { DeviceProvider } from "./contexts/DeviceContext";
 import { ConnectionButton } from "./components/ConnectionButton";
 import AppInfoViews from "./components/AppInfoViews";
 import { EffectPreviewCanvas } from "./components/effect-preview/EffectPreviewCanvas";
+import { OverlayLEDCanvas } from "./components/effect-preview/OverlayLEDCanvas";
 
 const App = () => {
     const { colorScheme, toggleColorScheme } = useMantineColorScheme();
@@ -21,6 +22,7 @@ const App = () => {
     return (
         <AppStateProvider>
             <DeviceProvider>
+                <OverlayLEDCanvas />
                 <Container size="md" py="xl">
                     <Group
                         justify="space-between"

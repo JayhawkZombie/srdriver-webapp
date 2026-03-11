@@ -2,6 +2,7 @@ import type { ILEDArrangement } from "./LEDArrangement";
 import type { LayoutDimensions } from "./types";
 import {
   BYTES_PER_LED,
+  fillImageDataTransparent,
   fillImageDataWithColor,
   parseBackgroundColor,
 } from "./types";
@@ -16,21 +17,29 @@ export class StripArrangement implements ILEDArrangement {
   readonly numLeds: number;
   readonly width: number;
   readonly height: number;
-  private readonly bg: [number, number, number];
+  readonly length: number;
+  readonly lampSize: number;
+  readonly gap: number;
+  readonly orientation: StripOrientation;
+  private readonly bg: [number, number, number] | null;
 
   constructor(
-    public readonly length: number,
-    /** Size of each LED in pixels. */
-    public readonly lampSize: number,
-    /** Space between lamps in pixels (default 0). */
-    public readonly gap: number = 0,
-    public readonly orientation: StripOrientation = "row",
-    /** Background color (space between LEDs), e.g. "#1a1a2e". */
+    length: number,
+    lampSize: number,
+    gap: number = 0,
+    orientation: StripOrientation = "row",
     backgroundColor: string = "#000000"
   ) {
+    this.length = length;
+    this.lampSize = lampSize;
+    this.gap = gap;
+    this.orientation = orientation;
     this.numLeds = length;
     this.layout = { type: "strip", length };
-    this.bg = parseBackgroundColor(backgroundColor);
+    this.bg =
+      backgroundColor === "transparent"
+        ? null
+        : parseBackgroundColor(backgroundColor);
     const pitch = lampSize + gap;
     const total = length * pitch - gap;
     if (orientation === "row") {
@@ -46,7 +55,8 @@ export class StripArrangement implements ILEDArrangement {
     const { length, lampSize, gap, width, height, orientation, bg } = this;
     const pitch = lampSize + gap;
     const imageData = ctx.createImageData(width, height);
-    fillImageDataWithColor(imageData.data, bg[0], bg[1], bg[2]);
+    if (bg === null) fillImageDataTransparent(imageData.data);
+    else fillImageDataWithColor(imageData.data, bg[0], bg[1], bg[2]);
     for (let i = 0; i < length; i++) {
       const base = i * BYTES_PER_LED;
       const r = buffer[base];
